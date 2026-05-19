@@ -1,0 +1,31 @@
+{
+  "name": "@hyperjump/json-schema-langauge-server",
+  "version": "0.1.0",
+  "description": "A language server for JSON supporting all major versions of JSON Schema",
+  "keywords": [
+    "Hyperjump",
+    "JSON Schema",
+    "JSON",
+    "lsp",
+    "langauge server",
+    "vscode",
+    "extension"
+  ],
+  "license": "MIT",
+  "contributors": [
+    "Jason Desrosiers <jdesrosi@gmail.com>",
+    "Diya Srivastava <diyasrivastava@gmail.com>",
+    "Matthew Adams <mwa.endjin@gmail.com>"
+  ],
+  "repository": "github:hyperjump-io/json-schema-language-server",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/hyperjump-io"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "*",
+    "oxlint": "*",
+    "oxlint-tsgolint": "*",
+    "vitest": "*"
+  }
+}
