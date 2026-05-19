@@ -1,0 +1,27 @@
+{
+  "name": "@hyperjump/json-language-server",
+  "version": "0.1.0",
+  "description": "JSON Language Server",
+  "type": "module",
+  "main": "./src/server.js",
+  "scripts": {
+    "lint": "oxlint src",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "type-check": "tsc --noEmit"
+  },
+  "contributors": [
+    "Jason Desrosiers <jdesrosi@gmail.com>",
+    "Diya Srivastava <diyasrivastava@gmail.com>",
+    "Matthew Adams <mwa.endjin@gmail.com>"
+  ],
+  "license": "MIT",
+  "repository": "github:hyperjump-io/json-language-server",
+  "keywords": [],
+  "dependencies": {
+    "merge-anything": "^6.0.6",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-uri": "^3.1.0"
+  }
+}

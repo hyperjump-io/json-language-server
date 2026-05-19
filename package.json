@@ -22,6 +22,7 @@
     "type": "github",
     "url": "https://github.com/sponsors/hyperjump-io"
   },
+  "type": "module",
   "devDependencies": {
     "@stylistic/eslint-plugin": "*",
     "oxlint": "*",

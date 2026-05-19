@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "build",
+			"path": "vscode",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "npm: build - vscode",
+			"detail": "npm run build-client -- --sourcemap && npm run build-server -- --sourcemap"
+		}
+	]
+}

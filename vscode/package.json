@@ -1,0 +1,43 @@
+{
+  "name": "hyperjump-json",
+  "version": "0.1.0",
+  "description": "A language server for JSON supporting all major versions of JSON Schema",
+  "main": "./out/extension.js",
+  "scripts": {
+    "lint": "eslint src",
+    "type-check": "tsc --noEmit",
+    "vscode:prepublish": "npm run build-client -- --minify && npm run build-server -- --minify",
+    "build": "npm run build-client -- --sourcemap && npm run build-server -- --sourcemap",
+    "build-client": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "build-server": "esbuild ../language-server/src/server.js --bundle --external:fsevents --main-fields=module,main --outfile=out/server.js --external:vscode --format=cjs --platform=node",
+    "package": "vsce package --out=dist",
+    "publish": "vsce publish"
+  },
+  "contributors": [
+    "Jason Desrosiers <jdesrosi@gmail.com>",
+    "Diya Srivastava <diyasrivastava@gmail.com>",
+    "Matthew Adams <mwa.endjin@gmail.com>"
+  ],
+  "license": "MIT",
+  "repository": "github:hyperjump-io/json-language-server",
+  "devDependencies": {
+    "@types/vscode": "^1.120.0",
+    "@vscode/vsce": "^3.9.1",
+    "esbuild": "^0.28.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "activationEvents": [
+    "onLanguage:json"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Configuration for the JSON Language Server",
+      "properties": {}
+    }
+  }
+}
