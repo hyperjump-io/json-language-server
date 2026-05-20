@@ -4,7 +4,7 @@
   "description": "A language server for JSON supporting all major versions of JSON Schema",
   "main": "./out/extension.js",
   "scripts": {
-    "lint": "eslint src",
+    "lint": "oxlint src",
     "type-check": "tsc --noEmit",
     "vscode:prepublish": "npm run build-client -- --minify && npm run build-server -- --minify",
     "build": "npm run build-client -- --sourcemap && npm run build-server -- --sourcemap",
