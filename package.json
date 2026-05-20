@@ -27,6 +27,7 @@
     "@stylistic/eslint-plugin": "*",
     "oxlint": "*",
     "oxlint-tsgolint": "*",
+    "typescript": "^6.0.3",
     "vitest": "*"
   }
 }
