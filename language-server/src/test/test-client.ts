@@ -210,28 +210,28 @@ export class TestClient {
   }
 
   async writeDocument(uri: string, text: string) {
-    const fullUri = Utils.resolvePath(URI.parse(uri), await this.workspaceFolder);
+    const fullUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
     await writeFile(fullUri.fsPath, text, "utf-8");
 
     return fullUri;
   }
 
   async deleteDocument(uri: string) {
-    const fullUri = Utils.resolvePath(URI.parse(uri), await this.workspaceFolder);
+    const fullUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
     await rm(fileURLToPath(fullUri.fsPath));
 
     return fullUri;
   }
 
   async openDocument(uri: string) {
-    const documentUri = Utils.resolvePath(URI.parse(uri), await this.workspaceFolder);
+    const documentUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
 
     await this.client.sendNotification(DidOpenTextDocumentNotification.type, {
       textDocument: {
         uri: documentUri.toString(),
         languageId: "json",
         version: 0,
-        text: await readFile(fileURLToPath(documentUri.fsPath), "utf-8")
+        text: await readFile(documentUri.fsPath, "utf-8")
       }
     });
 
