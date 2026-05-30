@@ -20,6 +20,7 @@
   "keywords": [],
   "dependencies": {
     "@hyperjump/json-schema": "^1.17.6",
+    "@hyperjump/json-schema-errors": "github:hyperjump-io/json-schema-errors",
     "jsonc-parser": "^3.3.1",
     "merge-anything": "^6.0.6",
     "vscode-languageserver": "^9.0.1",

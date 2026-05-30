@@ -1,9 +1,13 @@
-import { TextDocuments, TextDocumentSyncKind, Diagnostic, DiagnosticSeverity } from "vscode-languageserver";
+import { TextDocuments, TextDocumentSyncKind } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import * as jsonc from "jsonc-parser";
 import { Server } from "../services/server.ts";
+import { getSyntaxDiagnostics } from "./SyntaxValidation.ts";
 
 import type { ServerCapabilities } from "vscode-languageserver";
+import { getSchemaDiagnostics, type MatchingSchemaCollector } from "./SchemaValidation.ts";
+
+const documentMap = new Map<string, MatchingSchemaCollector>();
 
 export class JsonValidation {
   constructor(server: Server, documents: TextDocuments<TextDocument>) {
@@ -17,27 +21,27 @@ export class JsonValidation {
       };
     });
 
+    // Single onDidChangeContent handler to ensure one combined sendDiagnostics call per change, preventing multiple diagnostic pushes per keystroke from separate features
     documents.onDidChangeContent(async (change) => {
       const textDocument = change.document;
       const text = textDocument.getText();
       const parseErrors: jsonc.ParseError[] = [];
 
-      jsonc.parseTree(text, parseErrors);
+      const tree = jsonc.parseTree(text, parseErrors);
 
       // for syntax errors
-      const syntaxDiagnostics: Diagnostic[] = parseErrors.map((error) => ({
-        severity: DiagnosticSeverity.Error,
-        range: {
-          start: textDocument.positionAt(error.offset),
-          end: textDocument.positionAt(error.offset + error.length)
-        },
-        message: jsonc.printParseErrorCode(error.error),
-        source: "json-language-server"
-      }));
+      const syntaxDiagnostics = getSyntaxDiagnostics(textDocument, parseErrors);
+
+      // for schema validation errors
+      const schemaNode = tree ? jsonc.findNodeAtLocation(tree, ["$schema"]) : undefined;
+      const schemaUri = schemaNode?.value;
+      const schemaDiagnostics = schemaUri && parseErrors.length === 0 && tree
+        ? await getSchemaDiagnostics(textDocument, tree, schemaUri, documentMap)
+        : [];
 
       void server.sendDiagnostics({
         uri: textDocument.uri,
-        diagnostics: [...syntaxDiagnostics]
+        diagnostics: [...syntaxDiagnostics, ...schemaDiagnostics]
       });
     });
   }
