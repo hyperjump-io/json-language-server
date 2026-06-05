@@ -1,11 +1,11 @@
 import * as path from "node:path";
-import { LanguageClient, TransportKind } from "vscode-languageclient/node.js";
+import { LanguageClient, TransportKind } from "vscode-languageclient/node";
 
 import type { ExtensionContext } from "vscode";
 
 let client: LanguageClient | undefined;
 
-const activate = async (context: ExtensionContext) => {
+export const activate = async (context: ExtensionContext) => {
   const serverModule = context.asAbsolutePath(path.join("out", "server.js"));
   const serverOptions = {
     run: {
@@ -25,10 +25,8 @@ const activate = async (context: ExtensionContext) => {
     documentSelector: [{ scheme: "file", language: "json" }]
   };
 
-  client = new LanguageClient("jsonLanguageServer", "JSON Language Server", serverOptions, clientOptions);
+  client = new LanguageClient("jsonLanguageServer", "Hyperjump - JSON Language Server", serverOptions, clientOptions);
   await client.start();
 };
 
-const deactivate = async () => client?.stop();
-
-module.exports = { activate, deactivate };
+export const deactivate = async () => client?.stop();
