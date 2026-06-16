@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { Duplex } from "node:stream";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,9 +7,11 @@ import {
   ConfigurationRequest,
   DidChangeConfigurationNotification,
   DidChangeTextDocumentNotification,
+  DidChangeWatchedFilesNotification,
   DidCloseTextDocumentNotification,
   DidOpenTextDocumentNotification,
   ExitNotification,
+  FileChangeType,
   InitializedNotification,
   InitializeRequest,
   RegistrationRequest,
@@ -30,6 +32,7 @@ import type {
 export class TestClient {
   private client: Connection;
   private serverName: string;
+  private watchEnabled: boolean;
   private _serverCapabilities: ServerCapabilities | undefined;
   private languageServerSettings: Partial<LanguageServerSettings> | undefined;
   private configurationChangeNotificationOptions: DidChangeConfigurationRegistrationOptions | null | undefined;
@@ -45,6 +48,7 @@ export class TestClient {
 
   constructor(serverName = "jsonLanguageServer") {
     this.serverName = serverName;
+    this.watchEnabled = false;
     this.openDocuments = new Set();
     this.workspaceFolder = mkdtemp(join(tmpdir(), "test-workspace-"))
       .then((path) => URI.file(path).toString() + "/");
@@ -71,6 +75,8 @@ export class TestClient {
           this.configurationChangeNotificationOptions = registration.registerOptions === undefined
             ? null
             : registration.registerOptions as DidChangeConfigurationRegistrationOptions;
+        } else if (registration.method === DidChangeWatchedFilesNotification.method) {
+          this.watchEnabled = true;
         } else {
           throw Error(`Unsupported Registration: '${registration.method}'`);
         }
@@ -211,7 +217,20 @@ export class TestClient {
 
   async writeDocument(uri: string, text: string) {
     const fullUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
+    const exists = await access(fullUri.fsPath)
+      .then(() => true)
+      .catch(() => false);
+
     await writeFile(fullUri.fsPath, text, "utf-8");
+
+    if (this.watchEnabled) {
+      await this.client.sendNotification(DidChangeWatchedFilesNotification.type, {
+        changes: [{
+          type: exists ? FileChangeType.Changed : FileChangeType.Created,
+          uri: fullUri.toString()
+        }]
+      });
+    }
 
     return fullUri.toString();
   }
@@ -242,7 +261,6 @@ export class TestClient {
 
   async changeDocument(uri: string, text: string) {
     const documentUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
-    await writeFile(documentUri.fsPath, text, "utf-8");
 
     await this.client.sendNotification(DidChangeTextDocumentNotification.type, {
       textDocument: {

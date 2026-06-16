@@ -1,4 +1,4 @@
-import { TextDocuments, TextDocumentSyncKind } from "vscode-languageserver";
+import { DidChangeWatchedFilesNotification, TextDocuments, TextDocumentSyncKind } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { JsonDocument } from "../models/JsonDocument.ts";
 import { Server } from "./server.ts";
@@ -6,6 +6,9 @@ import { Server } from "./server.ts";
 import type { DocumentUri, ServerCapabilities, TextDocumentContentChangeEvent } from "vscode-languageserver";
 
 export class JsonDocuments extends TextDocuments<JsonDocument> {
+  private server: Server;
+  private hasWorkspaceWatchCapability: boolean = false;
+
   constructor(server: Server) {
     super({
       create(uri: DocumentUri, languageId: string, version: number, content: string) {
@@ -18,7 +21,11 @@ export class JsonDocuments extends TextDocuments<JsonDocument> {
       }
     });
 
-    server.onInitialize(() => {
+    this.server = server;
+
+    server.onInitialize(({ capabilities }) => {
+      this.hasWorkspaceWatchCapability = !!capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration;
+
       const serverCapabilities: ServerCapabilities = {
         textDocumentSync: TextDocumentSyncKind.Incremental
       };
@@ -26,6 +33,14 @@ export class JsonDocuments extends TextDocuments<JsonDocument> {
       return {
         capabilities: serverCapabilities
       };
+    });
+
+    server.onInitialized(async () => {
+      if (this.hasWorkspaceWatchCapability) {
+        await this.server.client.register(DidChangeWatchedFilesNotification.type, {
+          watchers: [{ globPattern: "**/*" }]
+        });
+      }
     });
   }
 }
