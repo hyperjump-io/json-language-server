@@ -36,8 +36,6 @@ export class JsonDocument implements TextDocument {
       return;
     }
 
-    this.schemaStore.clear(schemaUri);
-
     let instance = JSON.parse(this.getText());
     this.schemaErrors = this.schemaStore.validate(schemaUri, instance);
   }
@@ -75,12 +73,21 @@ export class JsonDocument implements TextDocument {
     this.validate();
   }
 
+  revalidate() {
+    this.validate();
+  }
+
   getParseErrors() {
     return this.parseErrors;
   }
 
   getSchemaErrors() {
     return this.schemaErrors;
+  }
+
+  getSchemaUri() {
+    const schemaNode = this.findNodeAtPointer("/$schema");
+    return schemaNode?.value as string | undefined;
   }
 
   findNodeAtPointer(pointer: string) {

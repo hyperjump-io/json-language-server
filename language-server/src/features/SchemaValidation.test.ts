@@ -323,7 +323,7 @@ describe("Schema Validation", () => {
     expect(diagnostics2).toHaveLength(0);
   });
 
-  test.skip("changing the schema should invalidate the cache", async () => {
+  test("changing the schema should invalidate the cache", async () => {
     const diagnosticsPromise1 = new Promise<Diagnostic[]>((resolve) => {
       client.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
         resolve(params.diagnostics);
@@ -349,7 +349,7 @@ describe("Schema Validation", () => {
     const diagnostics1 = await diagnosticsPromise1;
     expect(diagnostics1).toHaveLength(1);
 
-    const diagnosticsPromise2 = new Promise((resolve) => {
+    const diagnosticsPromise2 = new Promise<Diagnostic[]>((resolve) => {
       client.onNotification("textDocument/publishDiagnostics", (params) => {
         if (params.uri === instanceUri) {
           resolve(params.diagnostics);
@@ -357,7 +357,7 @@ describe("Schema Validation", () => {
       });
     });
 
-    fixtureSchemaUri = await client.changeDocument("schema.json", `{
+    await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {

@@ -9,21 +9,27 @@ export type DiagnosticsProvider = {
 };
 
 export class Diagnostics {
+  private server: Server;
   private providers: DiagnosticsProvider[];
 
   constructor(server: Server, documents: JsonDocuments, providers: DiagnosticsProvider[]) {
+    this.server = server;
     this.providers = providers;
 
     documents.onDidChangeContent(async (change) => {
-      const diagnostics = [];
-      for (const provider of this.providers) {
-        diagnostics.push(...await provider.getDiagnostics(change.document));
-      }
+      await this.sendDiagnostics(change.document);
+    });
+  }
 
-      await server.sendDiagnostics({
-        uri: change.document.uri,
-        diagnostics: diagnostics
-      });
+  async sendDiagnostics(document: JsonDocument) {
+    const diagnostics = [];
+    for (const provider of this.providers) {
+      diagnostics.push(...await provider.getDiagnostics(document));
+    }
+
+    await this.server.sendDiagnostics({
+      uri: document.uri,
+      diagnostics: diagnostics
     });
   }
 }

@@ -23,10 +23,33 @@ export const buildServer = (connection: Connection): Connection => {
   const documents = new JsonDocuments(server, schemaStore);
   documents.listen(server);
 
-  new Diagnostics(server, documents, [
+  const diagnostics = new Diagnostics(server, documents, [
     new SyntaxValidation(),
     new SchemaValidation()
   ]);
+
+  server.onDidChangeWatchedFiles(async (params) => {
+    for (const change of params.changes) {
+      schemaStore.clear(change.uri);
+    }
+
+    for (const document of documents.all()) {
+      document.revalidate();
+      await diagnostics.sendDiagnostics(document);
+    }
+  });
+
+  documents.onDidChangeContent(async (change) => {
+    const changedUri = change.document.uri;
+    schemaStore.clear(changedUri);
+
+    for (const document of documents.all()) {
+      if (document.uri !== changedUri && document.getSchemaUri() === changedUri) {
+        document.revalidate();
+        await diagnostics.sendDiagnostics(document);
+      }
+    }
+  });
 
   return server;
 };
