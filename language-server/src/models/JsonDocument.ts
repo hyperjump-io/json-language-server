@@ -28,6 +28,7 @@ export class JsonDocument implements TextDocument {
     this.ast = jsonc.parseTree(this.textDocument.getText(), this.parseErrors);
 
     if (this.parseErrors.length > 0) {
+      this.schemaErrors = undefined;
       return;
     }
 
@@ -40,6 +41,8 @@ export class JsonDocument implements TextDocument {
       }
     } else {
       this.schemaUri = undefined;
+      this.schemaErrors = undefined;
+      return;
     }
 
     this.validateSchema();
@@ -81,7 +84,8 @@ export class JsonDocument implements TextDocument {
   validateSchema() {
     this.schemaErrors = undefined;
 
-    if (this.schemaUri === undefined) {
+    // validateSchema() is directly called from outside this class as well, so we need to check for parse errors here aswell
+    if (this.parseErrors.length > 0 || this.schemaUri === undefined) {
       return;
     }
 
@@ -112,6 +116,7 @@ export class JsonDocument implements TextDocument {
       return true;
     }
 
+    // added this loop to prevent revalidation of every open document in the workspace tht would be revalidated on every file change
     for (const uri of changedUris) {
       if (dependentSchemaUris.has(uri)) {
         return true;
