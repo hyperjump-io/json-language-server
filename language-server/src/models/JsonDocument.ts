@@ -4,6 +4,8 @@ import * as jsonc from "jsonc-parser";
 import { pointerSegments } from "@hyperjump/json-pointer";
 import { resolveIri } from "@hyperjump/uri";
 import { SchemaStore } from "../services/SchemaStore.ts";
+import { Server } from "../services/server.ts";
+import { abbreviateUri } from "../util/utils.ts";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";
 import type { ValidationResult } from "@hyperjump/json-schema-errors";
@@ -11,19 +13,23 @@ import type { ValidationResult } from "@hyperjump/json-schema-errors";
 export class JsonDocument implements TextDocument {
   private textDocument: TextDocument;
   private schemaStore: SchemaStore;
+  private server: Server;
   private ast: jsonc.Node | undefined;
   private parseErrors: jsonc.ParseError[] = [];
   private schemaErrors: Promise<ValidationResult> | undefined;
   private schemaUri: string | undefined;
 
-  constructor(textDocument: TextDocument, schemaStore: SchemaStore) {
+  constructor(textDocument: TextDocument, schemaStore: SchemaStore, server: Server) {
     this.textDocument = textDocument;
     this.schemaStore = schemaStore;
+    this.server = server;
 
     this.validate();
   }
 
   private validate() {
+    this.server.console.log(`validate ${abbreviateUri(this.uri)} JSON syntax`);
+
     this.parseErrors = [];
     this.schemaErrors = undefined;
     this.schemaUri = undefined;
@@ -52,7 +58,10 @@ export class JsonDocument implements TextDocument {
     }
 
     const instance = JSON.parse(this.getText());
+
+    const startTime = performance.now();
     this.schemaErrors = this.schemaStore.validate(this.schemaUri, instance);
+    this.server.console.log(`validate ${abbreviateUri(this.uri)} against schema ${abbreviateUri(this.schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
   }
 
   dependsOn(changedUri: string) {

@@ -14,7 +14,7 @@ export class JsonDocuments extends TextDocuments<JsonDocument> {
     super({
       create(uri: DocumentUri, languageId: string, version: number, content: string) {
         const textDocument = TextDocument.create(uri, languageId, version, content);
-        return new JsonDocument(textDocument, schemaStore);
+        return new JsonDocument(textDocument, schemaStore, server);
       },
       update(document: JsonDocument, changes: TextDocumentContentChangeEvent[], version: number) {
         document.update(changes, version);

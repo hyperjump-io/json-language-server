@@ -2,6 +2,7 @@ import { Server } from "../services/server.ts";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
 import { JsonDocument } from "../models/JsonDocument.ts";
 import { normalizeIri } from "@hyperjump/uri";
+import { abbreviateUri } from "../util/utils.ts";
 
 import type { Diagnostic } from "vscode-languageserver";
 
@@ -32,6 +33,8 @@ export class Diagnostics {
   }
 
   private async sendDiagnostics(document: JsonDocument) {
+    this.server.console.log(`send diagnostics for ${abbreviateUri(document.uri)}`);
+
     const diagnostics = [];
     for (const provider of this.providers) {
       diagnostics.push(...await provider.getDiagnostics(document));
