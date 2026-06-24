@@ -107,23 +107,17 @@ export class JsonDocument implements TextDocument {
   }
 
   findNodeAtPointer(pointer: string) {
-    if (!this.ast) {
-      return;
+    let node = this.ast;
+
+    for (let segment of pointerSegments(pointer)) {
+      if (!node) {
+        return;
+      }
+
+      const key = node.type === "array" ? parseInt(segment) : segment;
+      node = jsonc.findNodeAtLocation(node, [key]);
     }
 
-    return findNodeByPointer(this.ast, pointer);
-  }
-}
-
-const findNodeByPointer = (node: jsonc.Node, pointer: string) => {
-  if (pointer === "") {
     return node;
   }
-
-  for (let segment of pointerSegments(pointer)) {
-    const key = node.type === "array" ? parseInt(segment) : segment;
-    node = jsonc.findNodeAtLocation(node, [key]) ?? node;
-  }
-
-  return node;
-};
+}
