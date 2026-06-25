@@ -16,7 +16,7 @@ export class JsonDocument implements TextDocument {
   private server: Server;
   private ast: jsonc.Node | undefined;
   private parseErrors: jsonc.ParseError[] = [];
-  private schemaErrors: Promise<ValidationResult> | undefined;
+  private schemaErrors: Promise<ValidationResult | undefined> | undefined;
   private schemaUri: string | undefined;
 
   constructor(textDocument: TextDocument, schemaStore: SchemaStore, server: Server) {
@@ -47,21 +47,32 @@ export class JsonDocument implements TextDocument {
       } catch {
         this.schemaUri = schemaNode.value;
       }
-
-      this.validateSchema();
     }
+    this.validateSchema();
   }
 
   validateSchema() {
-    if (this.schemaUri === undefined) {
+    const instance = JSON.parse(this.getText());
+
+    if (this.schemaUri !== undefined) {
+      const startTime = performance.now();
+      this.schemaErrors = this.schemaStore.validate(this.schemaUri, instance);
+      this.server.console.log(`validate ${abbreviateUri(this.uri)} against schema ${abbreviateUri(this.schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
       return;
     }
 
-    const instance = JSON.parse(this.getText());
+    this.schemaErrors = this.schemaStore.getSchemaUri(this.uri).then((schemaUri) => {
+      if (schemaUri === undefined) {
+        return undefined;
+      }
 
-    const startTime = performance.now();
-    this.schemaErrors = this.schemaStore.validate(this.schemaUri, instance);
-    this.server.console.log(`validate ${abbreviateUri(this.uri)} against schema ${abbreviateUri(this.schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+      this.schemaUri = schemaUri;
+      const startTime = performance.now();
+      return this.schemaStore.validate(schemaUri, instance).then((result) => {
+        this.server.console.log(`validate ${abbreviateUri(this.uri)} against schema ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+        return result;
+      });
+    });
   }
 
   dependsOn(changedUri: string) {
