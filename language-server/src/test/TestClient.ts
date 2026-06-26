@@ -46,7 +46,7 @@ export class TestClient {
   onProgress: Connection["onProgress"];
   sendProgress: Connection["sendProgress"];
 
-  constructor(serverName = "jsonLanguageServer") {
+  constructor(serverName = "hyperjumpJsonLanguageServer") {
     this.serverName = serverName;
     this.watchEnabled = false;
     this.openDocuments = new Set();

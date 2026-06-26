@@ -1,4 +1,4 @@
-import { Server } from "./services/server.ts";
+import { Server } from "./services/Server.ts";
 import { JsonDocuments } from "./services/JsonDocuments.ts";
 import { SchemaStore } from "./services/SchemaStore.ts";
 import { Diagnostics } from "./features/Diagnostics.ts";

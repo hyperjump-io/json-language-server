@@ -5,7 +5,7 @@ import { abbreviateUri } from "../util/utils.ts";
 
 import type { CompiledSchema } from "@hyperjump/json-schema/experimental";
 import type { Json } from "@hyperjump/json-schema-errors";
-import type { Server } from "../services/server.ts";
+import type { Server } from "../services/Server.ts";
 
 export class SchemaStore {
   private server: Server;

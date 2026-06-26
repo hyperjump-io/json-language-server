@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { TestClient } from "../test/test-client.ts";
+import { TestClient } from "../test/TestClient.ts";
 
 describe("Syntax Validation", () => {
   let client: TestClient;
