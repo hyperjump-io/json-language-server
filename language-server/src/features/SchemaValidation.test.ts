@@ -1,5 +1,5 @@
 import { describe, test, expect, afterEach, beforeEach } from "vitest";
-import { TestClient } from "../test/test-client.ts";
+import { TestClient } from "../test/TestClient.ts";
 import { unregisterSchema } from "@hyperjump/json-schema";
 
 import type { Diagnostic, PublishDiagnosticsParams } from "vscode-languageserver";
