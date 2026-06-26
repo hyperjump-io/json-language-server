@@ -4,7 +4,7 @@ import * as jsonc from "jsonc-parser";
 import { pointerSegments } from "@hyperjump/json-pointer";
 import { resolveIri } from "@hyperjump/uri";
 import { SchemaStore } from "../services/SchemaStore.ts";
-import { Server } from "../services/server.ts";
+import { Server } from "../services/Server.ts";
 import { abbreviateUri } from "../util/utils.ts";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";

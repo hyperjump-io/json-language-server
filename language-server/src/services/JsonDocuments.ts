@@ -1,7 +1,7 @@
 import { DidChangeWatchedFilesNotification, TextDocuments, TextDocumentSyncKind } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { JsonDocument } from "../models/JsonDocument.ts";
-import { Server } from "./server.ts";
+import { Server } from "./Server.ts";
 
 import type { DocumentUri, ServerCapabilities, TextDocumentContentChangeEvent } from "vscode-languageserver";
 import type { SchemaStore } from "./SchemaStore.ts";
