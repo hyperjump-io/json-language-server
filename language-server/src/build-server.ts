@@ -1,6 +1,7 @@
 import { Server } from "./services/Server.ts";
 import { JsonDocuments } from "./services/JsonDocuments.ts";
 import { SchemaStore } from "./services/SchemaStore.ts";
+import { Workspace } from "./services/Workspace.ts";
 import { Diagnostics } from "./features/Diagnostics.ts";
 import { SyntaxValidation } from "./features/SyntaxValidation.ts";
 import { SchemaValidation } from "./features/SchemaValidation.ts";
@@ -28,12 +29,14 @@ export type LanguageServerSettings = {
 
 export const buildServer = (connection: Connection): Connection => {
   const server = new Server(connection);
-  const schemaStore = new SchemaStore(server);
+
+  const workspace = new Workspace(server);
+  const schemaStore = new SchemaStore(server, workspace);
 
   const documents = new JsonDocuments(server, schemaStore);
   documents.listen(server);
 
-  new Diagnostics(server, documents, [
+  new Diagnostics(server, documents, workspace, [
     new SyntaxValidation(),
     new SchemaValidation()
   ]);

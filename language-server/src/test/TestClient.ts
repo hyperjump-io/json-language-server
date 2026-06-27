@@ -20,6 +20,7 @@ import {
 import { createConnection } from "vscode-languageserver/node";
 import { URI, Utils } from "vscode-uri";
 import { merge } from "merge-anything";
+import { MockAgent, setGlobalDispatcher } from "undici";
 import { buildServer, LanguageServerSettings } from "../build-server.js";
 
 import type {
@@ -45,6 +46,7 @@ export class TestClient {
   sendNotification: Connection["sendNotification"];
   onProgress: Connection["onProgress"];
   sendProgress: Connection["sendProgress"];
+  mockAgent: MockAgent;
 
   constructor(serverName = "hyperjumpJsonLanguageServer") {
     this.serverName = serverName;
@@ -52,6 +54,10 @@ export class TestClient {
     this.openDocuments = new Set();
     this.workspaceFolder = mkdtemp(join(tmpdir(), "test-workspace-"))
       .then((path) => URI.file(path).toString() + "/");
+
+    this.mockAgent = new MockAgent();
+    this.mockAgent.disableNetConnect();
+    setGlobalDispatcher(this.mockAgent);
 
     const up = new TestStream();
     const down = new TestStream();

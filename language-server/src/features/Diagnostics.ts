@@ -1,5 +1,6 @@
 import { Server } from "../services/Server.ts";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
+import { Workspace } from "../services/Workspace.ts";
 import { JsonDocument } from "../models/JsonDocument.ts";
 import { normalizeIri } from "@hyperjump/uri";
 import { abbreviateUri } from "../util/utils.ts";
@@ -15,7 +16,7 @@ export class Diagnostics {
   private jsonDocuments: JsonDocuments;
   private providers: DiagnosticsProvider[];
 
-  constructor(server: Server, jsonDocuments: JsonDocuments, providers: DiagnosticsProvider[]) {
+  constructor(server: Server, jsonDocuments: JsonDocuments, workspace: Workspace, providers: DiagnosticsProvider[]) {
     this.server = server;
     this.jsonDocuments = jsonDocuments;
     this.providers = providers;
@@ -24,7 +25,7 @@ export class Diagnostics {
       await this.sendDiagnostics(change.document);
     });
 
-    server.onDidChangeWatchedFiles(async (params) => {
+    workspace.onDidChangeWatchedFiles(async (params) => {
       for (const change of params.changes) {
         const changedUri = normalizeIri(change.uri);
         await this.revalidateDependentDocuments(changedUri);

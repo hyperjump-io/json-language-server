@@ -1,23 +1,27 @@
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { compile, getSchema } from "@hyperjump/json-schema/experimental";
 import { evaluateCompiledSchema } from "@hyperjump/json-schema-errors";
 import { normalizeIri } from "@hyperjump/uri";
 import { abbreviateUri } from "../util/utils.ts";
-import { URI } from "vscode-uri";
 import { isMatch } from "picomatch";
 
 import type { CompiledSchema } from "@hyperjump/json-schema/experimental";
 import type { Json } from "@hyperjump/json-schema-errors";
 import type { Server } from "../services/Server.ts";
+import type { Workspace } from "./Workspace.ts";
 
 export class SchemaStore {
   private server: Server;
+  private workspace: Workspace;
   private compiledSchemaCache: Map<string, Promise<CompiledSchema>> = new Map();
   private catalog: Array<{ fileMatch?: string[]; url: string }> | undefined;
 
-  constructor(server: Server) {
+  constructor(server: Server, workspace: Workspace) {
     this.server = server;
+    this.workspace = workspace;
 
-    server.onDidChangeWatchedFiles((params) => {
+    workspace.onDidChangeWatchedFiles((params) => {
       for (const change of params.changes) {
         const changedSchemaUri = normalizeIri(change.uri);
         void this.clear(changedSchemaUri);
@@ -25,24 +29,31 @@ export class SchemaStore {
     });
   }
 
-  async getSchemaUri(uriOrFileName: string): Promise<string | undefined> {
+  async getSchemaUri(fileUri: string): Promise<string | undefined> {
     await this.getCatalog();
 
     if (!this.catalog) {
       return undefined;
     }
 
-    const parsedUri = URI.parse(uriOrFileName);
-    const effectiveFileName = parsedUri.path.split("/").pop() ?? "";
+    const filePath = fileURLToPath(fileUri);
 
     for (const schema of this.catalog) {
       const { fileMatch, url } = schema;
       if (!fileMatch) {
         continue;
       }
+
       for (const pattern of fileMatch) {
-        if (isMatch(effectiveFileName, pattern)) {
-          return url;
+        for (const workspaceUri of this.workspace.workspaceFolders) {
+          const workspacePath = fileURLToPath(workspaceUri);
+          if (!filePath.startsWith(workspacePath)) {
+            continue;
+          }
+
+          if (isMatch(path.relative(workspacePath, filePath), pattern)) {
+            return url;
+          }
         }
       }
     }

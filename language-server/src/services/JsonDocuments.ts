@@ -1,4 +1,4 @@
-import { DidChangeWatchedFilesNotification, TextDocuments, TextDocumentSyncKind } from "vscode-languageserver";
+import { TextDocuments, TextDocumentSyncKind } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { JsonDocument } from "../models/JsonDocument.ts";
 import { Server } from "./Server.ts";
@@ -7,9 +7,6 @@ import type { DocumentUri, ServerCapabilities, TextDocumentContentChangeEvent } 
 import type { SchemaStore } from "./SchemaStore.ts";
 
 export class JsonDocuments extends TextDocuments<JsonDocument> {
-  private server: Server;
-  private hasWorkspaceWatchCapability: boolean = false;
-
   constructor(server: Server, schemaStore: SchemaStore) {
     super({
       create(uri: DocumentUri, languageId: string, version: number, content: string) {
@@ -22,11 +19,7 @@ export class JsonDocuments extends TextDocuments<JsonDocument> {
       }
     });
 
-    this.server = server;
-
-    server.onInitialize(({ capabilities }) => {
-      this.hasWorkspaceWatchCapability = !!capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration;
-
+    server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
         textDocumentSync: TextDocumentSyncKind.Incremental
       };
@@ -34,14 +27,6 @@ export class JsonDocuments extends TextDocuments<JsonDocument> {
       return {
         capabilities: serverCapabilities
       };
-    });
-
-    server.onInitialized(async () => {
-      if (this.hasWorkspaceWatchCapability) {
-        await this.server.client.register(DidChangeWatchedFilesNotification.type, {
-          watchers: [{ globPattern: "**/*" }]
-        });
-      }
     });
   }
 }

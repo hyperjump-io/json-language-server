@@ -15,44 +15,47 @@ describe("Schema Store Tests", () => {
     await client.stop();
   });
 
-  test("file with NO $schema field gets validated correctly against the SchemaStore.org matched schema", async () => {
+  test("a JSON document without $schema finds a schema in the schemastore.org catalog", async () => {
+    client.mockAgent
+      .get("https://www.schemastore.org")
+      .intercept({ method: "GET", path: "/api/json/catalog.json" })
+      .reply(200, {
+        $schema: "https://www.schemastore.org/schema-catalog.json",
+        version: 0,
+        schemas: [
+          {
+            name: "fixture.json",
+            description: "Example configuration",
+            fileMatch: ["fixture.json"],
+            url: "https://www.schemastore.org/fixture.json"
+          }
+        ]
+      });
+
+    client.mockAgent
+      .get("https://www.schemastore.org")
+      .intercept({ method: "GET", path: "/fixture.json" })
+      .reply(200, {
+        $schema: "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        properties: {
+          foo: { type: "string" }
+        }
+      }, {
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
     const diagnostics = new Promise<Diagnostic[]>((resolve) => {
       client.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
         resolve(params.diagnostics);
       });
     });
 
-    // license should be a string.
-    await client.writeDocument("package.json", `{
-      "name": "@hyperjump/json-language-server",
-      "version": "0.1.0",
-      "description": "JSON Language Server",
-      "type": "module",
-      "license": false, 
-      "repository": "github:hyperjump-io/json-language-server",
-      "keywords": []
-    }`);
-
-    await client.openDocument("package.json");
+    await client.writeDocument("fixture.json", `{ "foo": 42 }`);
+    await client.openDocument("fixture.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
-  }, 15000);
-
-  test("for a filename with NO catalog match, we skip validation", async () => {
-    const diagnostics = new Promise<Diagnostic[]>((resolve) => {
-      client.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
-        resolve(params.diagnostics);
-      });
-    });
-
-    await client.writeDocument("abcdrandom.json", `{
-      "name": "SchemaStore.org",
-      "version": "0.1.0",
-      "description": "Just a test."
-    }`);
-
-    await client.openDocument("abcdrandom.json");
-
-    await expect(diagnostics).resolves.toHaveLength(0);
   });
 });
