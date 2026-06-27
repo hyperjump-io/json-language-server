@@ -48,8 +48,8 @@ export class Diagnostics {
 
   private async revalidateDependentDocuments(schemaUri: string) {
     for (const jsonDocument of this.jsonDocuments.all()) {
-      if (jsonDocument.dependsOn(schemaUri)) {
-        jsonDocument.validateSchema();
+      if (await jsonDocument.dependsOn(schemaUri)) {
+        void jsonDocument.validateSchema();
         await this.sendDiagnostics(jsonDocument);
       }
     }

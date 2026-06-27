@@ -11,7 +11,7 @@ import type { Server } from "../services/Server.ts";
 
 export class SchemaStore {
   private server: Server;
-  private compiledSchemaCache: Map<string, CompiledSchema> = new Map();
+  private compiledSchemaCache: Map<string, Promise<CompiledSchema>> = new Map();
   private catalog: Array<{ fileMatch?: string[]; url: string }> | undefined;
 
   constructor(server: Server) {
@@ -20,7 +20,7 @@ export class SchemaStore {
     server.onDidChangeWatchedFiles((params) => {
       for (const change of params.changes) {
         const changedSchemaUri = normalizeIri(change.uri);
-        this.clear(changedSchemaUri);
+        void this.clear(changedSchemaUri);
       }
     });
   }
@@ -61,27 +61,33 @@ export class SchemaStore {
   async validate(schemaUri: string, instance: Json) {
     if (!this.compiledSchemaCache.has(schemaUri)) {
       const startTime = performance.now();
-      const schema = await getSchema(schemaUri);
-      const compiledSchema = await compile(schema);
-      this.server.console.log(`compile schema for ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
 
-      this.compiledSchemaCache.set(schemaUri, compiledSchema);
+      const compiledSchemaPromise = getSchema(schemaUri).then((schema) => {
+        return compile(schema).then((compiledSchema) => {
+          this.server.console.log(`compile schema for ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+          return compiledSchema;
+        });
+      });
+
+      this.compiledSchemaCache.set(schemaUri, compiledSchemaPromise);
     }
-    const compiledSchema = this.compiledSchemaCache.get(schemaUri)!;
 
+    const compiledSchema = await this.compiledSchemaCache.get(schemaUri)!;
     return evaluateCompiledSchema(compiledSchema, instance);
   }
 
-  getDependentSchemaUris(schemaUri: string) {
-    const compiledSchema = this.compiledSchemaCache.get(schemaUri);
-    if (compiledSchema === undefined) {
+  async getDependentSchemaUris(schemaUri: string) {
+    const compiledSchemaPromise = this.compiledSchemaCache.get(schemaUri);
+    if (compiledSchemaPromise === undefined) {
       return undefined;
     }
+    const compiledSchema = await compiledSchemaPromise;
     return this.getDependenencies(compiledSchema);
   }
 
-  clear(schemaUri: string) {
-    for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
+  async clear(schemaUri: string) {
+    for (const [cachedSchemaUri, compiledSchemaPromise] of this.compiledSchemaCache) {
+      const compiledSchema = await compiledSchemaPromise;
       const dependentSchemas = this.getDependenencies(compiledSchema);
       if (dependentSchemas.has(schemaUri)) {
         this.server.console.log(`clear schema cache for ${abbreviateUri(cachedSchemaUri)}`);

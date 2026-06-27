@@ -47,40 +47,40 @@ export class JsonDocument implements TextDocument {
       } catch {
         this.schemaUri = schemaNode.value;
       }
+      void this.validateSchema();
+    } else {
+      this.schemaErrors = this.schemaStore.getSchemaUri(this.uri).then((schemaUri) => {
+        if (schemaUri === undefined) {
+          return undefined;
+        }
+        this.schemaUri = schemaUri;
+        return this.validateSchema();
+      });
     }
-    this.validateSchema();
   }
 
   validateSchema() {
-    const instance = JSON.parse(this.getText());
-
-    if (this.schemaUri !== undefined) {
-      const startTime = performance.now();
-      this.schemaErrors = this.schemaStore.validate(this.schemaUri, instance);
-      this.server.console.log(`validate ${abbreviateUri(this.uri)} against schema ${abbreviateUri(this.schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+    if (this.schemaUri === undefined) {
       return;
     }
 
-    this.schemaErrors = this.schemaStore.getSchemaUri(this.uri).then((schemaUri) => {
-      if (schemaUri === undefined) {
-        return undefined;
-      }
+    const instance = JSON.parse(this.getText());
 
-      this.schemaUri = schemaUri;
-      const startTime = performance.now();
-      return this.schemaStore.validate(schemaUri, instance).then((result) => {
-        this.server.console.log(`validate ${abbreviateUri(this.uri)} against schema ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
-        return result;
-      });
+    const startTime = performance.now();
+    this.schemaErrors = this.schemaStore.validate(this.schemaUri, instance).then((result) => {
+      this.server.console.log(`validate ${abbreviateUri(this.uri)} against schema ${abbreviateUri(this.schemaUri!)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+      return result;
     });
+
+    return this.schemaErrors;
   }
 
-  dependsOn(changedUri: string) {
+  async dependsOn(changedUri: string) {
     if (this.schemaUri === undefined) {
       return false;
     }
 
-    const dependentSchemaUris = this.schemaStore.getDependentSchemaUris(this.schemaUri);
+    const dependentSchemaUris = await this.schemaStore.getDependentSchemaUris(this.schemaUri);
 
     return dependentSchemaUris === undefined || dependentSchemaUris.has(changedUri);
   }
