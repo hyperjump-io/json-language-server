@@ -14,28 +14,39 @@ import type { UriSchemePlugin } from "@hyperjump/browser";
 import type { Server } from "../services/Server.ts";
 import type { Workspace } from "./Workspace.ts";
 
+type SchemaStoreEntry = {
+  name: string;
+  description: string;
+  fileMatch: string[];
+  url: string;
+  versions: Record<string, string>;
+};
+
 export class SchemaStore {
   private server: Server;
   private workspace: Workspace;
   private compiledSchemaCache: Map<string, Promise<CompiledSchema>> = new Map();
-  private catalog: Array<{ fileMatch?: string[]; url: string }> | undefined;
+  private catalog: Promise<SchemaStoreEntry[] | undefined> = Promise.resolve(undefined);
 
   constructor(server: Server, workspace: Workspace) {
     this.server = server;
     this.workspace = workspace;
 
     server.onInitialized(async () => {
-      const schemaAllowList = Pact.pipe(
-        await this.getCatalog()
-          .then((c) => c ?? [])
-          .catch(() => []),
-        Pact.map((entry: { url: string }) => entry.url),
-        Pact.collectSet
-      );
+      const response = await fetch("https://www.schemastore.org/api/json/catalog.json");
+      this.catalog = response.json().then((data) => data.schemas);
+
+      const schemaAllowList = this.catalog.then((catalog) => {
+        return Pact.pipe(
+          catalog ?? [],
+          Pact.map((entry: { url: string }) => entry.url),
+          Pact.collectSet
+        );
+      });
 
       const uriSchemePlugin: UriSchemePlugin = {
         async retrieve(uri: string) {
-          if (!schemaAllowList.has(uri)) {
+          if (!(await schemaAllowList).has(uri)) {
             throw Error(`Only schemas in the SchemaStore.org registry can be retrieved over HTTP.`);
           }
 
@@ -47,24 +58,23 @@ export class SchemaStore {
       addUriSchemePlugin("https", uriSchemePlugin);
     });
 
-    workspace.onDidChangeWatchedFiles((params) => {
+    workspace.onDidChangeWatchedFiles(async (params) => {
       for (const change of params.changes) {
         const changedSchemaUri = normalizeIri(change.uri);
-        void this.clear(changedSchemaUri);
+        await this.clear(changedSchemaUri);
       }
     });
   }
 
-  async getSchemaUri(fileUri: string): Promise<string | undefined> {
-    await this.getCatalog();
-
-    if (!this.catalog) {
-      return undefined;
+  async getSchemaUri(fileUri: string) {
+    const catalog = await this.catalog;
+    if (!catalog) {
+      return;
     }
 
     const filePath = fileURLToPath(fileUri);
 
-    for (const schema of this.catalog) {
+    for (const schema of catalog) {
       const { fileMatch, url } = schema;
       if (!fileMatch) {
         continue;
@@ -83,34 +93,24 @@ export class SchemaStore {
         }
       }
     }
-    return undefined;
   }
 
-  private async getCatalog() {
-    if (!this.catalog) {
-      const response = await fetch("https://www.schemastore.org/api/json/catalog.json");
-      const data = await response.json();
-      this.catalog = data.schemas;
-    }
-    return this.catalog;
-  }
-
-  async validate(schemaUri: string, instance: Json) {
+  async validate(schemaUri: string, instance: Json, instanceUri: string) {
     if (!this.compiledSchemaCache.has(schemaUri)) {
-      const startTime = performance.now();
-
-      const compiledSchemaPromise = getSchema(schemaUri).then((schema) => {
-        return compile(schema).then((compiledSchema) => {
-          this.server.console.log(`compile schema for ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
-          return compiledSchema;
-        });
-      });
-
-      this.compiledSchemaCache.set(schemaUri, compiledSchemaPromise);
+      this.compiledSchemaCache.set(schemaUri, (async function (server) {
+        const startTime = performance.now();
+        const schema = await getSchema(schemaUri);
+        const compiledSchema = await compile(schema);
+        server.console.log(`compile schema for ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+        return compiledSchema;
+      }(this.server)));
     }
 
     const compiledSchema = await this.compiledSchemaCache.get(schemaUri)!;
-    return evaluateCompiledSchema(compiledSchema, instance);
+    const startTime = performance.now();
+    const result = evaluateCompiledSchema(compiledSchema, instance);
+    this.server.console.log(`validate ${abbreviateUri(instanceUri)} against schema ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+    return result;
   }
 
   async getDependentSchemaUris(schemaUri: string) {
@@ -123,9 +123,8 @@ export class SchemaStore {
   }
 
   async clear(schemaUri: string) {
-    for (const [cachedSchemaUri, compiledSchemaPromise] of this.compiledSchemaCache) {
-      const compiledSchema = await compiledSchemaPromise;
-      const dependentSchemas = this.getDependenencies(compiledSchema);
+    for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
+      const dependentSchemas = this.getDependenencies(await compiledSchema);
       if (dependentSchemas.has(schemaUri)) {
         this.server.console.log(`clear schema cache for ${abbreviateUri(cachedSchemaUri)}`);
         this.compiledSchemaCache.delete(cachedSchemaUri);
