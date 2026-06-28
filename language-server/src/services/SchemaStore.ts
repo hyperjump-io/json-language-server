@@ -87,7 +87,7 @@ export class SchemaStore {
             continue;
           }
 
-          if (isMatch(path.relative(workspacePath, filePath), pattern)) {
+          if (isMatch(path.relative(workspacePath, filePath), pattern, { windows: true })) {
             return url;
           }
         }
