@@ -2,7 +2,6 @@ import { merge } from "merge-anything";
 
 import type {
   Connection,
-  DidChangeWatchedFilesParams,
   Disposable,
   InitializedParams,
   InitializeError,
@@ -20,7 +19,6 @@ export class Server implements Connection {
   private initializedHandlers: Set<NotificationHandler<InitializedParams>>;
   private shutdownHandlers: Set<RequestHandler0<void, void>>;
   private exitHandlers: Set<NotificationHandler0>;
-  private didChangeWatchedFilesHandlers: Set<NotificationHandler<DidChangeWatchedFilesParams>>;
 
   declare listen: Connection["listen"];
   declare onRequest: Connection["onRequest"];
@@ -30,6 +28,7 @@ export class Server implements Connection {
   declare onProgress: Connection["onProgress"];
   declare sendProgress: Connection["sendProgress"];
   declare onDidChangeConfiguration: Connection["onDidChangeConfiguration"];
+  declare onDidChangeWatchedFiles: Connection["onDidChangeWatchedFiles"];
   declare onDidOpenTextDocument: Connection["onDidOpenTextDocument"];
   declare onDidChangeTextDocument: Connection["onDidChangeTextDocument"];
   declare onDidCloseTextDocument: Connection["onDidCloseTextDocument"];
@@ -109,13 +108,6 @@ export class Server implements Connection {
       }
     });
 
-    this.didChangeWatchedFilesHandlers = new Set();
-    this.connection.onDidChangeWatchedFiles(async (params) => {
-      for (const handler of this.didChangeWatchedFilesHandlers) {
-        await handler(params);
-      }
-    });
-
     this.listen = this.connection.listen.bind(this.connection);
     this.onRequest = this.connection.onRequest.bind(this.connection);
     this.sendRequest = this.connection.sendRequest.bind(this.connection);
@@ -124,6 +116,7 @@ export class Server implements Connection {
     this.onProgress = this.connection.onProgress.bind(this.connection);
     this.sendProgress = this.connection.sendProgress.bind(this.connection);
     this.onDidChangeConfiguration = this.connection.onDidChangeConfiguration.bind(this.connection);
+    this.onDidChangeWatchedFiles = this.connection.onDidChangeWatchedFiles.bind(this.connection);
     this.onDidOpenTextDocument = this.connection.onDidOpenTextDocument.bind(this.connection);
     this.onDidChangeTextDocument = this.connection.onDidChangeTextDocument.bind(this.connection);
     this.onDidCloseTextDocument = this.connection.onDidCloseTextDocument.bind(this.connection);
@@ -195,15 +188,6 @@ export class Server implements Connection {
     return {
       dispose: () => {
         this.exitHandlers.delete(handler);
-      }
-    };
-  }
-
-  onDidChangeWatchedFiles(handler: NotificationHandler<DidChangeWatchedFilesParams>): Disposable {
-    this.didChangeWatchedFilesHandlers.add(handler);
-    return {
-      dispose: () => {
-        this.didChangeWatchedFilesHandlers.delete(handler);
       }
     };
   }

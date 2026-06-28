@@ -1,5 +1,6 @@
 import { Server } from "../services/Server.ts";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
+import { Workspace } from "../services/Workspace.ts";
 import { JsonDocument } from "../models/JsonDocument.ts";
 import { normalizeIri } from "@hyperjump/uri";
 import { abbreviateUri } from "../util/utils.ts";
@@ -15,7 +16,7 @@ export class Diagnostics {
   private jsonDocuments: JsonDocuments;
   private providers: DiagnosticsProvider[];
 
-  constructor(server: Server, jsonDocuments: JsonDocuments, providers: DiagnosticsProvider[]) {
+  constructor(server: Server, jsonDocuments: JsonDocuments, workspace: Workspace, providers: DiagnosticsProvider[]) {
     this.server = server;
     this.jsonDocuments = jsonDocuments;
     this.providers = providers;
@@ -24,7 +25,7 @@ export class Diagnostics {
       await this.sendDiagnostics(change.document);
     });
 
-    server.onDidChangeWatchedFiles(async (params) => {
+    workspace.onDidChangeWatchedFiles(async (params) => {
       for (const change of params.changes) {
         const changedUri = normalizeIri(change.uri);
         await this.revalidateDependentDocuments(changedUri);
@@ -33,8 +34,6 @@ export class Diagnostics {
   }
 
   private async sendDiagnostics(document: JsonDocument) {
-    this.server.console.log(`send diagnostics for ${abbreviateUri(document.uri)}`);
-
     const diagnostics = [];
     for (const provider of this.providers) {
       diagnostics.push(...await provider.getDiagnostics(document));
@@ -44,11 +43,12 @@ export class Diagnostics {
       uri: document.uri,
       diagnostics: diagnostics
     });
+    this.server.console.log(`send diagnostics for ${abbreviateUri(document.uri)}`);
   }
 
   private async revalidateDependentDocuments(schemaUri: string) {
     for (const jsonDocument of this.jsonDocuments.all()) {
-      if (jsonDocument.dependsOn(schemaUri)) {
+      if (await jsonDocument.dependsOn(schemaUri)) {
         jsonDocument.validateSchema();
         await this.sendDiagnostics(jsonDocument);
       }

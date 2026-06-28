@@ -16,8 +16,8 @@ export class JsonDocument implements TextDocument {
   private server: Server;
   private ast: jsonc.Node | undefined;
   private parseErrors: jsonc.ParseError[] = [];
-  private schemaErrors: Promise<ValidationResult> | undefined;
-  private schemaUri: string | undefined;
+  private schemaErrors: Promise<ValidationResult | undefined> = Promise.resolve(undefined);
+  private schemaUri: Promise<string | undefined> = Promise.resolve(undefined);
 
   constructor(textDocument: TextDocument, schemaStore: SchemaStore, server: Server) {
     this.textDocument = textDocument;
@@ -31,8 +31,8 @@ export class JsonDocument implements TextDocument {
     this.server.console.log(`validate ${abbreviateUri(this.uri)} JSON syntax`);
 
     this.parseErrors = [];
-    this.schemaErrors = undefined;
-    this.schemaUri = undefined;
+    this.schemaErrors = Promise.resolve(undefined);
+    this.schemaUri = Promise.resolve(undefined);
 
     this.ast = jsonc.parseTree(this.textDocument.getText(), this.parseErrors);
 
@@ -43,33 +43,36 @@ export class JsonDocument implements TextDocument {
     const schemaNode = this.findNodeAtPointer("/$schema");
     if (schemaNode) {
       try {
-        this.schemaUri = resolveIri(schemaNode.value, this.uri);
+        this.schemaUri = Promise.resolve(resolveIri(schemaNode.value, this.uri));
       } catch {
-        this.schemaUri = schemaNode.value;
+        this.schemaUri = Promise.resolve(schemaNode.value);
       }
-
-      this.validateSchema();
+    } else {
+      this.schemaUri = this.schemaStore.getSchemaUri(this.uri);
     }
+
+    this.validateSchema();
   }
 
   validateSchema() {
-    if (this.schemaUri === undefined) {
-      return;
-    }
+    this.schemaErrors = this.schemaUri.then((schemaUri) => {
+      if (!schemaUri) {
+        return;
+      }
 
-    const instance = JSON.parse(this.getText());
-
-    const startTime = performance.now();
-    this.schemaErrors = this.schemaStore.validate(this.schemaUri, instance);
-    this.server.console.log(`validate ${abbreviateUri(this.uri)} against schema ${abbreviateUri(this.schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+      const instance = JSON.parse(this.getText());
+      return this.schemaStore.validate(schemaUri, instance, this.uri);
+    });
   }
 
-  dependsOn(changedUri: string) {
-    if (this.schemaUri === undefined) {
+  async dependsOn(changedUri: string) {
+    const schemaUri = await this.schemaUri;
+
+    if (!schemaUri) {
       return false;
     }
 
-    const dependentSchemaUris = this.schemaStore.getDependentSchemaUris(this.schemaUri);
+    const dependentSchemaUris = await this.schemaStore.getDependentSchemaUris(schemaUri);
 
     return dependentSchemaUris === undefined || dependentSchemaUris.has(changedUri);
   }
