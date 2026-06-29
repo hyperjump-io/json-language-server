@@ -1,3 +1,4 @@
+import { EOL } from "node:os";
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { TestClient } from "../test/TestClient.ts";
 
@@ -35,7 +36,7 @@ describe("Formatting", () => {
           start: { line: 0, character: 1 },
           end: { line: 0, character: 1 }
         },
-        newText: "\n  "
+        newText: `${EOL}  `
       },
       {
         range: {
@@ -49,7 +50,7 @@ describe("Formatting", () => {
           start: { line: 0, character: 12 },
           end: { line: 0, character: 12 }
         },
-        newText: "\n"
+        newText: EOL
       }
     ]);
   });
@@ -68,13 +69,14 @@ describe("Formatting", () => {
     })) as TextEdit[];
 
     expect(result).toBeDefined();
+    expect(result).toBeDefined();
     expect(result).toEqual([
       {
         range: {
           start: { line: 0, character: 1 },
           end: { line: 0, character: 1 }
         },
-        newText: "\n\t"
+        newText: `${EOL}\t`
       },
       {
         range: {
@@ -88,7 +90,7 @@ describe("Formatting", () => {
           start: { line: 0, character: 12 },
           end: { line: 0, character: 12 }
         },
-        newText: "\n"
+        newText: EOL
       }
     ]);
   });
@@ -159,7 +161,7 @@ describe("Formatting", () => {
           start: { line: 0, character: 1 },
           end: { line: 0, character: 1 }
         },
-        newText: "\n  "
+        newText: `${EOL}  `
       }
     ]);
   });
