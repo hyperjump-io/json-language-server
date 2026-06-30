@@ -580,6 +580,79 @@ describe("Schema Validation", () => {
         "name": { "type": "invalid-type" }
       }
     }`);
-    await expect(secondValidation).resolves.to.toHaveLength(0);
+    await expect(secondValidation).resolves.toEqual([
+      {
+        message: "Invalid Schema",
+        range: {
+          start: { line: 1, character: 17 },
+          end: { line: 1, character: 17 + fixtureSchemaUri.length + 2 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
+  test("$schema points to an invalid schema", async () => {
+    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        resolve(params.diagnostics);
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": { "type": "invalid" },
+        "age": { "type": "number" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "Alice",
+      "age": 42
+    }`);
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Invalid Schema",
+        range: {
+          start: { line: 1, character: 17 },
+          end: { line: 1, character: 17 + fixtureSchemaUri.length + 2 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
+  test("$schema points to a schema that doesn't exist", async () => {
+    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        resolve(params.diagnostics);
+      });
+    });
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "Alice",
+      "age": 42
+    }`);
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: `Unable to load resource '${fixtureSchemaUri}'.`,
+        range: {
+          start: { line: 1, character: 17 },
+          end: { line: 1, character: 17 + fixtureSchemaUri.length + 2 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
   });
 });

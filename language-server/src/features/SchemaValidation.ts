@@ -30,8 +30,19 @@ export class SchemaValidation implements DiagnosticsProvider {
           }
         });
       }
-    } catch (_error: unknown) {
-      // TODO: Handle invalid or missing schema errors
+    } catch (error: unknown) {
+      const schemaNode = jsonDocument.findNodeAtPointer("/$schema");
+      if (schemaNode) {
+        schemaDiagnostics.push({
+          severity: DiagnosticSeverity.Error,
+          range: {
+            start: jsonDocument.positionAt(schemaNode.offset),
+            end: jsonDocument.positionAt(schemaNode.offset + schemaNode.length)
+          },
+          message: error instanceof Error ? error.message : String(error),
+          source: "hyperjump-json-language-server"
+        });
+      }
     }
     return schemaDiagnostics;
   }

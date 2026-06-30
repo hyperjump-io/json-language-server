@@ -128,11 +128,16 @@ export class SchemaStore {
 
   async clear(schemaUri: string) {
     for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
-      const dependentSchemas = this.getDependenencies(await compiledSchema);
-      if (dependentSchemas.has(schemaUri)) {
-        this.server.console.log(`clear schema cache for ${abbreviateUri(cachedSchemaUri)}`);
-        this.compiledSchemaCache.delete(cachedSchemaUri);
+      try {
+        const dependentSchemas = this.getDependenencies(await compiledSchema);
+        if (!dependentSchemas.has(schemaUri)) {
+          continue;
+        }
+      } catch {
       }
+
+      this.server.console.log(`clear schema cache for ${abbreviateUri(cachedSchemaUri)}`);
+      this.compiledSchemaCache.delete(cachedSchemaUri);
     }
   }
 
