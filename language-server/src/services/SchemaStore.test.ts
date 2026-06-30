@@ -237,16 +237,16 @@ describe("Schema Store Tests", () => {
     await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
-      properties: {
-        foo: { type: "number" }
+      "properties": {
+        "foo": { "type": "number" }
       }
     }`);
 
-    await client.writeDocument("fixture.json", `{
+    await client.writeDocument("anywhere.json", `{
       "$schema": "schema.json",
       "foo": 42
     }`);
-    await client.openDocument("fixture.json");
+    await client.openDocument("anywhere.json");
 
     await expect(diagnostics).resolves.toHaveLength(0);
   });
