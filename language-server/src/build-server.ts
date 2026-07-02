@@ -5,6 +5,7 @@ import { Diagnostics } from "./features/Diagnostics.ts";
 import { SyntaxValidation } from "./features/SyntaxValidation.ts";
 import { SchemaValidation } from "./features/SchemaValidation.ts";
 import { Formatting } from "./features/Formatting.ts";
+import { SelfIdentifyingSchemas } from "./features/SelfIdentifyingSchemas.ts";
 
 import "@hyperjump/json-schema/draft-2020-12";
 import "@hyperjump/json-schema/draft-2019-09";
@@ -24,12 +25,14 @@ export const buildServer = (connection: Connection): Connection => {
   const documents = new JsonDocuments(server, schemaStore);
   documents.listen(server);
 
+  new Formatting(server, documents);
+
+  new SelfIdentifyingSchemas(server, schemaStore);
+
   new Diagnostics(server, documents, [
     new SyntaxValidation(),
     new SchemaValidation()
   ]);
-
-  new Formatting(server, documents);
 
   return server;
 };
