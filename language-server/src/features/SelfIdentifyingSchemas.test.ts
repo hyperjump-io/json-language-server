@@ -55,6 +55,9 @@ describe("Self-Identifying Schemas", () => {
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].message).toContain("Expected a ⁨string⁩");
 
+    // Clear socket queue from duplicate open/watch notifications
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     // 3. Update the schema to allow a number for "foo"
     const updatedDiagnosticsPromise = new Promise<Diagnostic[]>((resolve) => {
       client.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
@@ -72,6 +75,9 @@ describe("Self-Identifying Schemas", () => {
         "foo": { "type": "number" }
       }
     }`);
+
+    // Wait a brief moment for the watched file event and write to settle on Windows
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const updatedDiagnostics = await updatedDiagnosticsPromise;
     expect(updatedDiagnostics).toHaveLength(0);
