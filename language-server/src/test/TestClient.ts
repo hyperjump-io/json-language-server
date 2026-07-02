@@ -237,7 +237,16 @@ export class TestClient {
 
   async deleteDocument(uri: string) {
     const fullUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
-    await rm(fileURLToPath(fullUri.fsPath));
+    await rm(fullUri.fsPath);
+
+    if (this.watchEnabled) {
+      await this.client.sendNotification(DidChangeWatchedFilesNotification.type, {
+        changes: [{
+          type: 3, // FileChangeType.Deleted
+          uri: fullUri.toString()
+        }]
+      });
+    }
 
     return fullUri.toString();
   }

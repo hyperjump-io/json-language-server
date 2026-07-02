@@ -1,4 +1,5 @@
 import { compile, getSchema } from "@hyperjump/json-schema/experimental";
+import { unregisterSchema } from "@hyperjump/json-schema";
 import { evaluateCompiledSchema } from "@hyperjump/json-schema-errors";
 import { normalizeIri } from "@hyperjump/uri";
 import { abbreviateUri } from "../util/utils.ts";
@@ -45,9 +46,16 @@ export class SchemaStore {
   }
 
   clear(schemaUri: string) {
+    const normalizedUri = normalizeIri(schemaUri);
+    try {
+      unregisterSchema(normalizedUri);
+    } catch {
+      // Ignore if not registered
+    }
     for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
+      const normalizedCachedUri = normalizeIri(cachedSchemaUri);
       const dependentSchemas = this.getDependenencies(compiledSchema);
-      if (dependentSchemas.has(schemaUri)) {
+      if (normalizedCachedUri === normalizedUri || dependentSchemas.has(normalizedUri)) {
         this.server.console.log(`clear schema cache for ${abbreviateUri(cachedSchemaUri)}`);
         this.compiledSchemaCache.delete(cachedSchemaUri);
       }
@@ -58,9 +66,23 @@ export class SchemaStore {
     const dependentSchemas = new Set<string>();
     for (const key of Object.keys(compiledSchema.ast)) {
       if (key !== "metaData" && key !== "plugins") {
-        dependentSchemas.add(key.split("#")[0]);
+        dependentSchemas.add(normalizeIri(key.split("#")[0]));
       }
     }
     return dependentSchemas;
+  }
+
+  private workspaceSchemaUris: Map<string, string> = new Map();
+
+  registerWorkspaceSchema(fileUri: string, id: string) {
+    this.workspaceSchemaUris.set(normalizeIri(fileUri), normalizeIri(id));
+  }
+
+  unregisterWorkspaceSchema(fileUri: string) {
+    this.workspaceSchemaUris.delete(normalizeIri(fileUri));
+  }
+
+  getWorkspaceSchemaId(fileUri: string) {
+    return this.workspaceSchemaUris.get(normalizeIri(fileUri));
   }
 }

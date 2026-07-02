@@ -304,6 +304,9 @@ describe("Schema Validation", () => {
 
     await expect(initialValidation).resolves.toHaveLength(1);
 
+    // Clear socket queue from duplicate open/watch notifications
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     const secondValidation = new Promise((resolve) => {
       client.onNotification("textDocument/publishDiagnostics", (params) => {
         resolve(params.diagnostics);
@@ -343,6 +346,9 @@ describe("Schema Validation", () => {
     const instanceUri = await client.openDocument("instance.json");
 
     await expect(initialValidation).resolves.toHaveLength(1);
+
+    // Clear socket queue from duplicate open/watch notifications
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const secondValidation = new Promise<Diagnostic[]>((resolve) => {
       client.onNotification("textDocument/publishDiagnostics", (params) => {
@@ -391,6 +397,9 @@ describe("Schema Validation", () => {
     const instanceUri = await client.openDocument("instance.json");
 
     await expect(initialValidation).resolves.toHaveLength(1);
+
+    // Clear socket queue from duplicate open/watch notifications
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const secondValidation = new Promise<Diagnostic[]>((resolve) => {
       client.onNotification("textDocument/publishDiagnostics", (params) => {
@@ -525,6 +534,9 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
     await expect(initialValidation).resolves.to.toHaveLength(1);
 
+    // Clear socket queue from duplicate open/watch notifications
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     // Remove $schema
     const secondValidation = new Promise<Diagnostic[]>((resolve) => {
       client.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
@@ -563,6 +575,9 @@ describe("Schema Validation", () => {
     });
     await client.openDocument("instance.json");
     await expect(initialValidation).resolves.to.toHaveLength(1);
+
+    // Clear socket queue from duplicate open/watch notifications
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Introducing a schema error should reset schema errors on dependent instances
     const secondValidation = new Promise<Diagnostic[]>((resolve) => {
