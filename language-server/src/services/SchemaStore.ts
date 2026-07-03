@@ -5,8 +5,8 @@ import { evaluateCompiledSchema } from "@hyperjump/json-schema-errors";
 import { addUriSchemePlugin, httpSchemePlugin } from "@hyperjump/browser";
 import { normalizeIri } from "@hyperjump/uri";
 import * as Pact from "@hyperjump/pact";
+import ignore from "ignore";
 import { abbreviateUri } from "../util/utils.ts";
-import { isMatch } from "picomatch";
 
 import type { CompiledSchema } from "@hyperjump/json-schema/experimental";
 import type { Json } from "@hyperjump/json-schema-errors";
@@ -84,16 +84,16 @@ export class SchemaStore {
         continue;
       }
 
-      for (const pattern of fileMatch) {
-        for (const workspaceUri of this.workspace.workspaceFolders) {
-          const workspacePath = fileURLToPath(workspaceUri);
-          if (!filePath.startsWith(workspacePath)) {
-            continue;
-          }
+      const ig = ignore().add(fileMatch);
+      for (const workspaceUri of this.workspace.workspaceFolders) {
+        const workspacePath = fileURLToPath(workspaceUri);
+        if (!filePath.startsWith(workspacePath)) {
+          continue;
+        }
 
-          if (isMatch(pattern.includes("/") ? path.relative(workspacePath, filePath) : path.basename(filePath), pattern, { windows: true })) {
-            return url;
-          }
+        const relativePath = path.relative(workspacePath, filePath);
+        if (ig.ignores(relativePath)) {
+          return url;
         }
       }
     }
