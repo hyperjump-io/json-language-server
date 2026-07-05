@@ -25,7 +25,7 @@ addMediaTypePlugin("application/json", {
   parse: async (response) => {
     return buildSchemaDocument(await response.json(), response.url);
   },
-  fileMatcher: async (path) => path.endsWith(".json"),
+  fileMatcher: async (path) => path.endsWith(".json")
 });
 
 removeUriSchemePlugin("http");
@@ -42,11 +42,11 @@ export const buildServer = (connection: Connection): Connection => {
 
   new Formatting(server, documents);
 
-  new SelfIdentifyingSchemas(server, schemaStore);
+  new SelfIdentifyingSchemas(server, workspace, schemaStore);
 
   new Diagnostics(server, documents, workspace, [
     new SyntaxValidation(),
-    new SchemaValidation(),
+    new SchemaValidation()
   ]);
 
   new Hover(server, documents);

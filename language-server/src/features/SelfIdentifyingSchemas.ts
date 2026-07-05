@@ -5,17 +5,20 @@ import * as jsonc from "jsonc-parser";
 import { registerSchema, unregisterSchema } from "@hyperjump/json-schema";
 import { Server } from "../services/Server.ts";
 import { SchemaStore } from "../services/SchemaStore.ts";
+import { Workspace } from "../services/Workspace.ts";
 
 import type { FileChangeType } from "vscode-languageserver";
 
 export class SelfIdentifyingSchemas {
   private server: Server;
+  private workspace: Workspace;
   private schemaStore: SchemaStore;
   private registeredSchemas: Map<string, { id: string; fileUri: string }> = new Map();
   private workspaceFolders: string[] = [];
 
-  constructor(server: Server, schemaStore: SchemaStore) {
+  constructor(server: Server, workspace: Workspace, schemaStore: SchemaStore) {
     this.server = server;
+    this.workspace = workspace;
     this.schemaStore = schemaStore;
 
     server.onInitialize((params) => {
@@ -31,7 +34,7 @@ export class SelfIdentifyingSchemas {
       await this.scanWorkspace();
     });
 
-    server.onDidChangeWatchedFiles(async (params) => {
+    workspace.onDidChangeWatchedFiles(async (params) => {
       for (const change of params.changes) {
         const fileUri = change.uri;
         if (!fileUri.endsWith(".json") && !fileUri.endsWith(".jsonc")) {
@@ -42,7 +45,7 @@ export class SelfIdentifyingSchemas {
         const changeType = change.type as FileChangeType;
 
         if (changeType === 3) {
-          this.unregister(fileUri);
+          await this.unregister(fileUri);
         } else {
           await this.processFile(fileUri);
         }
@@ -87,7 +90,7 @@ export class SelfIdentifyingSchemas {
   }
 
   private async processFile(fileUri: string) {
-    this.unregister(fileUri);
+    await this.unregister(fileUri);
 
     if (!fileUri.startsWith("file://")) {
       return;
@@ -128,7 +131,7 @@ export class SelfIdentifyingSchemas {
     }
   }
 
-  private unregister(fileUri: string) {
+  private async unregister(fileUri: string) {
     const registered = this.registeredSchemas.get(fileUri);
     if (registered) {
       try {
@@ -139,7 +142,7 @@ export class SelfIdentifyingSchemas {
       this.registeredSchemas.delete(fileUri);
       this.schemaStore.unregisterWorkspaceSchema(fileUri);
 
-      this.schemaStore.clear(registered.id);
+      await this.schemaStore.clear(registered.id);
 
       this.server.console.log(`Unregistered local schema: ${registered.id}`);
     }
