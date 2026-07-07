@@ -1,12 +1,15 @@
+import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { compile, getSchema } from "@hyperjump/json-schema/experimental";
-import { unregisterSchema } from "@hyperjump/json-schema";
+import { registerSchema, unregisterSchema } from "@hyperjump/json-schema";
 import { evaluateCompiledSchema } from "@hyperjump/json-schema-errors";
 import { addUriSchemePlugin, httpSchemePlugin } from "@hyperjump/browser";
 import { normalizeIri } from "@hyperjump/uri";
+import * as jsonc from "jsonc-parser";
 import * as Pact from "@hyperjump/pact";
 import ignore from "ignore";
+import { FileChangeType } from "vscode-languageserver";
 import { abbreviateUri } from "../util/utils.ts";
 
 import type { CompiledSchema, EvaluationPlugin } from "@hyperjump/json-schema/experimental";
@@ -68,10 +71,23 @@ export class SchemaStore {
     addUriSchemePlugin("http", uriSchemePlugin);
     addUriSchemePlugin("https", uriSchemePlugin);
 
+    server.onInitialized(async () => {
+      await this.scanWorkspace();
+    });
+
+    server.onShutdown(() => {
+      this.clearAll();
+    });
+
     workspace.onDidChangeWatchedFiles(async (params) => {
       for (const change of params.changes) {
-        const changedSchemaUri = normalizeIri(change.uri);
-        await this.clear(changedSchemaUri);
+        const fileUri = normalizeIri(change.uri);
+        if (change.type === FileChangeType.Deleted) {
+          await this.unregisterWorkspaceSchemaFile(fileUri);
+        } else {
+          await this.processWorkspaceSchemaFile(fileUri);
+        }
+        await this.clear(fileUri);
       }
     });
   }
@@ -171,5 +187,94 @@ export class SchemaStore {
 
   getWorkspaceSchemaId(fileUri: string) {
     return this.workspaceSchemaUris.get(normalizeIri(fileUri));
+  }
+
+  private async scanWorkspace() {
+    this.server.console.log("Scanning workspace for self-identifying schemas...");
+    for (const folderUri of this.workspace.workspaceFolders) {
+      if (!folderUri.startsWith("file://")) {
+        continue;
+      }
+      const dirPath = fileURLToPath(folderUri);
+      await this.scanDirectory(dirPath);
+    }
+    this.server.console.log(`Scanning completed. Registered ${this.workspaceSchemaUris.size} local schemas.`);
+  }
+
+  private async scanDirectory(dir: string) {
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules" || entry.name === ".git") {
+          continue;
+        }
+        await this.scanDirectory(fullPath);
+      } else if (entry.isFile()) {
+        if (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")) {
+          const fileUri = normalizeIri(pathToFileURL(fullPath).toString());
+          await this.processWorkspaceSchemaFile(fileUri);
+        }
+      }
+    }
+  }
+
+  private async processWorkspaceSchemaFile(fileUri: string) {
+    await this.unregisterWorkspaceSchemaFile(fileUri);
+
+    if (!fileUri.startsWith("file://")) {
+      return;
+    }
+
+    const filePath = fileURLToPath(fileUri);
+    try {
+      const text = await fs.readFile(filePath, "utf-8");
+      const ast = jsonc.parseTree(text);
+      if (ast?.type !== "object") {
+        return;
+      }
+
+      const schemaNode = jsonc.findNodeAtLocation(ast, ["$schema"]);
+      const idNode = jsonc.findNodeAtLocation(ast, ["$id"]);
+
+      if (
+        schemaNode?.type === "string" && idNode?.type === "string"
+      ) {
+        const schemaObject = jsonc.parse(text);
+        const id = normalizeIri(idNode.value);
+
+        unregisterSchema(id);
+        registerSchema(schemaObject, id);
+        this.registerWorkspaceSchema(fileUri, id);
+
+        this.server.console.log(`Registered local schema: ${id} (from ${fileUri})`);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.server.console.error(`Failed to process local schema at ${fileUri}: ${message}`);
+    }
+  }
+
+  private async unregisterWorkspaceSchemaFile(fileUri: string) {
+    const id = this.getWorkspaceSchemaId(fileUri);
+    if (id) {
+      unregisterSchema(id);
+      this.unregisterWorkspaceSchema(fileUri);
+      await this.clear(id);
+      this.server.console.log(`Unregistered local schema: ${id}`);
+    }
+  }
+
+  private clearAll() {
+    for (const id of this.workspaceSchemaUris.values()) {
+      unregisterSchema(id);
+    }
+    this.workspaceSchemaUris.clear();
   }
 }

@@ -3,7 +3,7 @@ import { PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
 import { unregisterSchema } from "@hyperjump/json-schema";
 
-import type { Diagnostic } from "vscode-languageserver";
+import type { Diagnostic, PublishDiagnosticsParams, LogMessageParams } from "vscode-languageserver";
 
 describe("Schema Validation", () => {
   let client: TestClient;
@@ -11,7 +11,15 @@ describe("Schema Validation", () => {
 
   beforeEach(async () => {
     client = new TestClient();
+    const scanCompletedPromise = new Promise<void>((resolve) => {
+      client.onNotification("window/logMessage", (params: LogMessageParams) => {
+        if (params.message.startsWith("Scanning completed")) {
+          resolve();
+        }
+      });
+    });
     await client.start();
+    await scanCompletedPromise;
   });
 
   afterEach(async () => {
@@ -296,7 +304,7 @@ describe("Schema Validation", () => {
       }
     }`);
 
-    await client.writeDocument("instance.json", `{
+    const instanceUri = await client.writeDocument("instance.json", `{
       "$schema": "${fixtureSchemaUri}",
       "name": "Alice",
       "age" : "not a number"
@@ -310,7 +318,9 @@ describe("Schema Validation", () => {
 
     const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
       client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
       });
     });
 
@@ -535,9 +545,6 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
     await expect(initialValidation).resolves.to.toHaveLength(1);
 
-    // Clear socket queue from duplicate open/watch notifications
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     // Remove $schema
     const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
       client.onNotification(PublishDiagnosticsNotification.type, (params) => {
@@ -576,9 +583,6 @@ describe("Schema Validation", () => {
     });
     await client.openDocument("instance.json");
     await expect(initialValidation).resolves.to.toHaveLength(1);
-
-    // Clear socket queue from duplicate open/watch notifications
-    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Introducing a schema error should reset schema errors on dependent instances
     const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
@@ -729,5 +733,191 @@ describe("Schema Validation", () => {
         source: "hyperjump-json-language-server"
       }
     ]);
+  });
+
+  describe("Self-Identifying Schemas", () => {
+    const schemaId = "https://example.com/my-workspace-schema";
+
+    test("should register self-identifying schema and validate document using its $id", async () => {
+      // 1. Create a self-identifying schema file in the workspace
+      await client.writeDocument("my-schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "${schemaId}",
+        "type": "object",
+        "properties": {
+          "foo": { "type": "string" }
+        }
+      }`);
+
+      // 2. Create and open an instance file that references the local schema by its $id
+      let instanceUri: string;
+      const diagnosticsPromise = new Promise<Diagnostic[]>((resolve) => {
+        client.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
+          if (params.uri === instanceUri) {
+            resolve(params.diagnostics);
+          }
+        });
+      });
+
+      instanceUri = await client.writeDocument("instance.json", `{
+        "$schema": "${schemaId}",
+        "foo": 42
+      }`);
+      await client.openDocument("instance.json");
+
+      const diagnostics = await diagnosticsPromise;
+      expect(diagnostics).toEqual([
+        expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      ]);
+    });
+
+    test("should update registered schema and re-validate dependent documents", async () => {
+      // 1. Create initial schema
+      await client.writeDocument("my-schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "${schemaId}",
+        "type": "object",
+        "properties": {
+          "foo": { "type": "string" }
+        }
+      }`);
+
+      // 2. Create instance and resolve initial validation
+      let instanceUri: string;
+      const initialValidation = new Promise<Diagnostic[]>((resolve) => {
+        client.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
+          if (params.uri === instanceUri) {
+            resolve(params.diagnostics);
+          }
+        });
+      });
+
+      instanceUri = await client.writeDocument("instance.json", `{
+        "$schema": "${schemaId}",
+        "foo": 42
+      }`);
+      await client.openDocument("instance.json");
+      await expect(initialValidation).resolves.toHaveLength(1);
+
+      // 3. Update the schema to allow a number for "foo"
+      const updatedDiagnosticsPromise = new Promise<Diagnostic[]>((resolve) => {
+        client.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
+          if (params.uri === instanceUri) {
+            resolve(params.diagnostics);
+          }
+        });
+      });
+
+      await client.writeDocument("my-schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "${schemaId}",
+        "type": "object",
+        "properties": {
+          "foo": { "type": "number" }
+        }
+      }`);
+
+      const updatedDiagnostics = await updatedDiagnosticsPromise;
+      expect(updatedDiagnostics).toHaveLength(0);
+    });
+
+    test("should discover and register self-identifying schemas on startup", async () => {
+      const startupClient = new TestClient();
+      try {
+        await startupClient.writeDocument("startup-schema.json", `{
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$id": "${schemaId}",
+          "type": "object",
+          "properties": {
+            "bar": { "type": "number" }
+          }
+        }`);
+
+        const scanCompletedPromise = new Promise<void>((resolve) => {
+          startupClient.onNotification("window/logMessage", (params: LogMessageParams) => {
+            if (params.message.startsWith("Scanning completed")) {
+              resolve();
+            }
+          });
+        });
+
+        await startupClient.start();
+        await scanCompletedPromise;
+
+        let instanceUri: string;
+        const diagnosticsPromise = new Promise<Diagnostic[]>((resolve) => {
+          startupClient.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
+            if (params.uri === instanceUri) {
+              resolve(params.diagnostics);
+            }
+          });
+        });
+
+        instanceUri = await startupClient.writeDocument("instance2.json", `{
+          "$schema": "${schemaId}",
+          "bar": "not a number"
+        }`);
+        await startupClient.openDocument("instance2.json");
+
+        const diagnostics = await diagnosticsPromise;
+        expect(diagnostics).toEqual([
+          expect.objectContaining({ message: "Expected a ⁨number⁩" })
+        ]);
+      } finally {
+        await startupClient.stop();
+      }
+    });
+
+    test("should unregister schema when schema file is deleted", async () => {
+      // 1. Create schema and wait for it to be registered on the server
+      const registerPromise = new Promise<void>((resolve) => {
+        client.onNotification("window/logMessage", (params: LogMessageParams) => {
+          if (params.message.startsWith("Registered local schema")) {
+            resolve();
+          }
+        });
+      });
+
+      await client.writeDocument("delete-schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "${schemaId}",
+        "type": "object",
+        "properties": {
+          "baz": { "type": "boolean" }
+        }
+      }`);
+      await registerPromise;
+
+      // 2. Delete the schema file and wait for unregistration to complete on the server
+      const unregisterPromise = new Promise<void>((resolve) => {
+        client.onNotification("window/logMessage", (params: LogMessageParams) => {
+          if (params.message.startsWith("Unregistered local schema")) {
+            resolve();
+          }
+        });
+      });
+
+      await client.deleteDocument("delete-schema.json");
+      await unregisterPromise;
+
+      // 3. Try to validate an instance against the deleted schema (should fail to load schema)
+      let instanceUri: string;
+      const diagnosticsPromise = new Promise<Diagnostic[]>((resolve) => {
+        client.onNotification("textDocument/publishDiagnostics", (params: PublishDiagnosticsParams) => {
+          if (params.uri === instanceUri) {
+            resolve(params.diagnostics);
+          }
+        });
+      });
+
+      instanceUri = await client.writeDocument("instance3.json", `{
+        "$schema": "${schemaId}",
+        "baz": "true"
+      }`);
+      await client.openDocument("instance3.json");
+
+      const diagnostics = await diagnosticsPromise;
+      expect(diagnostics).toHaveLength(1);
+    });
   });
 });

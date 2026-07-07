@@ -250,7 +250,7 @@ export class TestClient {
     if (this.watchEnabled) {
       await this.client.sendNotification(DidChangeWatchedFilesNotification.type, {
         changes: [{
-          type: 3, // FileChangeType.Deleted
+          type: FileChangeType.Deleted,
           uri: fullUri
         }]
       });

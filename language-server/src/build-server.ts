@@ -6,7 +6,6 @@ import { Diagnostics } from "./features/Diagnostics.ts";
 import { SyntaxValidation } from "./features/SyntaxValidation.ts";
 import { SchemaValidation } from "./features/SchemaValidation.ts";
 import { Formatting } from "./features/Formatting.ts";
-import { SelfIdentifyingSchemas } from "./features/SelfIdentifyingSchemas.ts";
 import { addMediaTypePlugin, removeUriSchemePlugin } from "@hyperjump/browser";
 import { buildSchemaDocument } from "@hyperjump/json-schema/experimental";
 import { Hover } from "./features/Hover.ts";
@@ -19,7 +18,8 @@ import "@hyperjump/json-schema/draft-04";
 
 import type { Connection } from "vscode-languageserver";
 
-export type LanguageServerSettings = {};
+export type LanguageServerSettings = {
+};
 
 addMediaTypePlugin("application/json", {
   parse: async (response) => {
@@ -40,15 +40,12 @@ export const buildServer = (connection: Connection): Connection => {
   const documents = new JsonDocuments(server, schemaStore);
   documents.listen(server);
 
-  new Formatting(server, documents);
-
-  new SelfIdentifyingSchemas(server, workspace, schemaStore);
-
   new Diagnostics(server, documents, workspace, [
     new SyntaxValidation(),
     new SchemaValidation()
   ]);
 
+  new Formatting(server, documents);
   new Hover(server, documents);
 
   return server;
