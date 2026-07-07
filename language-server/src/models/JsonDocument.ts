@@ -58,6 +58,7 @@ export class JsonDocument implements TextDocument {
   }
 
   validateSchema() {
+    this.matchingSchemaCollector = new MatchingSchemaCollector();
     this.schemaErrors = this.schemaUri.then((schemaUri) => {
       if (!schemaUri) {
         return;

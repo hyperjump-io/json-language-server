@@ -312,6 +312,71 @@ _hyperjump-json-language-server_`
     });
   });
 
+  test("should not duplicate annotations when the referenced schema is edited while the instance stays open", async () => {
+    const initialValidation = new Promise<void>((resolve) => {
+      client.onNotification("textDocument/publishDiagnostics", () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "age": {
+          "title": "Title 1",
+          "description": "Age of the user in years.",
+          "type": "number"
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "age": 25\n}`);
+    const uri = await client.openDocument("instance.json");
+
+    await initialValidation;
+
+    const secondValidation = new Promise<void>((resolve) => {
+      client.onNotification("textDocument/publishDiagnostics", (params) => {
+        if (params.uri === uri) {
+          resolve();
+        }
+      });
+    });
+
+    await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "age": {
+          "title": "New Title",
+          "description": "Age of the user in years.",
+          "type": "number"
+        }
+      }
+    }`);
+
+    await secondValidation;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 10 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `**New Title**
+
+Age of the user in years.
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
   test("if schema fails as a whole but a sub-schema passes then hover should return annotations for passing sub-schemas", async () => {
     const diagnostics = new Promise<void>((resolve) => {
       client.onNotification("textDocument/publishDiagnostics", () => {
