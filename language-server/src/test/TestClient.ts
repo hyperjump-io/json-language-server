@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promise
 import { Duplex } from "node:stream";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ConfigurationRequest,
   DidChangeConfigurationNotification,
@@ -18,7 +18,7 @@ import {
   ShutdownRequest
 } from "vscode-languageserver";
 import { createConnection } from "vscode-languageserver/node";
-import { URI, Utils } from "vscode-uri";
+import { resolveIri } from "@hyperjump/uri";
 import { merge } from "merge-anything";
 import { MockAgent, setGlobalDispatcher } from "undici";
 import { buildServer, LanguageServerSettings } from "../build-server.js";
@@ -53,7 +53,7 @@ export class TestClient {
     this.watchEnabled = false;
     this.openDocuments = new Set();
     this.workspaceFolder = mkdtemp(join(tmpdir(), "test-workspace-"))
-      .then((path) => URI.file(path).toString() + "/");
+      .then((path) => pathToFileURL(path) + "/");
 
     this.mockAgent = new MockAgent();
     this.mockAgent.disableNetConnect();
@@ -222,13 +222,14 @@ export class TestClient {
   }
 
   async writeDocument(uri: string, text: string) {
-    const fullUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
-    const exists = await access(fullUri.fsPath)
+    const fullUri = resolveIri(uri, await this.workspaceFolder);
+    const fullPath = fileURLToPath(fullUri);
+    const exists = await access(fullPath)
       .then(() => true)
       .catch(() => false);
 
-    await mkdir(dirname(fullUri.fsPath), { recursive: true });
-    await writeFile(fullUri.fsPath, text, "utf-8");
+    await mkdir(dirname(fullPath), { recursive: true });
+    await writeFile(fullPath, text, "utf-8");
 
     if (this.watchEnabled) {
       await this.client.sendNotification(DidChangeWatchedFilesNotification.type, {
@@ -239,45 +240,47 @@ export class TestClient {
       });
     }
 
-    return fullUri.toString();
+    return fullUri;
   }
 
   async deleteDocument(uri: string) {
-    const fullUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
-    await rm(fileURLToPath(fullUri.fsPath));
+    const fullUri = resolveIri(uri, await this.workspaceFolder);
+    const fullPath = fileURLToPath(fullUri);
+    await rm(fileURLToPath(fullPath));
 
-    return fullUri.toString();
+    return fullUri;
   }
 
   async openDocument(uri: string) {
-    const documentUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
+    const fullUri = resolveIri(uri, await this.workspaceFolder);
+    const fullPath = fileURLToPath(fullUri);
 
     await this.client.sendNotification(DidOpenTextDocumentNotification.type, {
       textDocument: {
-        uri: documentUri.toString(),
+        uri: fullUri,
         languageId: "json",
         version: 0,
-        text: await readFile(documentUri.fsPath, "utf-8")
+        text: await readFile(fullPath, "utf-8")
       }
     });
 
-    this.openDocuments.add(documentUri.toString());
+    this.openDocuments.add(fullUri);
 
-    return documentUri.toString();
+    return fullUri;
   }
 
   async changeDocument(uri: string, text: string) {
-    const documentUri = Utils.resolvePath(URI.parse(await this.workspaceFolder), uri);
+    const fullUri = resolveIri(uri, await this.workspaceFolder);
 
     await this.client.sendNotification(DidChangeTextDocumentNotification.type, {
       textDocument: {
-        uri: documentUri.toString(),
+        uri: fullUri,
         version: 1
       },
       contentChanges: [{ text }]
     });
 
-    return documentUri.toString();
+    return fullUri;
   }
 
   async closeDocument(uri: string) {
