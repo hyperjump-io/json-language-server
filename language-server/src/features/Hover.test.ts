@@ -424,4 +424,38 @@ _hyperjump-json-language-server_`
       }
     });
   });
+
+  test("hover with an invalid schema", async () => {
+    const diagnostics = new Promise<void>((resolve) => {
+      client.onNotification("textDocument/publishDiagnostics", () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "invalid",
+      "properties": {
+        "value": {
+          "type": "invalid",
+          "title": "A Number"
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": 90
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 1, character: 10 }
+    });
+
+    expect(result).toEqual(null);
+  });
 });

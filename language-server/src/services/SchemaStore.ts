@@ -120,7 +120,7 @@ export class SchemaStore {
   async getDependentSchemaUris(schemaUri: string) {
     const compiledSchemaPromise = this.compiledSchemaCache.get(schemaUri);
     if (compiledSchemaPromise === undefined) {
-      return undefined;
+      return;
     }
     const compiledSchema = await compiledSchemaPromise;
     return this.getDependenencies(compiledSchema);
