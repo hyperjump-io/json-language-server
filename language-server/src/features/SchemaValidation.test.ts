@@ -1,7 +1,7 @@
 import { describe, test, expect, afterEach, beforeEach } from "vitest";
+import { PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
 import { unregisterSchema } from "@hyperjump/json-schema";
-import { PublishDiagnosticsNotification } from "vscode-languageserver";
 
 import type { Diagnostic } from "vscode-languageserver";
 
@@ -591,6 +591,66 @@ describe("Schema Validation", () => {
         source: "hyperjump-json-language-server"
       }
     ]);
+  });
+
+  test("Fixing a schema error should reset schemas errors for dependent instances", async () => {
+    // Start with an invalid schema
+    await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "invalid" }
+      }
+    }`);
+
+    // Open a document that uses the invalid schema
+    const instanceUri = await client.writeDocument("instance.json", `{
+      "$schema": "schema.json",
+      "foo": 42
+    }`);
+
+    const initialDiagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+
+    await client.openDocument("instance.json");
+
+    // Confirm invlaid schema message
+    await expect(initialDiagnostics).resolves.toEqual([
+      {
+        message: "Invalid Schema",
+        range: {
+          start: { line: 1, character: 17 },
+          end: { line: 1, character: 30 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+
+    // Make the schema valid
+    const secondDiagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+
+    await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "number" }
+      }
+    }`);
+
+    // Confirm valid
+    await expect(secondDiagnostics).resolves.toEqual([]);
   });
 
   test("$schema points to an invalid schema", async () => {
