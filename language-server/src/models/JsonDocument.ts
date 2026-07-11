@@ -2,7 +2,7 @@ import { TextDocumentContentChangeEvent } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import * as jsonc from "jsonc-parser";
 import * as JsonPointer from "@hyperjump/json-pointer";
-import { resolveIri, normalizeIri } from "@hyperjump/uri";
+import { resolveIri } from "@hyperjump/uri";
 import { SchemaStore } from "../services/SchemaStore.ts";
 import { Server } from "../services/Server.ts";
 import { MatchingSchemaCollector } from "../services/MatchingSchemaCollector.ts";
@@ -76,18 +76,9 @@ export class JsonDocument implements TextDocument {
       return false;
     }
 
-    const normalizedSchemaUri = normalizeIri(schemaUri);
-    const normalizedChangedUri = normalizeIri(changedUri);
+    const dependentSchemaUris = await this.schemaStore.getDependentSchemaUris(schemaUri);
 
-    const dependentSchemaUris = await this.schemaStore.getDependentSchemaUris(normalizedSchemaUri);
-
-    if (dependentSchemaUris === undefined) {
-      return true;
-    }
-
-    const changedSchemaId = this.schemaStore.getWorkspaceSchemaId(normalizedChangedUri);
-
-    return dependentSchemaUris.has(normalizedChangedUri) || (changedSchemaId !== undefined && (normalizedSchemaUri === changedSchemaId || dependentSchemaUris.has(changedSchemaId)));
+    return dependentSchemaUris === undefined || dependentSchemaUris.has(changedUri);
   }
 
   get uri() {

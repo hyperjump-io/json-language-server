@@ -426,8 +426,8 @@ _hyperjump-json-language-server_`
   });
 
   test("hover with an invalid schema", async () => {
-    const diagnostics = new Promise<void>((resolve) => {
-      client.onNotification("textDocument/publishDiagnostics", () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
         resolve();
       });
     });

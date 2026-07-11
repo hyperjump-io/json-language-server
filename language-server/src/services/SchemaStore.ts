@@ -31,6 +31,8 @@ export class SchemaStore {
   private workspace: Workspace;
   private compiledSchemaCache: Map<string, Promise<CompiledSchema>> = new Map();
   private catalog: Promise<SchemaStoreEntry[]>;
+  private workspaceSchemaUris: Map<string, string> = new Map();
+  private scanCompleted: Promise<void>;
 
   constructor(server: Server, workspace: Workspace) {
     this.server = server;
@@ -47,6 +49,13 @@ export class SchemaStore {
           server.console.log(`Failed to load SchemaStore.org catalog (${(performance.now() - startTime).toFixed(2)}ms)`);
           resolve([]);
         }
+      });
+    });
+
+    this.scanCompleted = new Promise((resolve) => {
+      server.onInitialized(async () => {
+        await this.scanWorkspace();
+        resolve();
       });
     });
 
@@ -71,23 +80,13 @@ export class SchemaStore {
     addUriSchemePlugin("http", uriSchemePlugin);
     addUriSchemePlugin("https", uriSchemePlugin);
 
-    server.onInitialized(async () => {
-      await this.scanWorkspace();
-    });
-
-    server.onShutdown(() => {
-      this.clearAll();
-    });
-
     workspace.onDidChangeWatchedFiles(async (params) => {
       for (const change of params.changes) {
-        const fileUri = normalizeIri(change.uri);
-        if (change.type === FileChangeType.Deleted) {
-          await this.unregisterWorkspaceSchemaFile(fileUri);
-        } else {
-          await this.processWorkspaceSchemaFile(fileUri);
+        const changedSchemaUri = normalizeIri(change.uri);
+        await this.clear(changedSchemaUri);
+        if (change.type !== FileChangeType.Deleted) {
+          await this.processWorkspaceSchemaFile(changedSchemaUri);
         }
-        await this.clear(fileUri);
       }
     });
   }
@@ -117,6 +116,8 @@ export class SchemaStore {
   }
 
   async validate(schemaUri: string, instance: Json, instanceUri: string, plugins: EvaluationPlugin[] = []) {
+    await this.scanCompleted;
+
     if (!this.compiledSchemaCache.has(schemaUri)) {
       this.compiledSchemaCache.set(schemaUri, (async function (server) {
         const startTime = performance.now();
@@ -144,17 +145,11 @@ export class SchemaStore {
   }
 
   async clear(schemaUri: string) {
-    const normalizedUri = normalizeIri(schemaUri);
-    try {
-      unregisterSchema(normalizedUri);
-    } catch {
-      // Ignore if not registered
-    }
     for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
       try {
-        const normalizedCachedUri = normalizeIri(cachedSchemaUri);
         const dependentSchemas = this.getDependenencies(await compiledSchema);
-        if (normalizedCachedUri !== normalizedUri && !dependentSchemas.has(normalizedUri)) {
+        const actualSchemaUri = this.workspaceSchemaUris.get(schemaUri) ?? schemaUri;
+        if (!dependentSchemas.has(actualSchemaUri)) {
           continue;
         }
       } catch {
@@ -162,6 +157,8 @@ export class SchemaStore {
 
       this.server.console.log(`clear schema cache for ${abbreviateUri(cachedSchemaUri)}`);
       this.compiledSchemaCache.delete(cachedSchemaUri);
+      unregisterSchema(cachedSchemaUri);
+      this.workspaceSchemaUris.delete(cachedSchemaUri);
     }
   }
 
@@ -169,47 +166,23 @@ export class SchemaStore {
     const dependentSchemas = new Set<string>();
     for (const key of Object.keys(compiledSchema.ast)) {
       if (key !== "metaData" && key !== "plugins") {
-        dependentSchemas.add(normalizeIri(key.split("#")[0]));
+        dependentSchemas.add(key.split("#")[0]);
       }
     }
     return dependentSchemas;
   }
 
-  private workspaceSchemaUris: Map<string, string> = new Map();
-
-  registerWorkspaceSchema(fileUri: string, id: string) {
-    this.workspaceSchemaUris.set(normalizeIri(fileUri), normalizeIri(id));
-  }
-
-  unregisterWorkspaceSchema(fileUri: string) {
-    this.workspaceSchemaUris.delete(normalizeIri(fileUri));
-  }
-
-  getWorkspaceSchemaId(fileUri: string) {
-    return this.workspaceSchemaUris.get(normalizeIri(fileUri));
-  }
-
   private async scanWorkspace() {
     this.server.console.log("Scanning workspace for self-identifying schemas...");
     for (const folderUri of this.workspace.workspaceFolders) {
-      if (!folderUri.startsWith("file://")) {
-        continue;
-      }
       const dirPath = fileURLToPath(folderUri);
       await this.scanDirectory(dirPath);
     }
-    this.server.console.log(`Scanning completed. Registered ${this.workspaceSchemaUris.size} local schemas.`);
+    this.server.console.log("Scanning completed");
   }
 
   private async scanDirectory(dir: string) {
-    let entries;
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-
-    for (const entry of entries) {
+    for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (entry.name === "node_modules" || entry.name === ".git") {
@@ -218,7 +191,7 @@ export class SchemaStore {
         await this.scanDirectory(fullPath);
       } else if (entry.isFile()) {
         if (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")) {
-          const fileUri = normalizeIri(pathToFileURL(fullPath).toString());
+          const fileUri = pathToFileURL(fullPath).toString();
           await this.processWorkspaceSchemaFile(fileUri);
         }
       }
@@ -226,12 +199,6 @@ export class SchemaStore {
   }
 
   private async processWorkspaceSchemaFile(fileUri: string) {
-    await this.unregisterWorkspaceSchemaFile(fileUri);
-
-    if (!fileUri.startsWith("file://")) {
-      return;
-    }
-
     const filePath = fileURLToPath(fileUri);
     try {
       const text = await fs.readFile(filePath, "utf-8");
@@ -243,15 +210,13 @@ export class SchemaStore {
       const schemaNode = jsonc.findNodeAtLocation(ast, ["$schema"]);
       const idNode = jsonc.findNodeAtLocation(ast, ["$id"]);
 
-      if (
-        schemaNode?.type === "string" && idNode?.type === "string"
-      ) {
+      if (schemaNode?.type === "string" && idNode?.type === "string") {
         const schemaObject = jsonc.parse(text);
-        const id = normalizeIri(idNode.value);
+        const id = idNode.value;
 
         unregisterSchema(id);
-        registerSchema(schemaObject, id);
-        this.registerWorkspaceSchema(fileUri, id);
+        registerSchema(schemaObject);
+        this.workspaceSchemaUris.set(fileUri, id);
 
         this.server.console.log(`Registered local schema: ${id} (from ${fileUri})`);
       }
@@ -259,22 +224,5 @@ export class SchemaStore {
       const message = error instanceof Error ? error.message : String(error);
       this.server.console.error(`Failed to process local schema at ${fileUri}: ${message}`);
     }
-  }
-
-  private async unregisterWorkspaceSchemaFile(fileUri: string) {
-    const id = this.getWorkspaceSchemaId(fileUri);
-    if (id) {
-      unregisterSchema(id);
-      this.unregisterWorkspaceSchema(fileUri);
-      await this.clear(id);
-      this.server.console.log(`Unregistered local schema: ${id}`);
-    }
-  }
-
-  private clearAll() {
-    for (const id of this.workspaceSchemaUris.values()) {
-      unregisterSchema(id);
-    }
-    this.workspaceSchemaUris.clear();
   }
 }
