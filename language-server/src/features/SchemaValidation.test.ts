@@ -2,6 +2,10 @@ import { describe, test, expect, afterEach, beforeEach } from "vitest";
 import { PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
 
+import { promises as fs } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import type { Diagnostic } from "vscode-languageserver";
 
 describe("Schema Validation", () => {
@@ -923,5 +927,25 @@ describe("Workspace scan", async () => {
         source: "hyperjump-json-language-server"
       }
     ]);
+  });
+
+  test("should handle and log error when processing invalid local schema on startup", async () => {
+    client = new TestClient();
+
+    const workspacePath = fileURLToPath(await client.workspaceFolder);
+    await fs.mkdir(join(workspacePath, "startup-broken-schema.json"));
+
+    const errorLoggedPromise = new Promise<string>((resolve) => {
+      client?.onNotification("window/logMessage", (params: any) => {
+        if (params.message.includes("Failed to process local schema at")) {
+          resolve(params.message);
+        }
+      });
+    });
+
+    await client.start();
+
+    const loggedMessage = await errorLoggedPromise;
+    expect(loggedMessage).toContain("Failed to process local schema at");
   });
 });

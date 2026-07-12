@@ -38,7 +38,7 @@ export class TestClient {
   private languageServerSettings: Partial<LanguageServerSettings> | undefined;
   private configurationChangeNotificationOptions: DidChangeConfigurationRegistrationOptions | null | undefined;
   private openDocuments: Set<string>;
-  private workspaceFolder: Promise<string>;
+  private _workspaceFolder: Promise<string>;
 
   onRequest: Connection["onRequest"];
   sendRequest: Connection["sendRequest"];
@@ -52,7 +52,7 @@ export class TestClient {
     this.serverName = serverName;
     this.watchEnabled = false;
     this.openDocuments = new Set();
-    this.workspaceFolder = mkdtemp(join(tmpdir(), "test-workspace-"))
+    this._workspaceFolder = mkdtemp(join(tmpdir(), "test-workspace-"))
       .then((path) => pathToFileURL(path) + "/");
 
     this.mockAgent = new MockAgent();
@@ -105,6 +105,10 @@ export class TestClient {
 
   get serverCapabilities() {
     return structuredClone(this._serverCapabilities);
+  }
+
+  public get workspaceFolder(): Promise<string> {
+    return this._workspaceFolder;
   }
 
   async start(params: Partial<InitializeParams> = {}) {

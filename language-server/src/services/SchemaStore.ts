@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { compile, getSchema } from "@hyperjump/json-schema/experimental";
+import { compile, getSchema, getKeywordName } from "@hyperjump/json-schema/experimental";
 import { registerSchema, unregisterSchema } from "@hyperjump/json-schema";
 import { evaluateCompiledSchema } from "@hyperjump/json-schema-errors";
 import { addUriSchemePlugin, httpSchemePlugin } from "@hyperjump/browser";
@@ -176,49 +176,78 @@ export class SchemaStore {
     this.server.console.log("Scanning workspace for self-identifying schemas...");
     for (const folderUri of this.workspace.workspaceFolders) {
       const dirPath = fileURLToPath(folderUri);
-      await this.scanDirectory(dirPath);
-    }
-    this.server.console.log("Scanning completed");
-  }
 
-  private async scanDirectory(dir: string) {
-    for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === "node_modules" || entry.name === ".git") {
-          continue;
-        }
-        await this.scanDirectory(fullPath);
-      } else if (entry.isFile()) {
-        if (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")) {
+      const ig = ignore().add([".git", "node_modules"]);
+      try {
+        const gitignorePath = path.join(dirPath, ".gitignore");
+        const gitignoreContent = await fs.readFile(gitignorePath, "utf-8");
+        ig.add(gitignoreContent);
+      } catch {
+        // Ignore if .gitignore does not exist
+      }
+
+      const globFn = (fs as any).glob;
+      if (globFn) {
+        const globOptions = {
+          cwd: dirPath,
+          exclude: (entry: any) => entry.name === "node_modules" || entry.name === ".git"
+        };
+        for await (const entry of globFn("**/*.{json,jsonc}", globOptions)) {
+          if (ig.ignores(entry)) {
+            continue;
+          }
+          const fullPath = path.join(dirPath, entry);
           const fileUri = pathToFileURL(fullPath).toString();
           await this.processWorkspaceSchemaFile(fileUri);
         }
+      } else {
+        const scan = async (dir: string) => {
+          for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+            const fullPath = path.join(dir, entry.name);
+            const relativePath = path.relative(dirPath, fullPath);
+            if (ig.ignores(relativePath)) {
+              continue;
+            }
+            if (entry.isDirectory()) {
+              await scan(fullPath);
+            } else if (entry.isFile()) {
+              if (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")) {
+                const fileUri = pathToFileURL(fullPath).toString();
+                await this.processWorkspaceSchemaFile(fileUri);
+              }
+            }
+          }
+        };
+        await scan(dirPath);
       }
     }
+    this.server.console.log("Scanning completed");
   }
 
   private async processWorkspaceSchemaFile(fileUri: string) {
     const filePath = fileURLToPath(fileUri);
     try {
       const text = await fs.readFile(filePath, "utf-8");
-      const ast = jsonc.parseTree(text);
-      if (ast?.type !== "object") {
+      const schemaObject = jsonc.parse(text);
+      if (typeof schemaObject !== "object" || schemaObject === null || Array.isArray(schemaObject)) {
         return;
       }
 
-      const schemaNode = jsonc.findNodeAtLocation(ast, ["$schema"]);
-      const idNode = jsonc.findNodeAtLocation(ast, ["$id"]);
+      const dialectId = schemaObject["$schema"];
+      if (typeof dialectId === "string") {
+        const idKeyword = getKeywordName(dialectId, "https://json-schema.org/keyword/id")
+          || getKeywordName(dialectId, "https://json-schema.org/keyword/draft-04/id");
 
-      if (schemaNode?.type === "string" && idNode?.type === "string") {
-        const schemaObject = jsonc.parse(text);
-        const id = idNode.value;
+        if (idKeyword) {
+          const id = schemaObject[idKeyword];
+          if (typeof id === "string") {
+            unregisterSchema(id);
+            registerSchema(schemaObject);
+            this.workspaceSchemaUris.set(fileUri, id);
 
-        unregisterSchema(id);
-        registerSchema(schemaObject);
-        this.workspaceSchemaUris.set(fileUri, id);
-
-        this.server.console.log(`Registered local schema: ${id} (from ${fileUri})`);
+            this.server.console.log(`Registered local schema: ${id} (from ${fileUri})`);
+          }
+        }
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
