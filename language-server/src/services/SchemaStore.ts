@@ -177,7 +177,7 @@ export class SchemaStore {
     for (const folderUri of this.workspace.workspaceFolders) {
       const dirPath = fileURLToPath(folderUri);
 
-      const ig = ignore().add([".git", "node_modules"]);
+      const ig = ignore();
       try {
         const gitignorePath = path.join(dirPath, ".gitignore");
         const gitignoreContent = await fs.readFile(gitignorePath, "utf-8");
@@ -186,39 +186,17 @@ export class SchemaStore {
         // Ignore if .gitignore does not exist
       }
 
-      const globFn = (fs as any).glob;
-      if (globFn) {
-        const globOptions = {
-          cwd: dirPath,
-          exclude: (entry: any) => entry.name === "node_modules" || entry.name === ".git"
-        };
-        for await (const entry of globFn("**/*.{json,jsonc}", globOptions)) {
-          if (ig.ignores(entry)) {
-            continue;
-          }
-          const fullPath = path.join(dirPath, entry);
-          const fileUri = pathToFileURL(fullPath).toString();
-          await this.processWorkspaceSchemaFile(fileUri);
+      const globOptions = {
+        cwd: dirPath,
+        exclude: [".git/"]
+      };
+      for await (const entry of (fs as any).glob("**/*.{json,jsonc}", globOptions)) {
+        if (ig.ignores(entry)) {
+          continue;
         }
-      } else {
-        const scan = async (dir: string) => {
-          for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
-            const fullPath = path.join(dir, entry.name);
-            const relativePath = path.relative(dirPath, fullPath);
-            if (ig.ignores(relativePath)) {
-              continue;
-            }
-            if (entry.isDirectory()) {
-              await scan(fullPath);
-            } else if (entry.isFile()) {
-              if (entry.name.endsWith(".json") || entry.name.endsWith(".jsonc")) {
-                const fileUri = pathToFileURL(fullPath).toString();
-                await this.processWorkspaceSchemaFile(fileUri);
-              }
-            }
-          }
-        };
-        await scan(dirPath);
+        const fullPath = path.join(dirPath, entry);
+        const fileUri = pathToFileURL(fullPath).toString();
+        await this.processWorkspaceSchemaFile(fileUri);
       }
     }
     this.server.console.log("Scanning completed");
@@ -233,7 +211,7 @@ export class SchemaStore {
         return;
       }
 
-      const dialectId = schemaObject["$schema"];
+      const dialectId = schemaObject?.["$schema"];
       if (typeof dialectId === "string") {
         const idKeyword = getKeywordName(dialectId, "https://json-schema.org/keyword/id")
           || getKeywordName(dialectId, "https://json-schema.org/keyword/draft-04/id");

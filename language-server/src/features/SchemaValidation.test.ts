@@ -2,10 +2,6 @@ import { describe, test, expect, afterEach, beforeEach } from "vitest";
 import { PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
 
-import { promises as fs } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import type { Diagnostic } from "vscode-languageserver";
 
 describe("Schema Validation", () => {
@@ -929,23 +925,54 @@ describe("Workspace scan", async () => {
     ]);
   });
 
-  test("should handle and log error when processing invalid local schema on startup", async () => {
+  test("should handle invalid schema during scan and register valid ones successfully", async () => {
+    const validSchemaId = "https://example.com/my-valid-schema";
+
     client = new TestClient();
 
-    const workspacePath = fileURLToPath(await client.workspaceFolder);
-    await fs.mkdir(join(workspacePath, "startup-broken-schema.json"));
+    // Write a schema with an invalid/unsupported dialect that will throw an error
+    await client.writeDocument("startup-broken-schema.json", `{
+      "$schema": "https://example.com/invalid-dialect",
+      "$id": "https://example.com/broken",
+      "type": "object"
+    }`);
 
-    const errorLoggedPromise = new Promise<string>((resolve) => {
-      client?.onNotification("window/logMessage", (params: any) => {
-        if (params.message.includes("Failed to process local schema at")) {
-          resolve(params.message);
-        }
-      });
-    });
+    // Write a valid schema
+    await client.writeDocument("startup-valid-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${validSchemaId}",
+      "type": "object",
+      "properties": {
+        "bar": { "type": "number" }
+      }
+    }`);
 
     await client.start();
 
-    const loggedMessage = await errorLoggedPromise;
-    expect(loggedMessage).toContain("Failed to process local schema at");
+    // Verify the server is still running and the valid schema works as expected
+    const instanceUri = await client.writeDocument("instance.json", `{
+      "$schema": "${validSchemaId}",
+      "bar": "not a number"
+    }`);
+    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client?.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Expected a ⁨number⁩",
+        range: {
+          start: { line: 2, character: 13 },
+          end: { line: 2, character: 27 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
   });
 });
