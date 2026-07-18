@@ -1,7 +1,6 @@
 import { describe, test, expect, afterEach, beforeEach } from "vitest";
 import { PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
-import { unregisterSchema } from "@hyperjump/json-schema";
 
 import type { Diagnostic } from "vscode-languageserver";
 
@@ -16,10 +15,6 @@ describe("Schema Validation", () => {
 
   afterEach(async () => {
     await client.stop();
-  });
-
-  afterEach(() => {
-    unregisterSchema(fixtureSchemaUri);
   });
 
   test("JSON Validation using Hyperjump - Valid Case", async () => {
@@ -296,7 +291,7 @@ describe("Schema Validation", () => {
       }
     }`);
 
-    await client.writeDocument("instance.json", `{
+    const instanceUri = await client.writeDocument("instance.json", `{
       "$schema": "${fixtureSchemaUri}",
       "name": "Alice",
       "age" : "not a number"
@@ -307,7 +302,9 @@ describe("Schema Validation", () => {
 
     const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
       client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
       });
     });
 
@@ -709,6 +706,269 @@ describe("Schema Validation", () => {
         range: {
           start: { line: 1, character: 17 },
           end: { line: 1, character: 17 + fixtureSchemaUri.length + 2 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
+  test("should register self-identifying schema and validate document using its $id", async () => {
+    const schemaId = "https://example.com/my-workspace-schema";
+
+    // 1. Create a self-identifying schema file in the workspace
+    await client.writeDocument("my-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "string" }
+      }
+    }`);
+
+    // 2. Create and open an instance file that references the local schema by its $id
+    let instanceUri: string;
+    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+
+    instanceUri = await client.writeDocument("instance.json", `{
+      "$schema": "${schemaId}",
+      "foo": 42
+    }`);
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Expected a ⁨string⁩",
+        range: {
+          start: { line: 2, character: 13 },
+          end: { line: 2, character: 15 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
+  test("should update registered schema and re-validate dependent documents", async () => {
+    const schemaId = "https://example.com/my-workspace-schema";
+
+    // 1. Create initial schema
+    await client.writeDocument("my-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "string" }
+      }
+    }`);
+
+    // 2. Create instance and resolve initial validation
+    const instanceUri = await client.writeDocument("instance.json", `{
+      "$schema": "${schemaId}",
+      "foo": 42
+    }`);
+    const initialValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+    await client.openDocument("instance.json");
+
+    await expect(initialValidation).resolves.toEqual([
+      {
+        message: "Expected a ⁨string⁩",
+        range: {
+          start: { line: 2, character: 13 },
+          end: { line: 2, character: 15 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+
+    // 3. Update the schema to allow a number for "foo"
+    const updatedDiagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+
+    await client.writeDocument("my-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "number" }
+      }
+    }`);
+
+    await expect(updatedDiagnostics).resolves.toEqual([]);
+  });
+
+  test("should unregister schema when schema file is deleted", async () => {
+    const schemaId = "https://example.com/my-workspace-schema";
+
+    // 1. Create schema and wait for it to be registered on the server
+    await client.writeDocument("delete-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object",
+      "properties": {
+        "baz": { "type": "boolean" }
+      }
+    }`);
+
+    const instanceUri = await client.writeDocument("instance.json", `{
+      "$schema": "${schemaId}",
+      "baz": "true"
+    }`);
+    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Expected a ⁨boolean⁩",
+        range: {
+          start: { line: 2, character: 13 },
+          end: { line: 2, character: 19 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+
+    // 2. Delete the schema file and wait for unregistration to complete on the server
+    const updatedDiagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+    await client.deleteDocument("delete-schema.json");
+
+    // 3. Try to validate an instance against the deleted schema (should fail to load schema)
+    await expect(updatedDiagnostics).resolves.toEqual([
+      {
+        message: `Unable to load resource '${schemaId}'.`,
+        range: {
+          start: { line: 1, character: 17 },
+          end: { line: 1, character: 58 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+});
+
+describe("Workspace scan", async () => {
+  let client: TestClient | undefined;
+
+  afterEach(async () => {
+    await client?.stop();
+  });
+
+  test("should discover and register self-identifying schemas on startup", async () => {
+    const schemaId = "https://example.com/my-workspace-schema";
+
+    client = new TestClient();
+    await client.writeDocument("startup-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object",
+      "properties": {
+        "bar": { "type": "number" }
+      }
+    }`);
+    await client.start();
+
+    const instanceUri = await client.writeDocument("instance.json", `{
+      "$schema": "${schemaId}",
+      "bar": "not a number"
+    }`);
+    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client?.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Expected a ⁨number⁩",
+        range: {
+          start: { line: 2, character: 13 },
+          end: { line: 2, character: 27 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
+  test("should handle invalid schema during scan and register valid ones successfully", async () => {
+    const validSchemaId = "https://example.com/my-valid-schema";
+
+    client = new TestClient();
+
+    // Write a schema with an invalid/unsupported dialect that will throw an error
+    await client.writeDocument("startup-broken-schema.json", `{
+      "$schema": "https://example.com/invalid-dialect",
+      "$id": "https://example.com/broken",
+      "type": "object"
+    }`);
+
+    // Write a valid schema
+    await client.writeDocument("startup-valid-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${validSchemaId}",
+      "type": "object",
+      "properties": {
+        "bar": { "type": "number" }
+      }
+    }`);
+
+    await client.start();
+
+    // Verify the server is still running and the valid schema works as expected
+    const instanceUri = await client.writeDocument("instance.json", `{
+      "$schema": "${validSchemaId}",
+      "bar": "not a number"
+    }`);
+    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
+      client?.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === instanceUri) {
+          resolve(params.diagnostics);
+        }
+      });
+    });
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Expected a ⁨number⁩",
+        range: {
+          start: { line: 2, character: 13 },
+          end: { line: 2, character: 27 }
         },
         severity: 1,
         source: "hyperjump-json-language-server"

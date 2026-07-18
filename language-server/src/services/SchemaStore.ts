@@ -1,11 +1,15 @@
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
-import { compile, getSchema } from "@hyperjump/json-schema/experimental";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { compile, getSchema, getKeywordName } from "@hyperjump/json-schema/experimental";
+import { registerSchema, unregisterSchema } from "@hyperjump/json-schema";
 import { evaluateCompiledSchema } from "@hyperjump/json-schema-errors";
 import { addUriSchemePlugin, httpSchemePlugin } from "@hyperjump/browser";
-import { normalizeIri } from "@hyperjump/uri";
+import { normalizeIri, toAbsoluteIri } from "@hyperjump/uri";
+import * as jsonc from "jsonc-parser";
 import * as Pact from "@hyperjump/pact";
 import ignore from "ignore";
+import { FileChangeType } from "vscode-languageserver";
 import { abbreviateUri } from "../util/utils.ts";
 
 import type { CompiledSchema, EvaluationPlugin } from "@hyperjump/json-schema/experimental";
@@ -27,6 +31,8 @@ export class SchemaStore {
   private workspace: Workspace;
   private compiledSchemaCache: Map<string, Promise<CompiledSchema>> = new Map();
   private catalog: Promise<SchemaStoreEntry[]>;
+  private workspaceSchemaUris: Map<string, string> = new Map();
+  private scanCompleted: Promise<void>;
 
   constructor(server: Server, workspace: Workspace) {
     this.server = server;
@@ -43,6 +49,13 @@ export class SchemaStore {
           server.console.log(`Failed to load SchemaStore.org catalog (${(performance.now() - startTime).toFixed(2)}ms)`);
           resolve([]);
         }
+      });
+    });
+
+    this.scanCompleted = new Promise((resolve) => {
+      server.onInitialized(async () => {
+        await this.scanWorkspace();
+        resolve();
       });
     });
 
@@ -71,6 +84,9 @@ export class SchemaStore {
       for (const change of params.changes) {
         const changedSchemaUri = normalizeIri(change.uri);
         await this.clear(changedSchemaUri);
+        if (change.type !== FileChangeType.Deleted) {
+          await this.processWorkspaceSchemaFile(changedSchemaUri);
+        }
       }
     });
   }
@@ -100,6 +116,8 @@ export class SchemaStore {
   }
 
   async validate(schemaUri: string, instance: Json, instanceUri: string, plugins: EvaluationPlugin[] = []) {
+    await this.scanCompleted;
+
     if (!this.compiledSchemaCache.has(schemaUri)) {
       this.compiledSchemaCache.set(schemaUri, (async function (server) {
         const startTime = performance.now();
@@ -130,7 +148,8 @@ export class SchemaStore {
     for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
       try {
         const dependentSchemas = this.getDependenencies(await compiledSchema);
-        if (!dependentSchemas.has(schemaUri)) {
+        const actualSchemaUri = this.workspaceSchemaUris.get(schemaUri) ?? schemaUri;
+        if (!dependentSchemas.has(actualSchemaUri)) {
           continue;
         }
       } catch {
@@ -138,6 +157,8 @@ export class SchemaStore {
 
       this.server.console.log(`clear schema cache for ${abbreviateUri(cachedSchemaUri)}`);
       this.compiledSchemaCache.delete(cachedSchemaUri);
+      unregisterSchema(cachedSchemaUri);
+      this.workspaceSchemaUris.delete(cachedSchemaUri);
     }
   }
 
@@ -149,5 +170,59 @@ export class SchemaStore {
       }
     }
     return dependentSchemas;
+  }
+
+  private async scanWorkspace() {
+    this.server.console.log("Scanning workspace for self-identifying schemas...");
+    for (const folderUri of this.workspace.workspaceFolders) {
+      const dirPath = fileURLToPath(folderUri);
+
+      const ig = ignore();
+      try {
+        const gitignorePath = path.join(dirPath, ".gitignore");
+        const gitignoreContent = await fs.readFile(gitignorePath, "utf-8");
+        ig.add(gitignoreContent);
+      } catch {
+        // Ignore if .gitignore does not exist
+      }
+
+      for await (const entry of fs.glob("**/*.{json,jsonc}", { cwd: dirPath, exclude: [".git/"] })) {
+        if (ig.ignores(entry)) {
+          continue;
+        }
+        const fullPath = path.join(dirPath, entry);
+        const fileUri = pathToFileURL(fullPath).toString();
+        await this.processWorkspaceSchemaFile(fileUri);
+      }
+    }
+    this.server.console.log("Scanning completed");
+  }
+
+  private async processWorkspaceSchemaFile(fileUri: string) {
+    const filePath = fileURLToPath(fileUri);
+    try {
+      const text = await fs.readFile(filePath, "utf-8");
+      const schema = jsonc.parse(text);
+
+      if (typeof schema?.["$schema"] === "string") {
+        const dialectId = toAbsoluteIri(schema.$schema);
+        const idKeyword = getKeywordName(dialectId, "https://json-schema.org/keyword/id")
+          || getKeywordName(dialectId, "https://json-schema.org/keyword/draft-04/id");
+
+        if (idKeyword) {
+          const id = schema[idKeyword];
+          if (typeof id === "string") {
+            unregisterSchema(id);
+            registerSchema(schema);
+            this.workspaceSchemaUris.set(fileUri, id);
+
+            this.server.console.log(`Registered local schema: ${id} (from ${fileUri})`);
+          }
+        }
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.server.console.error(`Failed to process local schema at ${fileUri}: ${message}`);
+    }
   }
 }
