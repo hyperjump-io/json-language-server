@@ -1,11 +1,11 @@
-import { promises as fs } from "node:fs";
-import * as path from "node:path";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { compile, getSchema, getKeywordName } from "@hyperjump/json-schema/experimental";
 import { registerSchema, unregisterSchema } from "@hyperjump/json-schema";
 import { evaluateCompiledSchema } from "@hyperjump/json-schema-errors";
 import { addUriSchemePlugin, httpSchemePlugin } from "@hyperjump/browser";
-import { normalizeIri } from "@hyperjump/uri";
+import { normalizeIri, toAbsoluteIri } from "@hyperjump/uri";
 import * as jsonc from "jsonc-parser";
 import * as Pact from "@hyperjump/pact";
 import ignore from "ignore";
@@ -186,11 +186,7 @@ export class SchemaStore {
         // Ignore if .gitignore does not exist
       }
 
-      const globOptions = {
-        cwd: dirPath,
-        exclude: [".git/"]
-      };
-      for await (const entry of (fs as any).glob("**/*.{json,jsonc}", globOptions)) {
+      for await (const entry of fs.glob("**/*.{json,jsonc}", { cwd: dirPath, exclude: [".git/"] })) {
         if (ig.ignores(entry)) {
           continue;
         }
@@ -206,21 +202,18 @@ export class SchemaStore {
     const filePath = fileURLToPath(fileUri);
     try {
       const text = await fs.readFile(filePath, "utf-8");
-      const schemaObject = jsonc.parse(text);
-      if (typeof schemaObject !== "object" || schemaObject === null || Array.isArray(schemaObject)) {
-        return;
-      }
+      const schema = jsonc.parse(text);
 
-      const dialectId = schemaObject?.["$schema"];
-      if (typeof dialectId === "string") {
+      if (typeof schema?.["$schema"] === "string") {
+        const dialectId = toAbsoluteIri(schema.$schema);
         const idKeyword = getKeywordName(dialectId, "https://json-schema.org/keyword/id")
           || getKeywordName(dialectId, "https://json-schema.org/keyword/draft-04/id");
 
         if (idKeyword) {
-          const id = schemaObject[idKeyword];
+          const id = schema[idKeyword];
           if (typeof id === "string") {
             unregisterSchema(id);
-            registerSchema(schemaObject);
+            registerSchema(schema);
             this.workspaceSchemaUris.set(fileUri, id);
 
             this.server.console.log(`Registered local schema: ${id} (from ${fileUri})`);
