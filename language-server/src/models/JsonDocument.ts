@@ -9,6 +9,7 @@ import { MatchingSchemaCollector } from "../services/MatchingSchemaCollector.ts"
 import { abbreviateUri } from "../util/utils.ts";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";
+import type { FoldingRange } from "vscode-languageserver";
 import type { ValidationResult } from "@hyperjump/json-schema-errors";
 
 export class JsonDocument implements TextDocument {
@@ -170,5 +171,35 @@ export class JsonDocument implements TextDocument {
 
     const pointer = this.getPointerForNode(node!);
     return this.matchingSchemaCollector.getAnnotations(pointer);
+  }
+
+  getFoldingRanges(): FoldingRange[] {
+    if (!this.ast) {
+      return [];
+    }
+
+    const ranges: FoldingRange[] = [];
+    this.collectFoldingRanges(this.ast, ranges);
+    return ranges;
+  }
+
+  private collectFoldingRanges(node: jsonc.Node, ranges: FoldingRange[]) {
+    if ((node.type === "object" || node.type === "array") && node.length > 0) {
+      const startLine = this.positionAt(node.offset).line;
+      const endLine = this.positionAt(node.offset + node.length - 1).line;
+
+      if (endLine > startLine) {
+        ranges.push({
+          startLine,
+          endLine
+        });
+      }
+    }
+
+    if (node.children) {
+      for (const child of node.children) {
+        this.collectFoldingRanges(child, ranges);
+      }
+    }
   }
 }
