@@ -28,7 +28,7 @@ describe("FoldingRanges", () => {
     expect(result).toEqual([
       {
         startLine: 0,
-        endLine: 3
+        endLine: 2
       }
     ]);
   });
@@ -47,7 +47,7 @@ describe("FoldingRanges", () => {
     expect(result).toEqual([
       {
         startLine: 0,
-        endLine: 3
+        endLine: 2
       }
     ]);
   });
@@ -66,15 +66,15 @@ describe("FoldingRanges", () => {
     expect(result).toEqual([
       {
         startLine: 0,
-        endLine: 7
-      },
-      {
-        startLine: 1,
         endLine: 6
       },
       {
-        startLine: 2,
+        startLine: 1,
         endLine: 5
+      },
+      {
+        startLine: 2,
+        endLine: 4
       }
     ]);
   });
@@ -104,21 +104,32 @@ describe("FoldingRanges", () => {
     expect(result).toEqual([
       {
         startLine: 0,
-        endLine: 7
+        endLine: 6
       },
       {
         startLine: 1,
-        endLine: 3
+        endLine: 2
       },
       {
         startLine: 4,
-        endLine: 6
+        endLine: 5
       }
     ]);
   });
 
-  test("should return folding ranges for empty multi-line objects", async () => {
+  test("should not return folding ranges for two-line empty objects", async () => {
     await client.writeDocument("test.json", "{\n}\n");
+    const uri = await client.openDocument("test.json");
+
+    const result = await client.sendRequest(FoldingRangeRequest.type, {
+      textDocument: { uri }
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  test("should return folding ranges for empty multi-line objects with empty lines", async () => {
+    await client.writeDocument("test.json", "{\n\n\n}\n");
     const uri = await client.openDocument("test.json");
 
     const result = await client.sendRequest(FoldingRangeRequest.type, {
@@ -128,7 +139,7 @@ describe("FoldingRanges", () => {
     expect(result).toEqual([
       {
         startLine: 0,
-        endLine: 1
+        endLine: 2
       }
     ]);
   });

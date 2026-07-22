@@ -184,9 +184,9 @@ export class JsonDocument implements TextDocument {
   }
 
   private collectFoldingRanges(node: jsonc.Node, ranges: FoldingRange[]) {
-    if ((node.type === "object" || node.type === "array") && node.length > 0) {
+    if (node.type === "object" || node.type === "array") {
       const startLine = this.positionAt(node.offset).line;
-      const endLine = this.positionAt(node.offset + node.length - 1).line;
+      const endLine = this.positionAt(node.offset + node.length - 1).line - 1;
 
       if (endLine > startLine) {
         ranges.push({
