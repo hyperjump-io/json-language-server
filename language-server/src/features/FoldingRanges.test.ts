@@ -25,7 +25,7 @@ describe("FoldingRanges", () => {
       textDocument: { uri }
     });
 
-    expect(result).to.eql([
+    expect(result).toEqual([
       {
         startLine: 0,
         endLine: 3
@@ -44,7 +44,7 @@ describe("FoldingRanges", () => {
       textDocument: { uri }
     });
 
-    expect(result).to.eql([
+    expect(result).toEqual([
       {
         startLine: 0,
         endLine: 3
@@ -63,7 +63,7 @@ describe("FoldingRanges", () => {
       textDocument: { uri }
     });
 
-    expect(result).to.eql([
+    expect(result).toEqual([
       {
         startLine: 0,
         endLine: 7
@@ -87,7 +87,7 @@ describe("FoldingRanges", () => {
       textDocument: { uri }
     });
 
-    expect(result).to.eql([]);
+    expect(result).toEqual([]);
   });
 
   test("should return folding ranges for multiple objects inside an array", async () => {
@@ -101,7 +101,7 @@ describe("FoldingRanges", () => {
       textDocument: { uri }
     });
 
-    expect(result).to.eql([
+    expect(result).toEqual([
       {
         startLine: 0,
         endLine: 7
@@ -125,7 +125,7 @@ describe("FoldingRanges", () => {
       textDocument: { uri }
     });
 
-    expect(result).to.eql([
+    expect(result).toEqual([
       {
         startLine: 0,
         endLine: 1
