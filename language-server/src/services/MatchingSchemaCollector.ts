@@ -10,17 +10,26 @@ type SchemaAnnotationContext = ValidationContext & {
 
 export class MatchingSchemaCollector implements EvaluationPlugin {
   private annotations: Map<string, Annotation[]> = new Map();
+  private propertyNames: Map<string, Set<string>> = new Map();
 
   beforeSchema(_url: string, _instance: JsonNode, context: SchemaAnnotationContext): void {
     context.pendingAnnotations = {};
   }
 
   afterKeyword(node: Node<unknown>, instance: JsonNode, context: SchemaAnnotationContext, valid: boolean, schemaContext: SchemaAnnotationContext, keyword: Keyword<unknown>): void {
-    if (!valid) {
-      return;
-    }
-
     const [keywordId, , keywordValue] = node;
+
+    if (keywordId === "https://json-schema.org/keyword/properties" && valid) {
+      const instanceLocation = instance.pointer;
+      let names = this.propertyNames.get(instanceLocation);
+      if (!names) {
+        names = new Set();
+        this.propertyNames.set(instanceLocation, names);
+      }
+      for (const name of Object.keys(keywordValue as object)) {
+        names.add(name);
+      }
+    }
 
     if (keyword.annotation) {
       schemaContext.pendingAnnotations ??= {};
@@ -47,5 +56,9 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
 
   getAnnotations(instanceLocation: string): Annotation[] {
     return this.annotations.get(instanceLocation) ?? [];
+  }
+
+  getPropertyNames(instanceLocation: string): Set<string> {
+    return this.propertyNames.get(instanceLocation) ?? new Set();
   }
 }

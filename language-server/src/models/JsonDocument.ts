@@ -39,10 +39,6 @@ export class JsonDocument implements TextDocument {
 
     this.ast = jsonc.parseTree(this.textDocument.getText(), this.parseErrors);
 
-    if (this.parseErrors.length > 0) {
-      return;
-    }
-
     const schemaNode = this.findNodeAtPointer("/$schema");
     if (schemaNode) {
       try {
@@ -64,7 +60,7 @@ export class JsonDocument implements TextDocument {
         return;
       }
 
-      const instance = JSON.parse(this.getText());
+      const instance = jsonc.parse(this.textDocument.getText());
       return this.schemaStore.validate(schemaUri, instance, this.uri, [this.matchingSchemaCollector]);
     });
   }
@@ -157,18 +153,27 @@ export class JsonDocument implements TextDocument {
     return segments.reduce((pointer, segment) => JsonPointer.append(segment, pointer), JsonPointer.nil);
   }
 
-  async getAnnotations(position: Position) {
-    if (!this.ast) {
-      return [];
-    }
-
-    const offset = this.offsetAt(position);
-    const node = jsonc.findNodeAtOffset(this.ast, offset);
-
+  async getAnnotations(node: jsonc.Node) {
     // Wait for schema validation to complete and populate annotation results
     await this.schemaErrors;
 
     const pointer = this.getPointerForNode(node!);
     return this.matchingSchemaCollector.getAnnotations(pointer);
+  }
+
+  async getPropertyNames(node: jsonc.Node) {
+    await this.schemaErrors;
+
+    const pointer = this.getPointerForNode(node);
+    return this.matchingSchemaCollector.getPropertyNames(pointer);
+  }
+
+  findNodeAtPosition(position: Position) {
+    if (!this.ast) {
+      return;
+    }
+
+    const offset = this.offsetAt(position);
+    return jsonc.findNodeAtOffset(this.ast, offset);
   }
 }

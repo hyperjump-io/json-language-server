@@ -72,7 +72,7 @@ describe("Schema Validation", () => {
     ]);
   });
 
-  test("schema validation is skipped if the JSON is invalid", async () => {
+  test("schema validation is not skipped even if the JSON is invalid", async () => {
     const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
       client.onNotification(PublishDiagnosticsNotification.type, (params) => {
         resolve(params.diagnostics);
@@ -90,12 +90,15 @@ describe("Schema Validation", () => {
 
     await client.writeDocument("instance.json", `{
       "$schema": "${fixtureSchemaUri}",
-      "name" 42,
+      "name": "Alice"
       "age" : "not a number"
     }`);
     await client.openDocument("instance.json");
 
-    await expect(diagnostics).resolves.toHaveLength(1);
+    await expect(diagnostics).resolves.toEqual([
+      expect.objectContaining({ message: "CommaExpected" }),
+      expect.objectContaining({ message: "Expected a \u2068number\u2069" })
+    ]);
   });
 
   test("JSON Validation using Hyperjump - anyOf Formatting Case", async () => {

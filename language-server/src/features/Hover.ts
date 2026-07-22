@@ -24,7 +24,8 @@ export class Hover {
       const jsonDocument = this.jsonDocuments.get(params.textDocument.uri)!;
 
       try {
-        const annotations = await jsonDocument.getAnnotations(params.position);
+        const node = jsonDocument.findNodeAtPosition(params.position)!;
+        const annotations = await jsonDocument.getAnnotations(node);
 
         const lines: string[] = [];
         for (const annotation of annotations) {
