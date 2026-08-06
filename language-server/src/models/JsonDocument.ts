@@ -60,7 +60,18 @@ export class JsonDocument implements TextDocument {
         return;
       }
 
-      const instance = jsonc.parse(this.getText());
+      this.walkNodesWithProperties(this.ast!, (node) => {
+        if (node.type === "property" && node.children!.length < 2) {
+          node.children![1] = {
+            type: "null",
+            value: null,
+            offset: 0,
+            length: 0,
+            parent: node
+          };
+        }
+      });
+      const instance = structuredClone(jsonc.getNodeValue(this.ast!));
       return this.schemaStore.validate(schemaUri, instance, this.uri, [this.matchingSchemaCollector]);
     });
   }
@@ -175,6 +186,12 @@ export class JsonDocument implements TextDocument {
     return this.matchingSchemaCollector.getDeclaredProperties(pointer);
   }
 
+  async hasDeclaredProperty(node: jsonc.Node, propertyName: string) {
+    await this.schemaErrors;
+    const pointer = this.getPointerForNode(node);
+    return this.matchingSchemaCollector.hasDeclaredProperty(pointer, propertyName);
+  }
+
   findNodeAtPosition(position: Position) {
     if (!this.ast) {
       return;
@@ -197,6 +214,16 @@ export class JsonDocument implements TextDocument {
         if (valueNode) {
           this.walkNodes(valueNode, fn);
         }
+      }
+    }
+  }
+
+  walkNodesWithProperties(node: jsonc.Node, fn: (node: jsonc.Node) => void) {
+    fn(node);
+
+    if (Array.isArray(node.children)) {
+      for (const childNode of node.children!) {
+        this.walkNodes(childNode, fn);
       }
     }
   }

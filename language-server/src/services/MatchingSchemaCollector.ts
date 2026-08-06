@@ -8,6 +8,7 @@ type Annotation = Record<string, unknown>;
 
 type MatchingSchemaContext = ValidationContext & {
   pendingAnnotations?: Annotation;
+  unconditionalAnnotations?: Annotation;
   declaredProperties?: Set<string>;
   passedProperties?: Set<string>;
   failedProperties?: Set<string>;
@@ -30,6 +31,7 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
 
   beforeSchema(_url: string, _instance: JsonNode, context: MatchingSchemaContext): void {
     context.pendingAnnotations = {};
+    context.unconditionalAnnotations = {};
     context.declaredProperties = undefined;
     context.rejectedProperties = undefined;
   }
@@ -48,10 +50,19 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
   afterKeyword(node: Node<unknown>, instance: JsonNode, context: MatchingSchemaContext, _valid: boolean, schemaContext: MatchingSchemaContext, keyword: Keyword<unknown>): void {
     const [keywordId, , keywordValue] = node;
 
+    // Annotations
+
     if (keyword.annotation) {
       schemaContext.pendingAnnotations ??= {};
       schemaContext.pendingAnnotations[keywordId] = keyword.annotation(keywordValue, instance, context);
     }
+
+    if (keywordId === "https://json-schema.org/keyword/type") {
+      schemaContext.unconditionalAnnotations ??= {};
+      schemaContext.unconditionalAnnotations[keywordId] = keywordValue;
+    }
+
+    // Property Completion
 
     if (keywordId === "https://json-schema.org/keyword/required" && schemaContext.negated && instance.type === "object") {
       const required = keywordValue as string[];
@@ -90,13 +101,15 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
   }
 
   afterSchema(_schemaUri: string, instance: JsonNode, context: MatchingSchemaContext, valid: boolean): void {
-    if (valid && context.pendingAnnotations) {
+    const hasAlways = context.unconditionalAnnotations && Object.keys(context.unconditionalAnnotations).length > 0;
+    const hasGated = valid && context.pendingAnnotations && Object.keys(context.pendingAnnotations).length > 0;
+
+    if (hasAlways || hasGated) {
       if (!this.annotations.has(instance.pointer)) {
         this.annotations.set(instance.pointer, []);
       }
-
-      const existing = this.annotations.get(instance.pointer)!;
-      existing.push(context.pendingAnnotations);
+      const merged = { ...(hasGated ? context.pendingAnnotations : {}), ...(hasAlways ? context.unconditionalAnnotations : {}) };
+      this.annotations.get(instance.pointer)!.push(merged);
     }
 
     const propertyName = propertyNameOf(instance.pointer);
@@ -134,6 +147,19 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
 
     const forbiddenProperties = this.forbiddenProperties.get(instanceLocation);
     return forbiddenProperties ? propertyNames.difference(forbiddenProperties) : propertyNames;
+  }
+
+  hasDeclaredProperty(instanceLocation: string, propertyName: string): boolean {
+    const alternatives = this.alternatives.get(instanceLocation) ?? [];
+    const acceptedProperties = this.acceptedProperties.get(instanceLocation) ?? new Set();
+
+    for (const alternative of alternatives) {
+      const isContradicted = [...alternative.rejectedProperties].some((p) => acceptedProperties.has(p));
+      if ((!alternative.isAlternative || !isContradicted) && alternative.declaredProperties.has(propertyName)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 

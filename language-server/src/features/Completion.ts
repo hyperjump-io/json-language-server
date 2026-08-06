@@ -1,11 +1,14 @@
-import { CompletionItemKind } from "vscode-languageserver";
-import { JsonDocuments } from "../services/JsonDocuments.ts";
-
+import type { CompletionItem, Position, ServerCapabilities } from "vscode-languageserver";
 import type { Server } from "../services/Server.ts";
-import type { CompletionItem, ServerCapabilities } from "vscode-languageserver";
+import type { JsonDocument } from "../models/JsonDocument.ts";
+import type { JsonDocuments } from "../services/JsonDocuments.ts";
+
+export type CompletionsProvider = {
+  getCompletions(jsonDocument: JsonDocument, position: Position): Promise<CompletionItem[]>;
+};
 
 export class Completion {
-  constructor(server: Server, jsonDocuments: JsonDocuments) {
+  constructor(server: Server, jsonDocuments: JsonDocuments, providers: CompletionsProvider[]) {
     server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
         completionProvider: {
@@ -18,34 +21,15 @@ export class Completion {
       };
     });
 
-    server.onCompletion(async (params) => {
-      const jsonDocument = jsonDocuments.get(params.textDocument.uri)!;
-      const keyNode = jsonDocument.findNodeAtPosition(params.position)!;
-      const propertyNode = keyNode.parent;
+    server.onCompletion(async ({ textDocument, position }) => {
+      const jsonDocument = jsonDocuments.get(textDocument.uri)!;
 
-      if (propertyNode?.type !== "property" || propertyNode.children![0] !== keyNode) {
-        return [];
+      const completions: CompletionItem[] = [];
+      for (const provider of providers) {
+        completions.push(...await provider.getCompletions(jsonDocument, position));
       }
 
-      const objectNode = propertyNode.parent!;
-
-      const propertyNames = await jsonDocument.getDeclaredProperties(objectNode);
-      for (const node of objectNode.children!) {
-        if (node === propertyNode) {
-          continue;
-        }
-
-        propertyNames.delete(node.children![0].value);
-      }
-
-      const completionItems: CompletionItem[] = [];
-      for (const propertyName of propertyNames) {
-        completionItems.push({
-          label: propertyName,
-          kind: CompletionItemKind.Property
-        });
-      }
-      return completionItems;
+      return completions;
     });
   }
 }

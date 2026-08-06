@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { CompletionRequest, CompletionItemKind, PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
 
+import type { CompletionItem } from "vscode-languageserver";
+
 describe("Completions", () => {
   let client: TestClient;
   let fixtureSchemaUri: string;
@@ -42,7 +44,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([]);
+    expect(labels(completions)).toEqual([]);
   });
 
   test("completion returns properties", async () => {
@@ -75,7 +77,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "name", kind: CompletionItemKind.Property }
     ]);
   });
@@ -119,7 +121,7 @@ describe("Completions", () => {
       position: { line: 3, character: 9 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "street", kind: CompletionItemKind.Property },
       { label: "city", kind: CompletionItemKind.Property },
       { label: "zipCode", kind: CompletionItemKind.Property }
@@ -159,7 +161,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "age", kind: CompletionItemKind.Property },
       { label: "city", kind: CompletionItemKind.Property }
     ]);
@@ -208,7 +210,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "foo", kind: CompletionItemKind.Property },
       { label: "bar", kind: CompletionItemKind.Property },
       { label: "baz", kind: CompletionItemKind.Property }
@@ -259,7 +261,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "bar", kind: CompletionItemKind.Property },
       { label: "baz", kind: CompletionItemKind.Property }
     ]);
@@ -308,7 +310,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "foo", kind: CompletionItemKind.Property },
       { label: "bar", kind: CompletionItemKind.Property },
       { label: "baz", kind: CompletionItemKind.Property }
@@ -359,7 +361,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "bar", kind: CompletionItemKind.Property }
     ]);
   });
@@ -407,7 +409,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "foo", kind: CompletionItemKind.Property },
       { label: "bar", kind: CompletionItemKind.Property },
       { label: "baz", kind: CompletionItemKind.Property }
@@ -458,7 +460,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "bar", kind: CompletionItemKind.Property }
     ]);
   });
@@ -495,7 +497,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "baz", kind: CompletionItemKind.Property }
     ]);
   });
@@ -544,7 +546,7 @@ describe("Completions", () => {
       position: { line: 4, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "baz", kind: CompletionItemKind.Property }
     ]);
   });
@@ -595,7 +597,7 @@ describe("Completions", () => {
       position: { line: 4, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "baz", kind: CompletionItemKind.Property }
     ]);
   });
@@ -642,7 +644,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "a", kind: CompletionItemKind.Property },
       { label: "b", kind: CompletionItemKind.Property }
     ]);
@@ -695,7 +697,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "foo", kind: CompletionItemKind.Property },
       { label: "c", kind: CompletionItemKind.Property }
     ]);
@@ -746,7 +748,7 @@ describe("Completions", () => {
       position: { line: 4, character: 7 }
     });
 
-    expect(completions).toEqual([]);
+    expect(labels(completions)).toEqual([]);
   });
 
   test("patternProperties: suggests only the properties declared by properties", async () => {
@@ -783,7 +785,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "name", kind: CompletionItemKind.Property }
     ]);
   });
@@ -834,7 +836,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "a", kind: CompletionItemKind.Property }
     ]);
   });
@@ -885,7 +887,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "a", kind: CompletionItemKind.Property },
       { label: "b", kind: CompletionItemKind.Property }
     ]);
@@ -926,7 +928,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "bar", kind: CompletionItemKind.Property },
       { label: "foo", kind: CompletionItemKind.Property }
     ]);
@@ -960,7 +962,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "foo", kind: CompletionItemKind.Property }
     ]);
   });
@@ -1000,7 +1002,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "bar", kind: CompletionItemKind.Property },
       { label: "foo", kind: CompletionItemKind.Property }
     ]);
@@ -1037,7 +1039,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "foo", kind: CompletionItemKind.Property }
     ]);
   });
@@ -1074,7 +1076,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "a", kind: CompletionItemKind.Property },
       { label: "b", kind: CompletionItemKind.Property }
     ]);
@@ -1113,7 +1115,7 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([]);
+    expect(labels(completions)).toEqual([]);
   });
 
   test("not: excludes required properties wrapped in an anyOf branch", async () => {
@@ -1153,7 +1155,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([]);
+    expect(labels(completions)).toEqual([]);
   });
 
   test("not: excludes required properties wrapped in a oneOf branch", async () => {
@@ -1193,7 +1195,7 @@ describe("Completions", () => {
       position: { line: 2, character: 7 }
     });
 
-    expect(completions).toEqual([]);
+    expect(labels(completions)).toEqual([]);
   });
 
   test("anyOf: omits a candidate property whose type would violate the additionalProperties constraint of a compatible branch", async () => {
@@ -1243,8 +1245,13 @@ describe("Completions", () => {
       position: { line: 3, character: 7 }
     });
 
-    expect(completions).toEqual([
+    expect(labels(completions)).toEqual([
       { label: "c", kind: CompletionItemKind.Property }
     ]);
   });
 });
+
+const labels = (completions: CompletionItem[] | { items: CompletionItem[] } | null) => {
+  const items = Array.isArray(completions) ? completions : completions?.items ?? [];
+  return items.map((item) => ({ label: item.label, kind: item.kind }));
+};
