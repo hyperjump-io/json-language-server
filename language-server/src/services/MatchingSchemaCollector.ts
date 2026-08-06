@@ -101,8 +101,8 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
   }
 
   afterSchema(_schemaUri: string, instance: JsonNode, context: MatchingSchemaContext, valid: boolean): void {
-    const hasAlways = context.unconditionalAnnotations && Object.keys(context.unconditionalAnnotations).length > 0;
-    const hasGated = valid && context.pendingAnnotations && Object.keys(context.pendingAnnotations).length > 0;
+    const hasAlways = context.unconditionalAnnotations;
+    const hasGated = valid && context.pendingAnnotations;
 
     if (hasAlways || hasGated) {
       if (!this.annotations.has(instance.pointer)) {
