@@ -6,9 +6,16 @@ import type { Node, Keyword } from "@hyperjump/json-schema/experimental";
 
 type Annotation = Record<string, unknown>;
 
+type PropertyValueInfo = {
+  type?: string | string[];
+  enum?: unknown[];
+  const?: unknown;
+  hasConst: boolean;
+};
+
 type MatchingSchemaContext = ValidationContext & {
   pendingAnnotations?: Annotation;
-  declaredProperties?: Set<string>;
+  declaredProperties?: Map<string, PropertyValueInfo>;
   passedProperties?: Set<string>;
   failedProperties?: Set<string>;
   rejectedProperties?: Set<string>;
@@ -17,7 +24,7 @@ type MatchingSchemaContext = ValidationContext & {
 };
 
 type Alternative = {
-  declaredProperties: Set<string>;
+  declaredProperties: Map<string, PropertyValueInfo>;
   rejectedProperties: Set<string>;
   isAlternative: boolean;
 };
@@ -27,11 +34,13 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
   private alternatives: Map<string, Alternative[]> = new Map();
   private acceptedProperties: Map<string, Set<string>> = new Map();
   private forbiddenProperties: Map<string, Set<string>> = new Map();
+  private ast?: Record<string, unknown>;
 
   beforeSchema(_url: string, _instance: JsonNode, context: MatchingSchemaContext): void {
     context.pendingAnnotations = {};
     context.declaredProperties = undefined;
     context.rejectedProperties = undefined;
+    this.ast ??= context.ast as Record<string, unknown>;
   }
 
   beforeKeyword(node: Node<unknown>, _instance: JsonNode, context: MatchingSchemaContext, schemaContext: MatchingSchemaContext): void {
@@ -65,16 +74,20 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
     }
 
     if (keywordId === "https://json-schema.org/keyword/properties") {
-      schemaContext.declaredProperties ??= new Set();
-      for (const propertyName in keywordValue as Record<string, unknown>) {
-        schemaContext.declaredProperties.add(propertyName);
+      schemaContext.declaredProperties ??= new Map();
+      for (const [propertyName, schemaUri] of Object.entries(keywordValue as Record<string, string>)) {
+        if (!schemaContext.declaredProperties.has(propertyName)) {
+          schemaContext.declaredProperties.set(propertyName, resolveValueInfo(this.ast, schemaUri));
+        }
       }
     }
 
     if (keywordId === "https://json-schema.org/keyword/required") {
-      schemaContext.declaredProperties ??= new Set();
+      schemaContext.declaredProperties ??= new Map();
       for (const propertyName of keywordValue as string[]) {
-        schemaContext.declaredProperties.add(propertyName);
+        if (!schemaContext.declaredProperties.has(propertyName)) {
+          schemaContext.declaredProperties.set(propertyName, { hasConst: false });
+        }
       }
     }
 
@@ -105,7 +118,7 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
       outcome.add(propertyName);
     }
 
-    const declaredProperties = context.declaredProperties ?? new Set<string>();
+    const declaredProperties = context.declaredProperties ?? new Map<string, PropertyValueInfo>();
     const rejectedProperties = context.rejectedProperties ?? new Set<string>();
     const isAlternative = context.isAlternative ?? false;
 
@@ -128,12 +141,25 @@ export class MatchingSchemaCollector implements EvaluationPlugin {
     for (const alternative of alternatives) {
       const isContradicted = [...alternative.rejectedProperties].some((propertyName) => acceptedProperties.has(propertyName));
       if (!alternative.isAlternative || !isContradicted) {
-        addAll(propertyNames, alternative.declaredProperties);
+        addAll(propertyNames, alternative.declaredProperties?.keys());
       }
     }
 
     const forbiddenProperties = this.forbiddenProperties.get(instanceLocation);
     return forbiddenProperties ? propertyNames.difference(forbiddenProperties) : propertyNames;
+  }
+
+  getPropertyValueInfo(instanceLocation: string, propertyName: string): PropertyValueInfo | undefined {
+    const alternatives = this.alternatives.get(instanceLocation) ?? [];
+    const acceptedProperties = this.acceptedProperties.get(instanceLocation) ?? new Set();
+
+    for (const alternative of alternatives) {
+      const isContradicted = [...alternative.rejectedProperties].some((p) => acceptedProperties.has(p));
+      if ((!alternative.isAlternative || !isContradicted) && alternative.declaredProperties.has(propertyName)) {
+        return alternative.declaredProperties.get(propertyName);
+      }
+    }
+    return undefined;
   }
 }
 
@@ -150,4 +176,27 @@ const propertyNameOf = (instanceLocation: string) => {
 
   const lastSegment = instanceLocation.slice(instanceLocation.lastIndexOf("/") + 1);
   return lastSegment;
+};
+
+const resolveValueInfo = (ast: Record<string, unknown> | undefined, schemaUri: string): PropertyValueInfo => {
+  try {
+    const info: PropertyValueInfo = { hasConst: false };
+    const node = ast?.[schemaUri];
+    if (!Array.isArray(node)) {
+      return info;
+    }
+    for (const [keywordId, , keywordValue] of node as [string, unknown, unknown][]) {
+      if (keywordId === "https://json-schema.org/keyword/type") {
+        info.type = keywordValue as string | string[];
+      } else if (keywordId === "https://json-schema.org/keyword/enum") {
+        info.enum = (keywordValue as string[]).map((v) => JSON.parse(v) as unknown);
+      } else if (keywordId === "https://json-schema.org/keyword/const") {
+        info.const = JSON.parse(keywordValue as string) as unknown;
+        info.hasConst = true;
+      }
+    }
+    return info;
+  } catch {
+    return { hasConst: false };
+  }
 };

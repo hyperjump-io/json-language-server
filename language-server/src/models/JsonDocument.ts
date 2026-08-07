@@ -60,7 +60,7 @@ export class JsonDocument implements TextDocument {
         return;
       }
 
-      const instance = jsonc.parse(this.getText());
+      const instance = jsonc.getNodeValue(this.ast!);
       return this.schemaStore.validate(schemaUri, instance, this.uri, [this.matchingSchemaCollector]);
     });
   }
@@ -166,6 +166,12 @@ export class JsonDocument implements TextDocument {
 
     const pointer = this.getPointerForNode(node);
     return this.matchingSchemaCollector.getDeclaredProperties(pointer);
+  }
+
+  async getPropertyValueInfo(node: jsonc.Node, propertyName: string) {
+    await this.schemaErrors;
+    const pointer = this.getPointerForNode(node);
+    return this.matchingSchemaCollector.getPropertyValueInfo(pointer, propertyName);
   }
 
   findNodeAtPosition(position: Position) {

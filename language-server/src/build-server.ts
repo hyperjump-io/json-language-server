@@ -8,6 +8,8 @@ import { SchemaValidation } from "./features/SchemaValidation.ts";
 import { Formatting } from "./features/Formatting.ts";
 import { Hover } from "./features/Hover.ts";
 import { Completion } from "./features/Completion.ts";
+import { PropertyCompletion } from "./features/PropertyCompletion.ts";
+import { ValueCompletion } from "./features/ValueCompletion.ts";
 import { FoldingRanges } from "./features/FoldingRanges.ts";
 
 import "@hyperjump/json-schema/draft-2020-12";
@@ -37,7 +39,10 @@ export const buildServer = (connection: Connection): Server => {
 
   new Formatting(server, documents);
   new Hover(server, documents);
-  new Completion(server, documents);
+  new Completion(server, documents, [
+    new PropertyCompletion(),
+    new ValueCompletion()
+  ]);
   new FoldingRanges(server, documents);
 
   return server;
