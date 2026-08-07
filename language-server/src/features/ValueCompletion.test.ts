@@ -143,6 +143,7 @@ describe("Completions", () => {
       }
     ]);
   });
+
   test("Value completion : completion should return true & false for type Boolean", async () => {
     const diagnostics: Promise<void> = new Promise((resolve) => {
       client.onNotification(PublishDiagnosticsNotification.type, () => {
@@ -195,7 +196,7 @@ describe("Completions", () => {
     ]);
   });
 
-  test.skip("Value completion: selecting a property with const shows that tooltip", async () => {
+  test("Value completion: selecting a property with const shows that const value", async () => {
     const diagnostics: Promise<void> = new Promise((resolve) => {
       client.onNotification(PublishDiagnosticsNotification.type, () => {
         resolve();
@@ -238,7 +239,7 @@ describe("Completions", () => {
     ]);
   });
 
-  test.skip("Value completion: shows enum suggestion for a property", async () => {
+  test("Value completion: shows enum suggestion for a property", async () => {
     const diagnostics: Promise<void> = new Promise((resolve) => {
       client.onNotification(PublishDiagnosticsNotification.type, () => {
         resolve();
@@ -249,7 +250,7 @@ describe("Completions", () => {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "color": { "enum": ["red", "green", "blue"] }
+        "color": { "enum": ["red", null , 42] }
       }
     }`);
 
@@ -279,21 +280,21 @@ describe("Completions", () => {
         }
       },
       {
-        label: `"green"`,
+        label: `null`,
         kind: CompletionItemKind.EnumMember,
         insertTextFormat: InsertTextFormat.Snippet,
         textEdit: {
           range: { start: { line: 2, character: 14 }, end: { line: 2, character: 16 } },
-          newText: ` "green"`
+          newText: ` null`
         }
       },
       {
-        label: `"blue"`,
+        label: `42`,
         kind: CompletionItemKind.EnumMember,
         insertTextFormat: InsertTextFormat.Snippet,
         textEdit: {
           range: { start: { line: 2, character: 14 }, end: { line: 2, character: 16 } },
-          newText: ` "blue"`
+          newText: ` 42`
         }
       }
     ]);
