@@ -20,8 +20,8 @@ export class ValueCompletion implements CompletionsProvider {
     const propertyName = node.children![0].value as string;
     const objectNode = node.parent!;
 
-    const isDeclared = await jsonDocument.hasDeclaredProperty(objectNode, propertyName);
-    if (!isDeclared) {
+    const valueInfo = await jsonDocument.getPropertyValueInfo(objectNode, propertyName);
+    if (!valueInfo) {
       return [];
     }
 
@@ -30,13 +30,25 @@ export class ValueCompletion implements CompletionsProvider {
       end: position
     };
 
-    const annotations = await jsonDocument.getAnnotations(node.children![1]);
-    const types = annotations.reduce((types, annotation) => {
-      const currentTypes = annotation["https://json-schema.org/keyword/type"];
-      const currentTypesArray = Array.isArray(currentTypes) ? currentTypes : [currentTypes];
-      const currentTypesSet = new Set(currentTypesArray);
-      return types.intersection(currentTypesSet);
-    }, new Set(["object", "array", "string", "number", "integer", "boolean", "null"]));
+    if (valueInfo.hasConst) {
+      return [{
+        label: JSON.stringify(valueInfo.const),
+        kind: CompletionItemKind.Value,
+        insertTextFormat: InsertTextFormat.Snippet,
+        textEdit: { range, newText: " " + JSON.stringify(valueInfo.const) }
+      }];
+    }
+
+    if (valueInfo.enum?.length) {
+      return valueInfo.enum.map((value) => ({
+        label: JSON.stringify(value),
+        kind: CompletionItemKind.EnumMember,
+        insertTextFormat: InsertTextFormat.Snippet,
+        textEdit: { range, newText: " " + JSON.stringify(value) }
+      }));
+    }
+
+    const types = new Set(Array.isArray(valueInfo.type) ? valueInfo.type : valueInfo.type ? [valueInfo.type] : []);
 
     const completionItems: CompletionItem[] = [];
     for (const type of types) {
