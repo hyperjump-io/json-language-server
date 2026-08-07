@@ -70,10 +70,6 @@ export class ValueCompletion implements CompletionsProvider {
         continue;
       }
 
-      if (type === "number" || type === "integer") {
-        continue;
-      }
-
       completionItems.push({
         label: valueLabel(type),
         kind: CompletionItemKind.Value,
@@ -91,6 +87,8 @@ const valuePlaceholder = (type: string, tabIndex: number): string => {
     case "object": return "{$0}";
     case "array": return "[$0]";
     case "null": return "null";
+    case "number":
+    case "integer": return " ";
     default: return `$${tabIndex}`;
   }
 };
