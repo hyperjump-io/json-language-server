@@ -23,7 +23,7 @@
   "devDependencies": {
     "@types/vscode": "^1.120.0",
     "@vscode/vsce": "^3.9.1",
-    "esbuild": "^0.28.0"
+    "esbuild": "^0.28.2"
   },
   "dependencies": {
     "ignore": "^7.0.6",
