@@ -9,6 +9,7 @@ import { Formatting } from "./features/Formatting.ts";
 import { Hover } from "./features/Hover.ts";
 import { Completion } from "./features/Completion.ts";
 import { FoldingRanges } from "./features/FoldingRanges.ts";
+import { DocumentSymbols } from "./features/DocumentSymbols.ts";
 
 import "@hyperjump/json-schema/draft-2020-12";
 import "@hyperjump/json-schema/draft-2019-09";
@@ -39,6 +40,7 @@ export const buildServer = (connection: Connection): Server => {
   new Hover(server, documents);
   new Completion(server, documents);
   new FoldingRanges(server, documents);
+  new DocumentSymbols(server, documents);
 
   return server;
 };
