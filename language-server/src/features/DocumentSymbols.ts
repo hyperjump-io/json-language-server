@@ -41,6 +41,10 @@ export class DocumentSymbols {
         const keyNode = propertyNode.children![0];
         const valueNode = propertyNode.children![1];
 
+        if (!valueNode) {
+          continue;
+        }
+
         const name = String(keyNode.value);
         const range = {
           start: jsonDocument.positionAt(propertyNode.offset),
