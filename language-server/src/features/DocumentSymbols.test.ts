@@ -186,4 +186,31 @@ describe("DocumentSymbols", () => {
 
     expect(result).toEqual([]);
   });
+
+  test("should skip incomplete properties when generating document symbols, prevents crash", async () => {
+    await client.writeDocument("test.json", `{
+      "bar": 1,
+      "foo":
+    }`);
+    const uri = await client.openDocument("test.json");
+
+    const result = await client.sendRequest(DocumentSymbolRequest.type, {
+      textDocument: { uri }
+    });
+
+    expect(result).toEqual([
+      {
+        name: "bar",
+        kind: SymbolKind.Number,
+        range: {
+          start: { line: 1, character: 6 },
+          end: { line: 1, character: 14 }
+        },
+        selectionRange: {
+          start: { line: 1, character: 6 },
+          end: { line: 1, character: 11 }
+        }
+      }
+    ]);
+  });
 });
