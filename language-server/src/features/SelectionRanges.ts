@@ -44,23 +44,23 @@ const getSelectionRange = (jsonDocument: JsonDocument, position: Position): Sele
         const innerStart = node.offset + 1;
         const innerEnd = node.offset + node.length - 1;
         if (innerStart < innerEnd && offset >= innerStart && offset <= innerEnd) {
-          ranges.push(newRange(jsonDocument, innerStart, innerEnd));
+          ranges.push(jsonDocument.rangeAt(innerStart, innerEnd));
         }
-        ranges.push(newRange(jsonDocument, node.offset, node.offset + node.length));
+        ranges.push(jsonDocument.rangeAt(node.offset, node.offset + node.length));
         break;
       }
       case "number":
       case "boolean":
       case "null":
       case "property":
-        ranges.push(newRange(jsonDocument, node.offset, node.offset + node.length));
+        ranges.push(jsonDocument.rangeAt(node.offset, node.offset + node.length));
         break;
     }
 
     if (node.type === "property" || (node.parent && node.parent.type === "array")) {
       const afterComma = offsetAfterMatchingToken(scanner, node.offset + node.length, jsonc.SyntaxKind.CommaToken);
       if (afterComma !== -1) {
-        ranges.push(newRange(jsonDocument, node.offset, afterComma));
+        ranges.push(jsonDocument.rangeAt(node.offset, afterComma));
       }
     }
 
@@ -74,11 +74,6 @@ const getSelectionRange = (jsonDocument: JsonDocument, position: Position): Sele
 
   return current ?? { range: { start: position, end: position } };
 };
-
-const newRange = (jsonDocument: JsonDocument, start: number, end: number): Range => ({
-  start: jsonDocument.positionAt(start),
-  end: jsonDocument.positionAt(end)
-});
 
 const offsetAfterMatchingToken = (scanner: jsonc.JSONScanner, fromOffset: number, expectedToken: jsonc.SyntaxKind): number => {
   scanner.setPosition(fromOffset);

@@ -57,10 +57,7 @@ export class Formatting {
       });
 
       return edits.map((edit) => ({
-        range: {
-          start: jsonDocument.positionAt(edit.offset),
-          end: jsonDocument.positionAt(edit.offset + edit.length)
-        },
+        range: jsonDocument.rangeAt(edit.offset, edit.offset + edit.length),
         newText: edit.content
       }));
     } catch (error: unknown) {
