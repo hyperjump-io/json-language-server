@@ -10,6 +10,7 @@ import { Hover } from "./features/Hover.ts";
 import { Completion } from "./features/Completion.ts";
 import { FoldingRanges } from "./features/FoldingRanges.ts";
 import { DocumentSymbols } from "./features/DocumentSymbols.ts";
+import { SelectionRanges } from "./features/SelectionRanges.ts";
 
 import "@hyperjump/json-schema/draft-2020-12";
 import "@hyperjump/json-schema/draft-2019-09";
@@ -41,6 +42,7 @@ export const buildServer = (connection: Connection): Server => {
   new Completion(server, documents);
   new FoldingRanges(server, documents);
   new DocumentSymbols(server, documents);
+  new SelectionRanges(server, documents);
 
   return server;
 };

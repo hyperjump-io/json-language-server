@@ -105,6 +105,13 @@ export class JsonDocument implements TextDocument {
     return this.textDocument.offsetAt(position);
   }
 
+  rangeAt(startOffset: number, endOffset: number) {
+    return {
+      start: this.positionAt(startOffset),
+      end: this.positionAt(endOffset)
+    };
+  }
+
   update(changes: TextDocumentContentChangeEvent[], version: number) {
     TextDocument.update(this.textDocument, changes, version);
     this.validate();

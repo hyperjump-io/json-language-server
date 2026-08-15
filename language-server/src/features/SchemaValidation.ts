@@ -20,10 +20,7 @@ export class SchemaValidation implements DiagnosticsProvider {
           if (node) {
             schemaDiagnostics.push({
               severity: DiagnosticSeverity.Error,
-              range: {
-                start: jsonDocument.positionAt(node.offset),
-                end: jsonDocument.positionAt(node.offset + node.length)
-              },
+              range: jsonDocument.rangeAt(node.offset, node.offset + node.length),
               message: formatError(error),
               source: "hyperjump-json-language-server"
             });
@@ -35,10 +32,7 @@ export class SchemaValidation implements DiagnosticsProvider {
       if (schemaNode) {
         schemaDiagnostics.push({
           severity: DiagnosticSeverity.Error,
-          range: {
-            start: jsonDocument.positionAt(schemaNode.offset),
-            end: jsonDocument.positionAt(schemaNode.offset + schemaNode.length)
-          },
+          range: jsonDocument.rangeAt(schemaNode.offset, schemaNode.offset + schemaNode.length),
           message: error instanceof Error ? error.message : String(error),
           source: "hyperjump-json-language-server"
         });

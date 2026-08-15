@@ -8,10 +8,7 @@ export class SyntaxValidation implements DiagnosticsProvider {
   async getDiagnostics(jsonDocument: JsonDocument) {
     return jsonDocument.getParseErrors().map((error) => ({
       severity: DiagnosticSeverity.Error,
-      range: {
-        start: jsonDocument.positionAt(error.offset),
-        end: jsonDocument.positionAt(error.offset + error.length)
-      },
+      range: jsonDocument.rangeAt(error.offset, error.offset + error.length),
       message: jsonc.printParseErrorCode(error.error),
       source: "hyperjump-json-language-server"
     }));
