@@ -317,7 +317,7 @@ describe("SelectionRanges", () => {
   });
 
   test("should return a collapsed range with no parent for a position at the very end of the document", async () => {
-    await client.writeDocument("test.json", `{"a": 1}`);
+    await client.writeDocument("test.json", `{"a": 1}\n`);
     const uri = await client.openDocument("test.json");
 
     const result = await client.sendRequest(SelectionRangeRequest.type, {
@@ -341,7 +341,7 @@ describe("SelectionRanges", () => {
 
     const result = await client.sendRequest(SelectionRangeRequest.type, {
       textDocument: { uri },
-      positions: [{ line: 0, character: 6 }]
+      positions: [{ line: 0, character: 7 }]
     });
 
     expect(result).toEqual([
