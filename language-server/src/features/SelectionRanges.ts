@@ -1,7 +1,6 @@
 import * as jsonc from "jsonc-parser";
 
 import type { SelectionRange, ServerCapabilities } from "vscode-languageserver";
-import type { Position, Range } from "vscode-languageserver-textdocument";
 import type { Server } from "../services/Server.ts";
 import type { JsonDocuments } from "../services/JsonDocuments.ts";
 import type { JsonDocument } from "../models/JsonDocument.ts";
@@ -24,61 +23,53 @@ export class SelectionRanges {
 
     server.onSelectionRanges((params) => {
       const jsonDocument = this.jsonDocuments.get(params.textDocument.uri)!;
-      return params.positions.map((position) => getSelectionRange(jsonDocument, position));
+      const scanner = jsonc.createScanner(jsonDocument.getText(), true);
+
+      return params.positions.map((position) => {
+        const offset = jsonDocument.offsetAt(position);
+        const node = jsonDocument.findNodeAtPosition(position);
+
+        if (!node) {
+          return { range: { start: position, end: position } };
+        }
+
+        return this.buildSelectionRange(node, jsonDocument, scanner, offset);
+      });
     });
   }
-}
 
-const getSelectionRange = (jsonDocument: JsonDocument, position: Position): SelectionRange => {
-  const offset = jsonDocument.offsetAt(position);
-  let node = jsonDocument.findNodeAtPosition(position);
+  private buildSelectionRange(node: jsonc.Node, jsonDocument: JsonDocument, scanner: jsonc.JSONScanner, offset: number): SelectionRange {
+    let selection = node.parent ? this.buildSelectionRange(node.parent, jsonDocument, scanner, offset) : undefined;
 
-  const scanner = jsonc.createScanner(jsonDocument.getText(), true);
-  const ranges: Range[] = [];
+    if (node.type === "property" || (node.parent?.type === "array")) {
+      scanner.setPosition(node.offset + node.length);
+      if (scanner.scan() === jsonc.SyntaxKind.CommaToken) {
+        const afterComma = scanner.getTokenOffset() + scanner.getTokenLength();
+        selection = { range: jsonDocument.rangeAt(node.offset, afterComma), parent: selection };
+      }
+    }
 
-  while (node) {
     switch (node.type) {
       case "string":
       case "object":
       case "array": {
+        selection = { range: jsonDocument.rangeAt(node.offset, node.offset + node.length), parent: selection };
+
         const innerStart = node.offset + 1;
         const innerEnd = node.offset + node.length - 1;
         if (innerStart < innerEnd && offset >= innerStart) {
-          ranges.push(jsonDocument.rangeAt(innerStart, innerEnd));
+          selection = { range: jsonDocument.rangeAt(innerStart, innerEnd), parent: selection };
         }
-        ranges.push(jsonDocument.rangeAt(node.offset, node.offset + node.length));
         break;
       }
       case "number":
       case "boolean":
       case "null":
       case "property":
-        ranges.push(jsonDocument.rangeAt(node.offset, node.offset + node.length));
+        selection = { range: jsonDocument.rangeAt(node.offset, node.offset + node.length), parent: selection };
         break;
     }
 
-    if (node.type === "property" || (node.parent?.type === "array")) {
-      const afterComma = offsetAfterMatchingToken(scanner, node.offset + node.length, jsonc.SyntaxKind.CommaToken);
-      if (afterComma !== -1) {
-        ranges.push(jsonDocument.rangeAt(node.offset, afterComma));
-      }
-    }
-
-    node = node.parent;
+    return selection;
   }
-
-  let current: SelectionRange | undefined;
-  for (let i = ranges.length - 1; i >= 0; i--) {
-    current = { range: ranges[i], parent: current };
-  }
-
-  return current ?? { range: { start: position, end: position } };
-};
-
-const offsetAfterMatchingToken = (scanner: jsonc.JSONScanner, fromOffset: number, expectedToken: jsonc.SyntaxKind): number => {
-  scanner.setPosition(fromOffset);
-  if (scanner.scan() === expectedToken) {
-    return scanner.getTokenOffset() + scanner.getTokenLength();
-  }
-  return -1;
-};
+}
