@@ -125,8 +125,8 @@ export class JsonDocument implements TextDocument {
     return this.schemaErrors;
   }
 
-  findNodeAtPointer(pointer: string, from: jsonc.Node | undefined = this.ast) {
-    let node = from;
+  findNodeAtPointer(pointer: string) {
+    let node = this.ast;
 
     for (let segment of JsonPointer.pointerSegments(pointer)) {
       if (!node) {
