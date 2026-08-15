@@ -43,7 +43,7 @@ const getSelectionRange = (jsonDocument: JsonDocument, position: Position): Sele
       case "array": {
         const innerStart = node.offset + 1;
         const innerEnd = node.offset + node.length - 1;
-        if (innerStart < innerEnd && offset >= innerStart && offset <= innerEnd) {
+        if (innerStart < innerEnd && offset >= innerStart) {
           ranges.push(jsonDocument.rangeAt(innerStart, innerEnd));
         }
         ranges.push(jsonDocument.rangeAt(node.offset, node.offset + node.length));
@@ -57,7 +57,7 @@ const getSelectionRange = (jsonDocument: JsonDocument, position: Position): Sele
         break;
     }
 
-    if (node.type === "property" || (node.parent && node.parent.type === "array")) {
+    if (node.type === "property" || (node.parent?.type === "array")) {
       const afterComma = offsetAfterMatchingToken(scanner, node.offset + node.length, jsonc.SyntaxKind.CommaToken);
       if (afterComma !== -1) {
         ranges.push(jsonDocument.rangeAt(node.offset, afterComma));
