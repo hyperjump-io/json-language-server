@@ -5,7 +5,8 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import { resolveIri } from "@hyperjump/uri";
 import { SchemaStore } from "../services/SchemaStore.ts";
 import { Server } from "../services/Server.ts";
-import { MatchingSchemaCollector } from "../services/MatchingSchemaCollector.ts";
+import { AnnotationEvaluationPlugin } from "../services/AnnotationEvaluationPlugin.ts";
+import { CompletionEvaluationPlugin } from "../services/CompletionEvaluationPlugin.ts";
 import { abbreviateUri } from "../util/utils.ts";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";
@@ -19,7 +20,8 @@ export class JsonDocument implements TextDocument {
   private parseErrors: jsonc.ParseError[] = [];
   private schemaErrors: Promise<ValidationResult | undefined> = Promise.resolve(undefined);
   private schemaUri: Promise<string | undefined> = Promise.resolve(undefined);
-  private matchingSchemaCollector = new MatchingSchemaCollector();
+  private annotationEvaluationPlugin = new AnnotationEvaluationPlugin();
+  private completionEvaluationPlugin = new CompletionEvaluationPlugin();
 
   constructor(textDocument: TextDocument, schemaStore: SchemaStore, server: Server) {
     this.textDocument = textDocument;
@@ -35,7 +37,8 @@ export class JsonDocument implements TextDocument {
     this.parseErrors = [];
     this.schemaErrors = Promise.resolve(undefined);
     this.schemaUri = Promise.resolve(undefined);
-    this.matchingSchemaCollector = new MatchingSchemaCollector();
+    this.annotationEvaluationPlugin = new AnnotationEvaluationPlugin();
+    this.completionEvaluationPlugin = new CompletionEvaluationPlugin();
 
     this.ast = jsonc.parseTree(this.textDocument.getText(), this.parseErrors);
 
@@ -54,14 +57,18 @@ export class JsonDocument implements TextDocument {
   }
 
   validateSchema() {
-    this.matchingSchemaCollector = new MatchingSchemaCollector();
+    this.annotationEvaluationPlugin = new AnnotationEvaluationPlugin();
+    this.completionEvaluationPlugin = new CompletionEvaluationPlugin();
     this.schemaErrors = this.schemaUri.then((schemaUri) => {
       if (!schemaUri) {
         return;
       }
 
-      const instance = jsonc.parse(this.getText());
-      return this.schemaStore.validate(schemaUri, instance, this.uri, [this.matchingSchemaCollector]);
+      const instance = jsonc.getNodeValue(this.ast!);
+      return this.schemaStore.validate(schemaUri, instance, this.uri, [
+        this.annotationEvaluationPlugin,
+        this.completionEvaluationPlugin
+      ]);
     });
   }
 
@@ -165,14 +172,20 @@ export class JsonDocument implements TextDocument {
     await this.schemaErrors;
 
     const pointer = this.getPointerForNode(node!);
-    return this.matchingSchemaCollector.getAnnotations(pointer);
+    return this.annotationEvaluationPlugin.getAnnotations(pointer);
   }
 
   async getDeclaredProperties(node: jsonc.Node) {
     await this.schemaErrors;
 
     const pointer = this.getPointerForNode(node);
-    return this.matchingSchemaCollector.getDeclaredProperties(pointer);
+    return this.completionEvaluationPlugin.getDeclaredProperties(pointer);
+  }
+
+  async getPropertyValueInfo(node: jsonc.Node, propertyName: string) {
+    await this.schemaErrors;
+    const pointer = this.getPointerForNode(node);
+    return this.completionEvaluationPlugin.getPropertyValueInfo(pointer, propertyName);
   }
 
   findNodeAtPosition(position: Position) {

@@ -76,7 +76,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "name", kind: CompletionItemKind.Property }
+      {
+        label: "name",
+        kind: CompletionItemKind.Property,
+        filterText: `"name"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"name": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -120,9 +129,36 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "street", kind: CompletionItemKind.Property },
-      { label: "city", kind: CompletionItemKind.Property },
-      { label: "zipCode", kind: CompletionItemKind.Property }
+      {
+        label: "street",
+        kind: CompletionItemKind.Property,
+        filterText: `"street"`,
+        textEdit: {
+          range: { start: { line: 3, character: 8 }, end: { line: 3, character: 10 } },
+          newText: `"street": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "city",
+        kind: CompletionItemKind.Property,
+        filterText: `"city"`,
+        textEdit: {
+          range: { start: { line: 3, character: 8 }, end: { line: 3, character: 10 } },
+          newText: `"city": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "zipCode",
+        kind: CompletionItemKind.Property,
+        filterText: `"zipCode"`,
+        textEdit: {
+          range: { start: { line: 3, character: 8 }, end: { line: 3, character: 10 } },
+          newText: `"zipCode": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -160,8 +196,26 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "age", kind: CompletionItemKind.Property },
-      { label: "city", kind: CompletionItemKind.Property }
+      {
+        label: "age",
+        kind: CompletionItemKind.Property,
+        filterText: `"age"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"age": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "city",
+        kind: CompletionItemKind.Property,
+        filterText: `"city"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"city": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -209,9 +263,36 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "foo", kind: CompletionItemKind.Property },
-      { label: "bar", kind: CompletionItemKind.Property },
-      { label: "baz", kind: CompletionItemKind.Property }
+      {
+        label: "foo",
+        kind: CompletionItemKind.Property,
+        filterText: `"foo"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"foo": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "bar",
+        kind: CompletionItemKind.Property,
+        filterText: `"bar"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"bar": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "baz",
+        kind: CompletionItemKind.Property,
+        filterText: `"baz"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"baz": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -260,8 +341,26 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "bar", kind: CompletionItemKind.Property },
-      { label: "baz", kind: CompletionItemKind.Property }
+      {
+        label: "bar",
+        kind: CompletionItemKind.Property,
+        filterText: `"bar"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"bar": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "baz",
+        kind: CompletionItemKind.Property,
+        filterText: `"baz"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"baz": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -309,9 +408,36 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "foo", kind: CompletionItemKind.Property },
-      { label: "bar", kind: CompletionItemKind.Property },
-      { label: "baz", kind: CompletionItemKind.Property }
+      {
+        label: "foo",
+        kind: CompletionItemKind.Property,
+        filterText: `"foo"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"foo": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "bar",
+        kind: CompletionItemKind.Property,
+        filterText: `"bar"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"bar": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "baz",
+        kind: CompletionItemKind.Property,
+        filterText: `"baz"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"baz": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -327,14 +453,14 @@ describe("Completions", () => {
       "type": "object",
       "anyOf": [
         {
-          "properties": { 
+          "properties": {
             "foo": { "type": "number" },
             "bar": { "type": "string" }
           },
           "required": ["foo"]
         },
         {
-          "properties": { 
+          "properties": {
             "foo": { "type": "string" },
             "baz": { "type": "string" }
           },
@@ -360,7 +486,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "bar", kind: CompletionItemKind.Property }
+      {
+        label: "bar",
+        kind: CompletionItemKind.Property,
+        filterText: `"bar"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"bar": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -408,9 +543,36 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "foo", kind: CompletionItemKind.Property },
-      { label: "bar", kind: CompletionItemKind.Property },
-      { label: "baz", kind: CompletionItemKind.Property }
+      {
+        label: "foo",
+        kind: CompletionItemKind.Property,
+        filterText: `"foo"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"foo": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "bar",
+        kind: CompletionItemKind.Property,
+        filterText: `"bar"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"bar": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "baz",
+        kind: CompletionItemKind.Property,
+        filterText: `"baz"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"baz": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -459,7 +621,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "bar", kind: CompletionItemKind.Property }
+      {
+        label: "bar",
+        kind: CompletionItemKind.Property,
+        filterText: `"bar"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"bar": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -496,7 +667,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "baz", kind: CompletionItemKind.Property }
+      {
+        label: "baz",
+        kind: CompletionItemKind.Property,
+        filterText: `"baz"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"baz": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -545,7 +725,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "baz", kind: CompletionItemKind.Property }
+      {
+        label: "baz",
+        kind: CompletionItemKind.Property,
+        filterText: `"baz"`,
+        textEdit: {
+          range: { start: { line: 4, character: 6 }, end: { line: 4, character: 8 } },
+          newText: `"baz": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -596,7 +785,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "baz", kind: CompletionItemKind.Property }
+      {
+        label: "baz",
+        kind: CompletionItemKind.Property,
+        filterText: `"baz"`,
+        textEdit: {
+          range: { start: { line: 4, character: 6 }, end: { line: 4, character: 8 } },
+          newText: `"baz": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -643,8 +841,26 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "a", kind: CompletionItemKind.Property },
-      { label: "b", kind: CompletionItemKind.Property }
+      {
+        label: "a",
+        kind: CompletionItemKind.Property,
+        filterText: `"a"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"a": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "b",
+        kind: CompletionItemKind.Property,
+        filterText: `"b"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"b": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -696,8 +912,26 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "foo", kind: CompletionItemKind.Property },
-      { label: "c", kind: CompletionItemKind.Property }
+      {
+        label: "foo",
+        kind: CompletionItemKind.Property,
+        filterText: `"foo"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"foo": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "c",
+        kind: CompletionItemKind.Property,
+        filterText: `"c"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"c": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -784,7 +1018,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "name", kind: CompletionItemKind.Property }
+      {
+        label: "name",
+        kind: CompletionItemKind.Property,
+        filterText: `"name"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"name": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -835,7 +1078,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "a", kind: CompletionItemKind.Property }
+      {
+        label: "a",
+        kind: CompletionItemKind.Property,
+        filterText: `"a"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"a": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -886,8 +1138,26 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "a", kind: CompletionItemKind.Property },
-      { label: "b", kind: CompletionItemKind.Property }
+      {
+        label: "a",
+        kind: CompletionItemKind.Property,
+        filterText: `"a"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"a": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "b",
+        kind: CompletionItemKind.Property,
+        filterText: `"b"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"b": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -927,8 +1197,26 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "bar", kind: CompletionItemKind.Property },
-      { label: "foo", kind: CompletionItemKind.Property }
+      {
+        label: "bar",
+        kind: CompletionItemKind.Property,
+        filterText: `"bar"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"bar": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "foo",
+        kind: CompletionItemKind.Property,
+        filterText: `"foo"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"foo": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -961,7 +1249,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "foo", kind: CompletionItemKind.Property }
+      {
+        label: "foo",
+        kind: CompletionItemKind.Property,
+        filterText: `"foo"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"foo": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -980,7 +1277,7 @@ describe("Completions", () => {
       },
       "not": {
         "not": {
-          "required": ["bar"] 
+          "required": ["bar"]
         }
       }
     }`);
@@ -1001,8 +1298,26 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "bar", kind: CompletionItemKind.Property },
-      { label: "foo", kind: CompletionItemKind.Property }
+      {
+        label: "bar",
+        kind: CompletionItemKind.Property,
+        filterText: `"bar"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"bar": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "foo",
+        kind: CompletionItemKind.Property,
+        filterText: `"foo"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"foo": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -1038,7 +1353,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "foo", kind: CompletionItemKind.Property }
+      {
+        label: "foo",
+        kind: CompletionItemKind.Property,
+        filterText: `"foo"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"foo": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -1075,8 +1399,26 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "a", kind: CompletionItemKind.Property },
-      { label: "b", kind: CompletionItemKind.Property }
+      {
+        label: "a",
+        kind: CompletionItemKind.Property,
+        filterText: `"a"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"a": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "b",
+        kind: CompletionItemKind.Property,
+        filterText: `"b"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"b": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 
@@ -1244,7 +1586,16 @@ describe("Completions", () => {
     });
 
     expect(completions).toEqual([
-      { label: "c", kind: CompletionItemKind.Property }
+      {
+        label: "c",
+        kind: CompletionItemKind.Property,
+        filterText: `"c"`,
+        textEdit: {
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
+          newText: `"c": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
     ]);
   });
 });
