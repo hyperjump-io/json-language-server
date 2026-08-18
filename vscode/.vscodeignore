@@ -1,0 +1,17 @@
+.gitignore
+.vscodeignore
+package-lock.json
+tsconfig.json
+src/**
+dist/**
+
+# esbuild bundles every dependency into out/, leaving `vscode` as the only external,
+# so nothing under node_modules is needed at runtime.
+node_modules/**
+
+# vscode:prepublish builds minified without --sourcemap, so any .map here is stale
+# and doesn't describe the shipped code.
+out/**/*.map
+
+# The SchemaStore catalog is fetched over HTTP at runtime, not read from disk.
+out/catalog.json
