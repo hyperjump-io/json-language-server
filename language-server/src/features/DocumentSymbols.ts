@@ -23,7 +23,11 @@ export class DocumentSymbols {
     });
 
     server.onDocumentSymbol((params) => {
-      const jsonDocument = this.jsonDocuments.get(params.textDocument.uri)!;
+      const jsonDocument = this.jsonDocuments.get(params.textDocument.uri);
+      if (!jsonDocument) {
+        return [];
+      }
+
       const ast = jsonDocument.findNodeAtPointer("");
       if (!ast) {
         return [];
@@ -45,7 +49,7 @@ export class DocumentSymbols {
           continue;
         }
 
-        const name = String(keyNode.value);
+        const name = String(keyNode.value) || `""`;
         const range = {
           start: jsonDocument.positionAt(propertyNode.offset),
           end: jsonDocument.positionAt(propertyNode.offset + propertyNode.length)

@@ -213,4 +213,42 @@ describe("DocumentSymbols", () => {
       }
     ]);
   });
+
+  test("should name a property with an empty key so clients don't reject the symbol", async () => {
+    await client.writeDocument("test.json", `{
+      "": "value"
+    }`);
+    const uri = await client.openDocument("test.json");
+
+    const result = await client.sendRequest(DocumentSymbolRequest.type, {
+      textDocument: { uri }
+    });
+
+    expect(result).toEqual([
+      {
+        name: `""`,
+        kind: SymbolKind.String,
+        range: {
+          start: { line: 1, character: 6 },
+          end: { line: 1, character: 17 }
+        },
+        selectionRange: {
+          start: { line: 1, character: 6 },
+          end: { line: 1, character: 8 }
+        }
+      }
+    ]);
+  });
+
+  test("should return empty array when the document isn't open, prevents crash", async () => {
+    const uri = await client.writeDocument("unopened.json", `{
+      "foo": 1
+    }`);
+
+    const result = await client.sendRequest(DocumentSymbolRequest.type, {
+      textDocument: { uri }
+    });
+
+    expect(result).toEqual([]);
+  });
 });
