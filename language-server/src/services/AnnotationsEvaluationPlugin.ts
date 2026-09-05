@@ -4,18 +4,18 @@ import type { Node, Keyword } from "@hyperjump/json-schema/experimental";
 
 type Annotation = Record<string, unknown>;
 
-type AnnotationContext = ValidationContext & {
+type MatchingSchemaContext = ValidationContext & {
   pendingAnnotations?: Annotation;
 };
 
-export class AnnotationEvaluationPlugin implements EvaluationPlugin {
+export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
   private annotations: Map<string, Annotation[]> = new Map();
 
-  beforeSchema(_url: string, _instance: JsonNode, context: AnnotationContext): void {
+  beforeSchema(_url: string, _instance: JsonNode, context: MatchingSchemaContext): void {
     context.pendingAnnotations = {};
   }
 
-  afterKeyword(node: Node<unknown>, instance: JsonNode, context: AnnotationContext, _valid: boolean, schemaContext: AnnotationContext, keyword: Keyword<unknown>): void {
+  afterKeyword(node: Node<unknown>, instance: JsonNode, context: MatchingSchemaContext, _valid: boolean, schemaContext: MatchingSchemaContext, keyword: Keyword<unknown>): void {
     const [keywordId, , keywordValue] = node;
 
     if (keyword.annotation) {
@@ -24,7 +24,7 @@ export class AnnotationEvaluationPlugin implements EvaluationPlugin {
     }
   }
 
-  afterSchema(_schemaUri: string, instance: JsonNode, context: AnnotationContext, valid: boolean): void {
+  afterSchema(_schemaUri: string, instance: JsonNode, context: MatchingSchemaContext, valid: boolean): void {
     if (valid && context.pendingAnnotations) {
       if (!this.annotations.has(instance.pointer)) {
         this.annotations.set(instance.pointer, []);
