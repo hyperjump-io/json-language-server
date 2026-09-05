@@ -1,15 +1,12 @@
 import { MarkupKind } from "vscode-languageserver";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
+import { AnnotationsEvaluationPlugin } from "./AnnotationsEvaluationPlugin.ts";
 
 import type { Server } from "../services/Server.ts";
 import type { ServerCapabilities } from "vscode-languageserver";
 
 export class Hover {
-  private jsonDocuments: JsonDocuments;
-
   constructor(server: Server, jsonDocuments: JsonDocuments) {
-    this.jsonDocuments = jsonDocuments;
-
     server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
         hoverProvider: true
@@ -20,12 +17,17 @@ export class Hover {
       };
     });
 
+    jsonDocuments.onDidCreate((jsonDocument) => {
+      jsonDocument.registerEvaluationPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
+    });
+
     server.onHover(async (params) => {
-      const jsonDocument = this.jsonDocuments.get(params.textDocument.uri)!;
+      const jsonDocument = jsonDocuments.get(params.textDocument.uri)!;
 
       try {
         const node = jsonDocument.findNodeAtPosition(params.position)!;
-        const annotations = await jsonDocument.getAnnotations(node);
+        const annotationsEvaluationPlugin = await jsonDocument.getEvaluationPlugin<AnnotationsEvaluationPlugin>(AnnotationsEvaluationPlugin.id);
+        const annotations = annotationsEvaluationPlugin!.getAnnotations(jsonDocument.getPointer(node));
 
         const lines: string[] = [];
         for (const annotation of annotations) {

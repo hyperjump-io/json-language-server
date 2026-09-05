@@ -5,11 +5,16 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import { resolveIri } from "@hyperjump/uri";
 import { SchemaStore } from "../services/SchemaStore.ts";
 import { Server } from "../services/Server.ts";
-import { AnnotationsEvaluationPlugin } from "../services/AnnotationsEvaluationPlugin.ts";
 import { abbreviateUri } from "../util/utils.ts";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";
+import type { EvaluationPlugin } from "@hyperjump/json-schema/experimental";
 import type { ValidationResult } from "@hyperjump/json-schema-errors";
+
+type SchemaEvaluation = {
+  result: ValidationResult | undefined;
+  plugins: Map<string, EvaluationPlugin>;
+};
 
 export class JsonDocument implements TextDocument {
   private textDocument: TextDocument;
@@ -17,9 +22,9 @@ export class JsonDocument implements TextDocument {
   private server: Server;
   private ast: jsonc.Node | undefined;
   private parseErrors: jsonc.ParseError[] = [];
-  private schemaErrors: Promise<ValidationResult | undefined> = Promise.resolve(undefined);
+  private schemaEvaluation: Promise<SchemaEvaluation | undefined> = Promise.resolve(undefined);
   private schemaUri: Promise<string | undefined> = Promise.resolve(undefined);
-  private annotationsEvaluationPlugin = new AnnotationsEvaluationPlugin();
+  private evaluationPluginFactories: Map<string, () => EvaluationPlugin> = new Map();
 
   constructor(textDocument: TextDocument, schemaStore: SchemaStore, server: Server) {
     this.textDocument = textDocument;
@@ -29,13 +34,16 @@ export class JsonDocument implements TextDocument {
     this.validate();
   }
 
+  registerEvaluationPlugin(id: string, factory: () => EvaluationPlugin) {
+    this.evaluationPluginFactories.set(id, factory);
+  }
+
   private validate() {
     this.server.console.log(`validate ${abbreviateUri(this.uri)} JSON syntax`);
 
     this.parseErrors = [];
-    this.schemaErrors = Promise.resolve(undefined);
+    this.schemaEvaluation = Promise.resolve(undefined);
     this.schemaUri = Promise.resolve(undefined);
-    this.annotationsEvaluationPlugin = new AnnotationsEvaluationPlugin();
 
     this.ast = jsonc.parseTree(this.textDocument.getText(), this.parseErrors);
 
@@ -54,14 +62,19 @@ export class JsonDocument implements TextDocument {
   }
 
   validateSchema() {
-    this.annotationsEvaluationPlugin = new AnnotationsEvaluationPlugin();
-    this.schemaErrors = this.schemaUri.then((schemaUri) => {
+    this.schemaEvaluation = this.schemaUri.then(async (schemaUri) => {
+      const plugins = new Map<string, EvaluationPlugin>();
+      for (const [id, factory] of this.evaluationPluginFactories) {
+        plugins.set(id, factory());
+      }
+
       if (!schemaUri) {
-        return;
+        return { result: undefined, plugins };
       }
 
       const instance = jsonc.parse(this.getText());
-      return this.schemaStore.validate(schemaUri, instance, this.uri, [this.annotationsEvaluationPlugin]);
+      const result = await this.schemaStore.validate(schemaUri, instance, this.uri, [...plugins.values()]);
+      return { result, plugins };
     });
   }
 
@@ -129,8 +142,14 @@ export class JsonDocument implements TextDocument {
     return this.parseErrors;
   }
 
-  getSchemaErrors() {
-    return this.schemaErrors;
+  async getSchemaErrors() {
+    const schemaEvaluation = await this.schemaEvaluation;
+    return schemaEvaluation?.result;
+  }
+
+  async getEvaluationPlugin<PluginType extends EvaluationPlugin>(id: string) {
+    const schemaEvaluation = await this.schemaEvaluation;
+    return schemaEvaluation?.plugins.get(id) as PluginType | undefined;
   }
 
   getSchemaUri() {
@@ -172,12 +191,8 @@ export class JsonDocument implements TextDocument {
     return segments.reduce((pointer, segment) => JsonPointer.append(segment, pointer), JsonPointer.nil);
   }
 
-  async getAnnotations(node: jsonc.Node) {
-    // Wait for schema validation to complete and populate annotation results
-    await this.schemaErrors;
-
-    const pointer = this.getPointerForNode(node!);
-    return this.annotationsEvaluationPlugin.getAnnotations(pointer);
+  getPointer(node: jsonc.Node) {
+    return this.getPointerForNode(node);
   }
 
   findNodeAtPosition(position: Position) {

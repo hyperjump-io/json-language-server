@@ -1,3 +1,5 @@
+import { AnnotationsEvaluationPlugin } from "./AnnotationsEvaluationPlugin.ts";
+
 import type { Color, ColorInformation, ColorPresentation, ServerCapabilities } from "vscode-languageserver";
 import type { Node } from "jsonc-parser";
 import type { Server } from "../services/Server.ts";
@@ -29,12 +31,18 @@ export class DocumentColors {
       };
     });
 
+    jsonDocuments.onDidCreate((jsonDocument) => {
+      jsonDocument.registerEvaluationPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
+    });
+
     server.onDocumentColor(async (params) => {
       const jsonDocument = this.jsonDocuments.get(params.textDocument.uri);
       const ast = jsonDocument?.findNodeAtPointer("");
       if (!jsonDocument || !ast) {
         return [];
       }
+
+      const annotationsEvaluationPlugin = await jsonDocument.getEvaluationPlugin<AnnotationsEvaluationPlugin>(AnnotationsEvaluationPlugin.id);
 
       try {
         const stringNodes: Node[] = [];
@@ -51,7 +59,7 @@ export class DocumentColors {
             continue;
           }
 
-          const annotations = await jsonDocument.getAnnotations(node);
+          const annotations = annotationsEvaluationPlugin!.getAnnotations(jsonDocument.getPointer(node));
           if (annotations.some(isColorHex)) {
             colors.push({ color, range: jsonDocument.rangeAt(node.offset, node.offset + node.length) });
           }

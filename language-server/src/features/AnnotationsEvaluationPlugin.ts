@@ -9,6 +9,8 @@ type MatchingSchemaContext = ValidationContext & {
 };
 
 export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
+  static readonly id = "annotations";
+
   private annotations: Map<string, Annotation[]> = new Map();
 
   beforeSchema(_url: string, _instance: JsonNode, context: MatchingSchemaContext): void {
