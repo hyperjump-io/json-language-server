@@ -13,4 +13,8 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin {
 
   afterSchema(_url: string, _instance: JsonNode, _context: ValidationContext, _valid: boolean): void {
   }
+
+  getCompletions(_pointer: string): string[] {
+    return [];
+  }
 }

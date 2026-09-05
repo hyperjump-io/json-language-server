@@ -8,6 +8,7 @@ import { SchemaValidationDiagnosticsProvider } from "./features/diagnostics/Sche
 import { Formatting } from "./features/Formatting.ts";
 import { Hover } from "./features/Hover.ts";
 import { Completions } from "./features/completions/Completions.ts";
+import { ValueCompletionsProvider } from "./features/completions/ValueCompletionsProvider.ts";
 import { FoldingRanges } from "./features/FoldingRanges.ts";
 import { DocumentSymbols } from "./features/DocumentSymbols.ts";
 import { SelectionRanges } from "./features/SelectionRanges.ts";
@@ -41,7 +42,7 @@ export const buildServer = (connection: Connection): Server => {
 
   new Formatting(server, documents);
   new Hover(server, documents);
-  new Completions(server, documents, []);
+  new Completions(server, documents, [new ValueCompletionsProvider()]);
   new FoldingRanges(server, documents);
   new DocumentSymbols(server, documents);
   new SelectionRanges(server, documents);
