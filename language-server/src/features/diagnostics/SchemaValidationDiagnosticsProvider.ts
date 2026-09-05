@@ -1,10 +1,10 @@
 import { Diagnostic, DiagnosticSeverity } from "vscode-languageserver";
-import { JsonDocument } from "../models/JsonDocument.ts";
+import { JsonDocument } from "../../models/JsonDocument.ts";
 
 import type { ErrorObject } from "@hyperjump/json-schema-errors";
 import type { DiagnosticsProvider } from "./Diagnostics.ts";
 
-export class SchemaValidation implements DiagnosticsProvider {
+export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider {
   async getDiagnostics(jsonDocument: JsonDocument) {
     const schemaDiagnostics: Diagnostic[] = [];
 

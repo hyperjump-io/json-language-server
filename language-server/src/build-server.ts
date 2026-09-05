@@ -2,9 +2,9 @@ import { Server } from "./services/Server.ts";
 import { JsonDocuments } from "./services/JsonDocuments.ts";
 import { SchemaStore } from "./services/SchemaStore.ts";
 import { Workspace } from "./services/Workspace.ts";
-import { Diagnostics } from "./features/Diagnostics.ts";
-import { SyntaxValidation } from "./features/SyntaxValidation.ts";
-import { SchemaValidation } from "./features/SchemaValidation.ts";
+import { Diagnostics } from "./features/diagnostics/Diagnostics.ts";
+import { SyntaxValidationDiagnosticsProvider } from "./features/diagnostics/SyntaxValidationDiagnosticsProvider.ts";
+import { SchemaValidationDiagnosticsProvider } from "./features/diagnostics/SchemaValidationDiagnosticsProvider.ts";
 import { Formatting } from "./features/Formatting.ts";
 import { Hover } from "./features/Hover.ts";
 import { FoldingRanges } from "./features/FoldingRanges.ts";
@@ -34,8 +34,8 @@ export const buildServer = (connection: Connection): Server => {
   documents.listen(server);
 
   new Diagnostics(server, documents, workspace, [
-    new SyntaxValidation(),
-    new SchemaValidation()
+    new SyntaxValidationDiagnosticsProvider(),
+    new SchemaValidationDiagnosticsProvider()
   ]);
 
   new Formatting(server, documents);

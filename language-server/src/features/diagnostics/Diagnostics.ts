@@ -1,9 +1,9 @@
-import { Server } from "../services/Server.ts";
-import { JsonDocuments } from "../services/JsonDocuments.ts";
-import { Workspace } from "../services/Workspace.ts";
-import { JsonDocument } from "../models/JsonDocument.ts";
+import { Server } from "../../services/Server.ts";
+import { JsonDocuments } from "../../services/JsonDocuments.ts";
+import { Workspace } from "../../services/Workspace.ts";
+import { JsonDocument } from "../../models/JsonDocument.ts";
 import { normalizeIri } from "@hyperjump/uri";
-import { abbreviateUri } from "../util/utils.ts";
+import { abbreviateUri } from "../../util/utils.ts";
 
 import type { Diagnostic } from "vscode-languageserver";
 

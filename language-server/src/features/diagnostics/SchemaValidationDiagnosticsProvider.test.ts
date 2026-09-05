@@ -1,6 +1,6 @@
 import { describe, test, expect, afterEach, beforeEach } from "vitest";
 import { PublishDiagnosticsNotification } from "vscode-languageserver";
-import { TestClient } from "../test/TestClient.ts";
+import { TestClient } from "../../test/TestClient.ts";
 
 import type { Diagnostic } from "vscode-languageserver";
 
