@@ -38,6 +38,6 @@ export default defineConfig({
     "@stylistic/semi-style": ["error"],
     "@stylistic/switch-colon-spacing": ["error"],
     "curly": ["error", "all"],
-    "no-unused-vars": ["error", { caughtErrorsIgnorePattern: "^_" }]
+    "no-unused-vars": ["error", { caughtErrorsIgnorePattern: "^_", argsIgnorePattern: "^_" }]
   }
 });
