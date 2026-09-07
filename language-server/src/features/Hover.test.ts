@@ -453,4 +453,179 @@ _hyperjump-json-language-server_`
 
     expect(result).toEqual(null);
   });
+
+  test("should return markdownDescription on hover when present", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Full Name",
+          "markdownDescription": "The **full name** of the [person](https://example.com).",
+          "type": "string"
+        }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "Alice"\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 10 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `**Full Name**
+
+The **full name** of the [person](https://example.com).
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
+  test("should prefer markdownDescription over description when both are present", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Full Name",
+          "description": "Plain text description",
+          "markdownDescription": "The **markdown** description",
+          "type": "string"
+        }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "Alice"\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 10 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `**Full Name**
+
+The **markdown** description
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
+  test("should return markdownDescription when hovering over the property key", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "markdownDescription": "Person's *name*",
+          "type": "string"
+        }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "Alice"\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    // Hover over "name" key at line 2, character 4
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 4 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `Person's *name*
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
+  test("should support markdownDescription in draft-07 schema", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "count": {
+          "title": "Count",
+          "markdownDescription": "Total **count** of items",
+          "type": "number"
+        }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "count": 42\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 4 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `**Count**
+
+Total **count** of items
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
 });
