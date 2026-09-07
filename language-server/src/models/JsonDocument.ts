@@ -171,28 +171,25 @@ export class JsonDocument implements TextDocument {
     return node;
   }
 
-  private getPointerForNode(node: jsonc.Node) {
-    const segments: string[] = [];
-
-    while (node?.parent) {
-      if (node.parent.type === "property") {
-        const keyNode = node.parent.children![0];
-        segments.unshift(keyNode.value);
-        node = node.parent.parent!;
-      } else if (node.parent.type === "array") {
-        const index = node.parent.children!.indexOf(node);
-        segments.unshift(String(index));
-        node = node.parent;
-      } else {
-        node = node.parent;
-      }
+  public getPointerForNode(node: jsonc.Node): string {
+    const parent = node?.parent;
+    if (!parent) {
+      return JsonPointer.nil;
     }
 
-    return segments.reduce((pointer, segment) => JsonPointer.append(segment, pointer), JsonPointer.nil);
-  }
+    if (node.type === "property") {
+      return JsonPointer.append(node.children![0].value, this.getPointerForNode(node.parent!));
+    }
 
-  getPointer(node: jsonc.Node) {
-    return this.getPointerForNode(node);
+    if (parent.type === "property") {
+      return JsonPointer.append(parent.children![0].value, this.getPointerForNode(parent.parent!));
+    }
+
+    if (parent.type === "array") {
+      return JsonPointer.append(String(parent.children!.indexOf(node)), this.getPointerForNode(parent));
+    }
+
+    return this.getPointerForNode(parent);
   }
 
   findNodeAtPosition(position: Position) {

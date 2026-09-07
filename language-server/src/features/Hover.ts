@@ -27,7 +27,7 @@ export class Hover {
       try {
         const node = jsonDocument.findNodeAtPosition(params.position)!;
         const annotationsEvaluationPlugin = await jsonDocument.getEvaluationPlugin<AnnotationsEvaluationPlugin>(AnnotationsEvaluationPlugin.id);
-        const annotations = annotationsEvaluationPlugin!.getAnnotations(jsonDocument.getPointer(node));
+        const annotations = annotationsEvaluationPlugin!.getAnnotations(jsonDocument.getPointerForNode(node));
 
         const lines: string[] = [];
         for (const annotation of annotations) {

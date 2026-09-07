@@ -12,7 +12,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
       return [];
     }
 
-    const instanceLocation = jsonDocument.getPointer(node);
+    const instanceLocation = jsonDocument.getPointerForNode(node);
 
     const plugin = await jsonDocument.getEvaluationPlugin("completions") as CompletionsEvaluationPlugin;
 

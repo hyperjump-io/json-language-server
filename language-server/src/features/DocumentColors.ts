@@ -59,7 +59,7 @@ export class DocumentColors {
             continue;
           }
 
-          const annotations = annotationsEvaluationPlugin!.getAnnotations(jsonDocument.getPointer(node));
+          const annotations = annotationsEvaluationPlugin!.getAnnotations(jsonDocument.getPointerForNode(node));
           if (annotations.some(isColorHex)) {
             colors.push({ color, range: jsonDocument.rangeAt(node.offset, node.offset + node.length) });
           }
