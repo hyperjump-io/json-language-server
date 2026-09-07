@@ -15,7 +15,7 @@ describe("Completions", () => {
 
   test("should register the completion provider capability", async () => {
     expect(client.serverCapabilities!.completionProvider).toEqual({
-      triggerCharacters: [":", "\""]
+      triggerCharacters: [":", "\"", "[", "{"]
     });
   });
 });

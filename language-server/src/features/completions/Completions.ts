@@ -26,7 +26,7 @@ export class Completions {
     server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
         completionProvider: {
-          triggerCharacters: [":", "\""]
+          triggerCharacters: [":", "\"", "[", "{"]
         }
       };
 
