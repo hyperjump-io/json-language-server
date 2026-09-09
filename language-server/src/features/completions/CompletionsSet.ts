@@ -39,6 +39,7 @@ export class CompletionsSet {
     completionsSet.values.set("null", []);
     completionsSet.values.set("true", []);
     completionsSet.values.set("false", []);
+    completionsSet.types.set("integer", []);
     completionsSet.types.set("number", []);
     completionsSet.types.set("string", []);
     completionsSet.types.set("array", []);
@@ -124,6 +125,9 @@ export class CompletionsSet {
         continue;
       }
 
+      if (!this.values.has(value)) {
+        this.values.set(value, []);
+      }
       for (const schemaLocation of schemaLocations) {
         this.addValue(value, schemaLocation);
       }
@@ -199,6 +203,13 @@ export class CompletionsSet {
     for (const [value, schemaLocations] of this.values) {
       yield { value, schemaLocations };
     }
+
+    for (const [type, schemaLocations] of this.types) {
+      if (type === "integer" && this.types.has("array")) {
+        continue;
+      }
+      yield { type, schemaLocations };
+    }
   }
 }
 
@@ -212,10 +223,14 @@ const jsonTypeOf = (json: string) => {
     case "\"":
       return "string";
     case "[":
-      return "string";
+      return "array";
     case "{":
-      return "string";
+      return "object";
     default:
-      return "number";
+      if (/^\d+$/.test(json)) {
+        return "integer";
+      } else {
+        return "number";
+      }
   }
 };

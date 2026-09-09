@@ -1,4 +1,4 @@
-import { CompletionItemKind } from "vscode-languageserver";
+import { CompletionItemKind, InsertTextFormat } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
 import * as Pact from "@hyperjump/pact";
 
@@ -29,15 +29,20 @@ export class ValueCompletionsProvider implements CompletionsProvider {
     return Pact.pipe(
       plugin.getCompletions(instanceLocation),
       Pact.map((completion): CompletionItem => {
+        const snippet = completion.value
+          ? completion.value
+          : typeSnippets[completion.type!].snippet;
+
         return {
-          label: completion.value,
+          label: completion.value ?? typeSnippets[completion.type!].label,
           kind: CompletionItemKind.Value,
           labelDetails: {
             description: "hyperjump-json-language-server"
           },
+          insertTextFormat: InsertTextFormat.Snippet,
           textEdit: {
             range: range,
-            newText: node.children![1] ? completion.value : ` ${completion.value}`
+            newText: node.children![1] ? snippet : ` ${snippet}`
           }
         };
       }),
@@ -45,3 +50,11 @@ export class ValueCompletionsProvider implements CompletionsProvider {
     );
   }
 }
+
+const typeSnippets: Record<string, { label: string; snippet: string }> = {
+  integer: { label: "integer", snippet: "$0" },
+  number: { label: "number", snippet: "$0" },
+  string: { label: `""`, snippet: `"$0"` },
+  array: { label: "[]", snippet: "[$0]" },
+  object: { label: "{}", snippet: "{$0}" }
+};
