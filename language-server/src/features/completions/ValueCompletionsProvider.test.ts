@@ -328,6 +328,33 @@ describe("Value Completions", () => {
     ]);
   });
 
+  test("enum with mixed value types", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "color": { "enum": ["red", null, 42] }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `null` },
+      { label: `"red"` },
+      { label: `42` }
+    ]);
+  });
+
   test("type null", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -886,6 +913,172 @@ describe("Value Completions", () => {
     ]);
   });
 
+  test("narrow enum values", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "properties": {
+            "color": { "enum": ["red", "amber", "pink"] }
+          }
+        },
+        {
+          "properties": {
+            "color": { "enum": ["red", "green", "blue"] }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"red"` }
+    ]);
+  });
+
+  test("allOf returns no completions when enum and type are incompatible", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "properties": {
+            "color": { "type": "string" }
+          }
+        },
+        {
+          "properties": {
+            "color": { "enum": [false, 42, null] }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toEqual([]);
+  });
+
+  test("allOf returns no completions when types are conflicting", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "properties": {
+            "name": { "type": "string" }
+          }
+        },
+        {
+          "properties": {
+            "name": { "type": "boolean" }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toEqual([]);
+  });
+
+  test("allOf suggests string template when both branches declare the same type", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "properties": {
+            "name": { "type": "string" }
+          }
+        },
+        {
+          "properties": {
+            "name": { "type": "string" }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: `""` }
+    ]);
+  });
+
+  test("allOf intersects common non-scalar enum values", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "properties": {
+            "foo": { "enum": [{ "a": 1, "b": 2 }] }
+          }
+        },
+        {
+          "properties": {
+            "foo": { "enum": [{ "b": 2, "a": 1 }] }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 11 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `{"a":1,"b":2}` }
+    ]);
+  });
+
   test("combine values contributed in different subschemas with anyOf", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1068,6 +1261,246 @@ describe("Value Completions", () => {
     expect(completions).toMatchObject([
       { label: `"nested-a"` },
       { label: `"nested-b"` }
+    ]);
+  });
+
+  test("oneOf nested in allOf is intersected with the outer values", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "properties": {
+            "color": { "enum": ["amber", "blue"] }
+          }
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "color": { "enum": ["red", "blue"] }
+              }
+            },
+            {
+              "properties": {
+                "color": { "enum": ["green", "yellow"] }
+              }
+            }
+          ]
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"blue"` }
+    ]);
+  });
+
+  test("allOf nested in anyOf is intersected before the union", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "allOf": [
+            {
+              "properties": {
+                "color": { "enum": ["red", "amber", "pink"] }
+              }
+            },
+            {
+              "properties": {
+                "color": { "enum": ["red", "green"] }
+              }
+            }
+          ]
+        },
+        {
+          "properties": {
+            "color": { "enum": ["black"] }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"red"` },
+      { label: `"black"` }
+    ]);
+  });
+
+  test("allOf narrows oneOf union values to the declared type", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "properties": {
+            "foo": { "type": "string" }
+          }
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "foo": { "enum": ["red", 42] }
+              }
+            },
+            {
+              "properties": {
+                "foo": { "enum": ["blue", null] }
+              }
+            }
+          ]
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 11 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"red"` },
+      { label: `"blue"` }
+    ]);
+  });
+
+  test("allOf inside a oneOf branch is intersected before the branch difference", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "oneOf": [
+        {
+          "allOf": [
+            {
+              "properties": {
+                "color": { "enum": ["red", "amber", "pink"] }
+              }
+            },
+            {
+              "properties": {
+                "color": { "enum": ["red", "green"] }
+              }
+            }
+          ]
+        },
+        {
+          "properties": {
+            "color": { "enum": ["black"] }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"red"` },
+      { label: `"black"` }
+    ]);
+  });
+
+  test("allOf inside a property's own schema intersects the branch values", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "color": {
+          "allOf": [
+            { "enum": ["red", "blue", "green"] },
+            { "enum": ["red", "green"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"red"` },
+      { label: `"green"` }
+    ]);
+  });
+
+  test("allOf intersects compatible enum and type values from branches", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "properties": {
+            "color": { "type": "string" }
+          }
+        },
+        {
+          "properties": {
+            "color": { "enum": ["red", 42, null] }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"red"` }
     ]);
   });
 });
