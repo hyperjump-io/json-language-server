@@ -590,6 +590,66 @@ describe("Value Completions", () => {
     ]);
   });
 
+  test("number and integer narrowing", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "allOf": [
+            { "type": "number" },
+            { "type": "integer" }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: "integer" }
+    ]);
+  });
+
+  test("integer and number narrowing", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "allOf": [
+            { "type": "integer" },
+            { "type": "number" }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: "integer" }
+    ]);
+  });
+
   test("combining values with anyOf", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -618,6 +678,36 @@ describe("Value Completions", () => {
     expect(completions).toMatchObject([
       { label: `true` },
       { label: `false` }
+    ]);
+  });
+
+  test("combining number and integer with anyOf", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "anyOf": [
+            { "type": "number" },
+            { "type": "integer" }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: "number" }
     ]);
   });
 
@@ -729,6 +819,36 @@ describe("Value Completions", () => {
       { label: `"a"` },
       { label: `"c"` },
       { label: `"d"` }
+    ]);
+  });
+
+  test("combining number and integer with oneOf", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "integer" }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: "number" }
     ]);
   });
 

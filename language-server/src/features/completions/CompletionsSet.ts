@@ -28,6 +28,9 @@ export class CompletionsSet {
 
         default:
           completionsSet.addType(type, schemaLocation);
+          if (type === "number") {
+            completionsSet.addType("integer", schemaLocation);
+          }
       }
     }
 
@@ -99,9 +102,17 @@ export class CompletionsSet {
     }
 
     for (const type of this.types.keys()) {
-      if (this.excludedTypes.has(type) || !completionsSet.types.has(type)) {
+      if (this.excludedTypes.has(type)) {
         this.types.delete(type);
+        continue;
       }
+      if (completionsSet.types.has(type)) {
+        continue;
+      }
+      if (type === "number" && completionsSet.types.has("integer") && !this.types.has("integer")) {
+        this.types.set("integer", this.types.get(type)!);
+      }
+      this.types.delete(type);
     }
 
     return this;
@@ -137,10 +148,20 @@ export class CompletionsSet {
       if (this.excludedTypes.has(type)) {
         continue;
       }
+      if (this.types.has("number") && type === "integer") {
+        continue;
+      }
 
+      if (!this.types.has(type)) {
+        this.types.set(type, []);
+      }
       for (const schemaLocation of schemaLocations) {
         this.addType(type, schemaLocation);
       }
+    }
+
+    if (this.types.has("number") && this.types.has("integer")) {
+      this.types.delete("integer");
     }
 
     return this;
@@ -163,6 +184,14 @@ export class CompletionsSet {
     }
 
     for (const [type, schemaLocations] of completionsSet.types) {
+      if (type === "integer" && this.types.has("number")) {
+        continue;
+      }
+
+      if (type === "number" && this.types.has("integer")) {
+        this.types.delete("integer");
+      }
+
       if (this.types.has(type)) {
         this.excludedTypes.add(type);
       }
@@ -171,6 +200,9 @@ export class CompletionsSet {
         continue;
       }
 
+      if (!this.types.has(type)) {
+        this.types.set(type, []);
+      }
       for (const schemaLocation of schemaLocations) {
         this.addType(type, schemaLocation);
       }
@@ -205,7 +237,7 @@ export class CompletionsSet {
     }
 
     for (const [type, schemaLocations] of this.types) {
-      if (type === "integer" && this.types.has("array")) {
+      if (type === "integer" && this.types.has("number")) {
         continue;
       }
       yield { type, schemaLocations };
