@@ -2052,4 +2052,77 @@ describe("Value Completions", () => {
       { label: `"blue"` }
     ]);
   });
+
+  test("dependentSchemas narrows value completion when dependent property is present", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["foo", "bar"] },
+        "value": {}
+      },
+      "dependentSchemas": {
+        "type": {
+          "properties": {
+            "value": { "type": "number" }
+          }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "type": "foo",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 12 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "number" }
+    ]);
+  });
+
+  test("dependentSchemas doesn't narrow value completion when dependent property is absent", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["foo", "bar"] },
+        "value": {}
+      },
+      "dependentSchemas": {
+        "type": {
+          "properties": {
+            "value": { "type": "number" }
+          }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 12 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "null" },
+      { label: "true" },
+      { label: "false" },
+      { label: "number" },
+      { label: `""` },
+      { label: "[]" },
+      { label: "{}" }
+    ]);
+  });
 });
