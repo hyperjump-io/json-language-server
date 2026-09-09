@@ -212,21 +212,30 @@ export class CompletionsSet {
   }
 
   negate() {
-    const excludedValues = new Set(this.values.keys());
-    const values = new Map();
-    for (const value of this.excludedValues) {
-      values.set(value, []);
-    }
-    this.values = values;
-    this.excludedValues = excludedValues;
+    const any = CompletionsSet.any();
 
-    const excludedTypes = new Set(this.types.keys());
-    const types = new Map();
-    for (const type of this.excludedTypes) {
-      types.set(type, []);
+    for (const value of this.values.keys()) {
+      any.excludedValues.add(value);
+      any.values.delete(value);
     }
-    this.types = types;
-    this.excludedTypes = excludedTypes;
+
+    for (const type of this.types.keys()) {
+      any.excludedTypes.add(type);
+      any.types.delete(type);
+    }
+
+    for (const value of this.excludedValues) {
+      any.excludedValues.delete(value);
+    }
+
+    for (const type of this.excludedTypes) {
+      any.excludedTypes.delete(type);
+    }
+
+    this.values = any.values;
+    this.excludedValues = any.excludedValues;
+    this.types = any.types;
+    this.excludedTypes = any.excludedTypes;
 
     return this;
   }
