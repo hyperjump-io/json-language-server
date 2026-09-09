@@ -58,6 +58,9 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
         this.symetricDifference(context.parentCompletions, context.completions);
         break;
 
+      case "https://json-schema.org/keyword/if":
+        break;
+
       default:
         this.intersection(this.completions, context.completions);
     }

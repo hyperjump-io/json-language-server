@@ -1950,4 +1950,106 @@ describe("Value Completions", () => {
       { label: `""` }
     ]);
   });
+
+  test("then applies when the if condition is met", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "shape": { "const": "circle" }
+      },
+      "if": {
+        "properties": { "shape": { "const": "circle" } }
+      },
+      "then": {
+        "properties": { "radius": { "type": "number" } }
+      },
+      "else": {
+        "properties": { "radius": { "type": "string" } }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "shape": "circle",
+      "radius":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 14 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: "number" }
+    ]);
+  });
+
+  test("else applies when the if condition isn't met", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "shape": { "const": "square" }
+      },
+      "if": {
+        "properties": { "shape": { "const": "circle" } }
+      },
+      "then": {
+        "properties": { "radius": { "type": "number" } }
+      },
+      "else": {
+        "properties": { "radius": { "type": "string" } }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "shape": "square",
+      "radius":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 14 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: `""` }
+    ]);
+  });
+
+  test("if must not narrow a real property's value completions", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "color": { "enum": ["red", "blue"] }
+      },
+      "if": {
+        "properties": { "color": { "const": "red" } }
+      },
+      "then": {
+        "properties": { "font": { "const": "bold" } }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"red"` },
+      { label: `"blue"` }
+    ]);
+  });
 });
