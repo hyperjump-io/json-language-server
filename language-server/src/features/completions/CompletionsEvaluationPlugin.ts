@@ -2,13 +2,14 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { CompletionsSet } from "./CompletionsSet.ts";
 
-import type { AST, EvaluationPlugin, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
+import type { EvaluationPlugin, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
 
 type CompletionsContext = ValidationContext & {
   completions: Record<string, CompletionsSet>;
   parentCompletions: Record<string, CompletionsSet>;
   parentKeywordId: string;
+  dynamicAnchors?: Record<string, string>;
 };
 
 export class CompletionsEvaluationPlugin implements EvaluationPlugin<CompletionsContext> {
@@ -37,7 +38,7 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
         }
 
         const propertyPointer = JsonPointer.append(propertyName, instance.pointer);
-        schemaContext.completions[propertyPointer] = this.buildCompletions(properties[propertyName], context.ast);
+        schemaContext.completions[propertyPointer] = this.buildCompletions(properties[propertyName], schemaContext);
       }
     }
 
@@ -70,8 +71,8 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
     return this.completions[pointer] ?? [];
   }
 
-  buildCompletions(schemaLocation: string, ast: AST): CompletionsSet {
-    const nodes = ast[schemaLocation];
+  buildCompletions(schemaLocation: string, context: CompletionsContext): CompletionsSet {
+    const nodes = context.ast[schemaLocation];
 
     if (nodes === true) {
       return CompletionsSet.fromTypes(["null", "boolean", "number", "string", "array", "object"], schemaLocation);
@@ -98,25 +99,33 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
             return CompletionsSet.fromTypes(types, schemaLocation);
 
           case "https://json-schema.org/keyword/ref":
-            return this.buildCompletions(keywordValue as string, ast);
+            return this.buildCompletions(keywordValue as string, context);
+
+          case "https://json-schema.org/keyword/dynamicRef":
+            return this.buildCompletions(context.dynamicAnchors![keywordValue as string], context);
+
+          case "https://json-schema.org/keyword/draft-2020-12/dynamicRef": {
+            const [, fragment, ref] = keywordValue as [string, string, string];
+            return this.buildCompletions(context.dynamicAnchors![fragment] ?? ref, context);
+          }
 
           case "https://json-schema.org/keyword/allOf":
             return (keywordValue as string[]).reduce((completionsSet, subSchemaLocation) => {
-              return completionsSet.intersection(this.buildCompletions(subSchemaLocation, ast));
+              return completionsSet.intersection(this.buildCompletions(subSchemaLocation, context));
             }, CompletionsSet.any());
 
           case "https://json-schema.org/keyword/anyOf":
             return (keywordValue as string[]).reduce((completionsSet, subSchemaLocation) => {
-              return completionsSet.union(this.buildCompletions(subSchemaLocation, ast));
+              return completionsSet.union(this.buildCompletions(subSchemaLocation, context));
             }, new CompletionsSet());
 
           case "https://json-schema.org/keyword/oneOf":
             return (keywordValue as string[]).reduce((completionsSet, subSchemaLocation) => {
-              return completionsSet.symetricDifference(this.buildCompletions(subSchemaLocation, ast));
+              return completionsSet.symetricDifference(this.buildCompletions(subSchemaLocation, context));
             }, new CompletionsSet());
 
           case "https://json-schema.org/keyword/not":
-            return this.buildCompletions(keywordValue as string, ast).negate();
+            return this.buildCompletions(keywordValue as string, context).negate();
 
           default:
             return CompletionsSet.any();
