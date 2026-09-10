@@ -97,6 +97,9 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
             const types = Array.isArray(keywordValue) ? keywordValue : [keywordValue];
             return CompletionsSet.fromTypes(types, schemaLocation);
 
+          case "https://json-schema.org/keyword/ref":
+            return this.buildCompletions(keywordValue as string, ast);
+
           case "https://json-schema.org/keyword/allOf":
             return (keywordValue as string[]).reduce((completionsSet, subSchemaLocation) => {
               return completionsSet.intersection(this.buildCompletions(subSchemaLocation, ast));

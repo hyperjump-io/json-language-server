@@ -2125,4 +2125,69 @@ describe("Value Completions", () => {
       { label: "{}" }
     ]);
   });
+
+  test("completion works with $ref", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "color": { "$ref": "#/$defs/color" }
+      },
+      "$defs": {
+        "color": {
+          "enum": ["red", "green", "blue"]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"red"` },
+      { label: `"green"` },
+      { label: `"blue"` }
+    ]);
+  });
+
+  test("completion works with recursive schemas", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": { "type": "string" },
+        "branch": {
+          "type": "array",
+          "items": { "$ref": "#" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "branch": [
+        {
+          "branch":
+        }
+      ]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 4, character: 18 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "[]" }
+    ]);
+  });
 });
