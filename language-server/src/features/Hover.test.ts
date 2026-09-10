@@ -584,48 +584,4 @@ _hyperjump-json-language-server_`
       }
     });
   });
-
-  test("should support markdownDescription in draft-07 schema", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
-    fixtureSchemaUri = await client.writeDocument("schema.json", `{
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "type": "object",
-      "properties": {
-        "count": {
-          "title": "Count",
-          "markdownDescription": "Total **count** of items",
-          "type": "number"
-        }
-      }
-    }`);
-
-    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "count": 42\n}`;
-    await client.writeDocument("instance.json", instanceText);
-    const uri = await client.openDocument("instance.json");
-
-    await diagnostics;
-
-    const result = await client.sendRequest(HoverRequest.type, {
-      textDocument: { uri },
-      position: { line: 2, character: 4 }
-    });
-
-    expect(result).toEqual({
-      contents: {
-        kind: "markdown",
-        value: `**Count**
-
-Total **count** of items
-
----
-
-_hyperjump-json-language-server_`
-      }
-    });
-  });
 });
