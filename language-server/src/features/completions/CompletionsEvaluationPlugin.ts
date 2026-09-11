@@ -32,10 +32,6 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
     if (keywordId === "https://json-schema.org/keyword/properties") {
       const properties = keywordValue as Record<string, string>;
       for (const propertyName in properties) {
-        const subSchema = context.ast[properties[propertyName]];
-        if (!Array.isArray(subSchema)) {
-          continue;
-        }
 
         const propertyPointer = JsonPointer.append(propertyName, instance.pointer);
         schemaContext.completions[propertyPointer] = this.buildCompletions(properties[propertyName], schemaContext);

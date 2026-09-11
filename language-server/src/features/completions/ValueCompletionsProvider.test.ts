@@ -45,12 +45,43 @@ describe("Value Completions", () => {
     ]);
   });
 
-  test("boolean schema", async () => {
+  test("boolean schema true", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
         "value": true
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "null" },
+      { label: "true" },
+      { label: "false" },
+      { label: "number", textEdit: { newText: " $0" } },
+      { label: `""`, textEdit: { newText: ` "$0"` } },
+      { label: "[]", textEdit: { newText: " [$0]" } },
+      { label: "{}", textEdit: { newText: " {$0}" } }
+    ]);
+  });
+
+  test("boolean schema false", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": false
       }
     }`);
 
