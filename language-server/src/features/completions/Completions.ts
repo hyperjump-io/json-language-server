@@ -20,7 +20,19 @@ export class Completions {
     this.providers = providers;
 
     jsonDocuments.onDidCreate((jsonDocument) => {
-      jsonDocument.registerEvaluationPlugin(completionsEvaluationPluginId, () => new CompletionsEvaluationPlugin());
+      jsonDocument.registerEvaluationPlugin(completionsEvaluationPluginId, () => {
+        const incompleteLocations: Set<string> = new Set();
+        jsonDocument.walkNodes(jsonDocument.findNodeAtPointer("")!, (node) => {
+          if (node.type === "object") {
+            for (const propertyNode of node.children!) {
+              if (propertyNode.children!.length === 1) {
+                incompleteLocations.add(jsonDocument.getPointerForNode(propertyNode));
+              }
+            }
+          }
+        });
+        return new CompletionsEvaluationPlugin(incompleteLocations);
+      });
     });
 
     server.onInitialize(() => {

@@ -1,3 +1,4 @@
+import * as Instance from "@hyperjump/json-schema/instance/experimental";
 import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { CompletionsSet } from "./CompletionsSet.ts";
@@ -10,34 +11,114 @@ type CompletionsContext = ValidationContext & {
   parentCompletions: Record<string, CompletionsSet>;
   parentKeywordId: string;
   dynamicAnchors?: Record<string, string>;
+  evaluatedProperties?: Set<string>;
+  schemaEvaluatedProperties?: Set<string>;
 };
 
 export class CompletionsEvaluationPlugin implements EvaluationPlugin<CompletionsContext> {
   private completions: Record<string, CompletionsSet> = Object.create(null);
+  private incompleteLocations: Set<string>;
+
+  constructor(incompleteLocations: Set<string>) {
+    this.incompleteLocations = incompleteLocations;
+  }
 
   beforeSchema(_url: string, _instance: JsonNode, context: CompletionsContext): void {
     context.completions = Object.create(null);
   }
 
-  beforeKeyword(keywordNode: Node<unknown>, _instance: JsonNode, context: CompletionsContext): void {
-    const [keywordId] = keywordNode;
+  beforeKeyword(keywordNode: Node<unknown>, instance: JsonNode, context: CompletionsContext, schemaContext: CompletionsContext): void {
+    const [keywordId, , keywordValue] = keywordNode;
 
     context.parentKeywordId = keywordId;
     context.parentCompletions = Object.create(null);
-  }
 
-  afterKeyword(keywordNode: Node<unknown>, instance: JsonNode, context: CompletionsContext, _valid: boolean, schemaContext: CompletionsContext): void {
-    const [keywordId, , keywordValue] = keywordNode;
+    switch (keywordId) {
+      case "https://json-schema.org/keyword/properties": {
+        const properties = keywordValue as Record<string, string>;
+        for (const propertyName in properties) {
+          const pointer = JsonPointer.append(propertyName, instance.pointer);
+          const schemaUri = properties[propertyName];
+          schemaContext.completions[pointer] ??= CompletionsSet.any();
+          schemaContext.completions[pointer].intersection(this.buildCompletions(schemaUri, schemaContext));
+        }
+        break;
+      }
 
-    if (keywordId === "https://json-schema.org/keyword/properties") {
-      const properties = keywordValue as Record<string, string>;
-      for (const propertyName in properties) {
+      case "https://json-schema.org/keyword/additionalProperties": {
+        const [isDeclaredProperty, schemaUri] = keywordValue as [RegExp, string];
 
-        const propertyPointer = JsonPointer.append(propertyName, instance.pointer);
-        schemaContext.completions[propertyPointer] = this.buildCompletions(properties[propertyName], schemaContext);
+        for (const propertyNameNode of Instance.keys(instance)) {
+          const propertyName = Instance.value(propertyNameNode) as string;
+          if (!isDeclaredProperty.test(propertyName)) {
+            const pointer = JsonPointer.append(propertyName, instance.pointer);
+            schemaContext.completions[pointer] ??= CompletionsSet.any();
+            schemaContext.completions[pointer].intersection(this.buildCompletions(schemaUri, schemaContext));
+          }
+        }
+
+        for (const pointer of this.incompleteLocations) {
+          const [parentPointer, propertyName] = splitPointer(pointer);
+          if (parentPointer === instance.pointer && !isDeclaredProperty.test(propertyName)) {
+            schemaContext.completions[pointer] ??= CompletionsSet.any();
+            schemaContext.completions[pointer].intersection(this.buildCompletions(schemaUri, schemaContext));
+            context.evaluatedProperties?.add(propertyName);
+          }
+        }
+        break;
+      }
+
+      case "https://json-schema.org/keyword/patternProperties": {
+        const patternProperties = keywordValue as [RegExp, string][];
+
+        for (const [pattern, schemaUri] of patternProperties) {
+          for (const propertyNameNode of Instance.keys(instance)) {
+            const propertyName = Instance.value(propertyNameNode) as string;
+            if (pattern.test(propertyName)) {
+              const pointer = JsonPointer.append(propertyName, instance.pointer);
+              schemaContext.completions[pointer] ??= CompletionsSet.any();
+              schemaContext.completions[pointer].intersection(this.buildCompletions(schemaUri, schemaContext));
+            }
+          }
+
+          for (const pointer of this.incompleteLocations) {
+            const [parentPointer, propertyName] = splitPointer(pointer);
+            if (parentPointer === instance.pointer && pattern.test(propertyName)) {
+              schemaContext.completions[pointer] ??= CompletionsSet.any();
+              schemaContext.completions[pointer].intersection(this.buildCompletions(schemaUri, schemaContext));
+              context.evaluatedProperties?.add(propertyName);
+            }
+          }
+        }
+        break;
+      }
+
+      case "https://json-schema.org/keyword/unevaluatedProperties": {
+        const schemaUri = keywordValue as string;
+
+        for (const propertyNameNode of Instance.keys(instance)) {
+          const propertyName = Instance.value(propertyNameNode) as string;
+          if (!context.schemaEvaluatedProperties!.has(propertyName)) {
+            const pointer = JsonPointer.append(propertyName, instance.pointer);
+            schemaContext.completions[pointer] ??= CompletionsSet.any();
+            schemaContext.completions[pointer].intersection(this.buildCompletions(schemaUri, schemaContext));
+          }
+        }
+
+        for (const pointer of this.incompleteLocations) {
+          const [parentPointer, propertyName] = splitPointer(pointer);
+          if (parentPointer === instance.pointer && !context.schemaEvaluatedProperties!.has(propertyName)) {
+            schemaContext.completions[pointer] ??= CompletionsSet.any();
+            schemaContext.completions[pointer].intersection(this.buildCompletions(schemaUri, schemaContext));
+            context.evaluatedProperties?.add(propertyName);
+          }
+        }
+        break;
       }
     }
+  }
 
+  afterKeyword(_keywordNode: Node<unknown>, _instance: JsonNode, context: CompletionsContext, _valid: boolean, schemaContext: CompletionsContext): void {
     this.intersection(schemaContext.completions, context.parentCompletions);
   }
 
@@ -64,7 +145,7 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
   }
 
   getCompletions(pointer: string) {
-    return this.completions[pointer] ?? [];
+    return this.completions[pointer] ?? new CompletionsSet();
   }
 
   buildCompletions(schemaLocation: string, context: CompletionsContext): CompletionsSet {
@@ -161,3 +242,10 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
     }
   }
 }
+
+const splitPointer = (pointer: string) => {
+  const position = pointer.lastIndexOf("/");
+  const parentPointer = pointer.slice(0, position);
+  const propertyName = pointer.slice(position + 1);
+  return [parentPointer, propertyName];
+};
