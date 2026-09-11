@@ -2733,4 +2733,90 @@ describe("Value Completions", () => {
       { label: `"b"` }
     ]);
   });
+
+  test("anyOf: a nested object property declared differently per branch is unioned, not intersected", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": { "tag": { "const": "one" } }
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": { "tag": { "const": "two" } }
+            }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "meta": {
+        "tag":
+      }
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"one"` },
+      { label: `"two"` }
+    ]);
+  });
+
+  test("oneOf: a nested object property declared differently per branch is combined per-branch, not intersected globally", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": { "tag": { "const": "one" } }
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": { "tag": { "const": "two" } }
+            }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "meta": {
+        "tag":
+      }
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"one"` },
+      { label: `"two"` }
+    ]);
+  });
 });

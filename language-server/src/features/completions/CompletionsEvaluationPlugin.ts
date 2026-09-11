@@ -124,6 +124,10 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
 
   afterSchema(_url: string, _instance: JsonNode, context: CompletionsContext): void {
     switch (context.parentKeywordId) {
+      case undefined:
+        this.intersection(this.completions, context.completions);
+        break;
+
       case "https://json-schema.org/keyword/allOf":
         this.intersection(context.parentCompletions, context.completions);
         break;
@@ -140,7 +144,7 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
         break;
 
       default:
-        this.intersection(this.completions, context.completions);
+        this.intersection(context.parentCompletions, context.completions);
     }
   }
 
