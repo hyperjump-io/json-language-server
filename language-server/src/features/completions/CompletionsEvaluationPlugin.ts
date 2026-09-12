@@ -130,7 +130,7 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
 
       case "https://json-schema.org/keyword/oneOf": {
         for (const branch of context.subschemaCompletions!) {
-          this.symetricDifference(combinedCompletions, branch);
+          this.symmetricDifference(combinedCompletions, branch);
         }
         break;
       }
@@ -206,7 +206,7 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
 
           case "https://json-schema.org/keyword/oneOf":
             return (keywordValue as string[]).reduce((completionsSet, subSchemaLocation) => {
-              return completionsSet.symetricDifference(this.buildCompletions(subSchemaLocation, context));
+              return completionsSet.symmetricDifference(this.buildCompletions(subSchemaLocation, context));
             }, new CompletionsSet());
 
           case "https://json-schema.org/keyword/not":
@@ -240,10 +240,10 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
     }
   }
 
-  symetricDifference(a: Record<string, CompletionsSet>, b: Record<string, CompletionsSet>) {
+  symmetricDifference(a: Record<string, CompletionsSet>, b: Record<string, CompletionsSet>) {
     for (const instanceLocation in b) {
       if (a[instanceLocation]) {
-        a[instanceLocation].symetricDifference(b[instanceLocation]);
+        a[instanceLocation].symmetricDifference(b[instanceLocation]);
       } else {
         a[instanceLocation] = b[instanceLocation];
       }

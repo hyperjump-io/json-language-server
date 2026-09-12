@@ -167,7 +167,7 @@ export class CompletionsSet {
     return this;
   }
 
-  symetricDifference(completionsSet: CompletionsSet) {
+  symmetricDifference(completionsSet: CompletionsSet) {
     for (const [value, schemaLocations] of completionsSet.values) {
       if (this.values.has(value)) {
         this.excludedValues.add(value);
