@@ -2819,4 +2819,46 @@ describe("Value Completions", () => {
       { label: `"two"` }
     ]);
   });
+
+  test("anyOf and allOf siblings", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "properties": {
+            "value": { "const": "a" }
+          }
+        },
+        {
+          "properties": {
+            "value": { "const": "b" }
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "properties": {
+            "value": { "enum": ["a", "b", "c"] }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
 });

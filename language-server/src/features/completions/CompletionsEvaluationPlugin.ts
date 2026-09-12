@@ -8,8 +8,7 @@ import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
 
 type CompletionsContext = ValidationContext & {
   completions: Record<string, CompletionsSet>;
-  parentCompletions: Record<string, CompletionsSet>;
-  parentKeywordId: string;
+  subschemaCompletions?: Record<string, CompletionsSet>[];
   dynamicAnchors?: Record<string, string>;
   evaluatedProperties?: Set<string>;
   schemaEvaluatedProperties?: Set<string>;
@@ -30,8 +29,7 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
   beforeKeyword(keywordNode: Node<unknown>, instance: JsonNode, context: CompletionsContext, schemaContext: CompletionsContext): void {
     const [keywordId, , keywordValue] = keywordNode;
 
-    context.parentKeywordId = keywordId;
-    context.parentCompletions = Object.create(null);
+    context.subschemaCompletions = [];
 
     switch (keywordId) {
       case "https://json-schema.org/keyword/properties": {
@@ -118,34 +116,40 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
     }
   }
 
-  afterKeyword(_keywordNode: Node<unknown>, _instance: JsonNode, context: CompletionsContext, _valid: boolean, schemaContext: CompletionsContext): void {
-    this.intersection(schemaContext.completions, context.parentCompletions);
-  }
+  afterKeyword(keywordNode: Node<unknown>, _instance: JsonNode, context: CompletionsContext, _valid: boolean, schemaContext: CompletionsContext): void {
+    const [keywordId] = keywordNode;
+    const combinedCompletions = Object.create(null);
 
-  afterSchema(_url: string, _instance: JsonNode, context: CompletionsContext): void {
-    switch (context.parentKeywordId) {
-      case undefined:
-        this.intersection(this.completions, context.completions);
+    switch (keywordId) {
+      case "https://json-schema.org/keyword/anyOf": {
+        for (const branch of context.subschemaCompletions!) {
+          this.union(combinedCompletions, branch);
+        }
         break;
+      }
 
-      case "https://json-schema.org/keyword/allOf":
-        this.intersection(context.parentCompletions, context.completions);
+      case "https://json-schema.org/keyword/oneOf": {
+        for (const branch of context.subschemaCompletions!) {
+          this.symetricDifference(combinedCompletions, branch);
+        }
         break;
-
-      case "https://json-schema.org/keyword/anyOf":
-        this.union(context.parentCompletions, context.completions);
-        break;
-
-      case "https://json-schema.org/keyword/oneOf":
-        this.symetricDifference(context.parentCompletions, context.completions);
-        break;
+      }
 
       case "https://json-schema.org/keyword/if":
         break;
 
       default:
-        this.intersection(context.parentCompletions, context.completions);
+        for (const branch of context.subschemaCompletions!) {
+          this.intersection(combinedCompletions, branch);
+        }
     }
+
+    this.intersection(schemaContext.completions, combinedCompletions);
+  }
+
+  afterSchema(_url: string, _instance: JsonNode, context: CompletionsContext): void {
+    context.subschemaCompletions?.push(context.completions);
+    this.completions = context.completions;
   }
 
   getCompletions(pointer: string) {
