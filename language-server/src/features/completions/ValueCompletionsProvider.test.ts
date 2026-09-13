@@ -2861,4 +2861,241 @@ describe("Value Completions", () => {
       { label: `"b"` }
     ]);
   });
+
+  test("anyOf offers union of types before a discriminant is typed", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "properties": {
+            "foo": { "const": "a" },
+            "bar": { "type": "null" }
+          },
+          "required": ["foo"]
+        },
+        {
+          "properties": {
+            "foo": { "const": "b" },
+            "bar": { "type": "boolean" }
+          },
+          "required": ["foo"]
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "bar":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 11 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: `null` },
+      { label: `true` },
+      { label: `false` }
+    ]);
+  });
+
+  test("anyOf narrows to the branch matching the discriminant", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "properties": {
+            "foo": { "const": "a" },
+            "bar": { "enum": ["foo", "bar"] }
+          },
+          "required": ["foo"]
+        },
+        {
+          "properties": {
+            "foo": { "const": "b" },
+            "bar": { "enum": ["a", "b"] }
+          },
+          "required": ["foo"]
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo": "a",
+      "bar":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 11 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"foo"` },
+      { label: `"bar"` }
+    ]);
+  });
+
+  test("oneOf narrows to the branch matching the discriminant", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "foo": { "const": "a" },
+            "bar": { "enum": ["foo", "bar"] }
+          },
+          "required": ["foo"]
+        },
+        {
+          "properties": {
+            "foo": { "const": "b" },
+            "bar": { "enum": ["a", "b"] }
+          },
+          "required": ["foo"]
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo": "b",
+      "bar":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 11 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
+
+  test("additionalProperties narrows when oneOf branches", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "version": { "const": "web" }
+          },
+          "additionalProperties": { "type": "boolean" }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "version": { "const": "desktop" }
+          },
+          "additionalProperties": { "type": "object" }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "version": "web",
+      "darkmode":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 15 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `true` },
+      { label: `false` }
+    ]);
+  });
+
+  test("additionalProperties offers nothing when both alternative branches are filtered", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "version": { "const": "web" }
+          },
+          "additionalProperties": { "type": "boolean" }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "version": { "const": "desktop" }
+          },
+          "additionalProperties": { "type": "object" }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "version": "web",
+      "rollout": {},
+      "darkmode":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 4, character: 15 }
+    });
+
+    expect(completions).toEqual([]);
+  });
+
+  test("oneOf keeps a valid branch whose own discriminant is resolved by a nested anyOf", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "kind": { "const": "A" },
+            "x": { "anyOf": [{ "const": "yes" }, { "const": "no" }] },
+            "extra": { "const": "onlyA" }
+          },
+          "required": ["kind"]
+        },
+        {
+          "properties": {
+            "kind": { "const": "B" },
+            "extra": { "const": "onlyB" }
+          },
+          "required": ["kind"]
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "kind": "A",
+      "x": "yes",
+      "extra":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 4, character: 14 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"onlyA"` }
+    ]);
+  });
 });
