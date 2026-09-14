@@ -8,6 +8,7 @@ import type { Node } from "@hyperjump/json-schema/experimental";
 export type PropertyValueInfo = {
   type?: Set<string>;
   enum?: Set<string>;
+  enumDescriptions?: Map<string, string>;
   const?: string;
   excluded?: Set<string>;
   excludedTypes?: Set<string>;
@@ -229,6 +230,10 @@ const isType = (value: string, type: string): boolean => {
 
 const isAnyType = (value: string, types: Iterable<string>): boolean => Pact.some((type) => isType(value, type), types);
 
+const mergeEnumDescriptions = (first: PropertyValueInfo, second: PropertyValueInfo): Map<string, string> | undefined => {
+  return (first.enumDescriptions ?? second.enumDescriptions) ? new Map([...second.enumDescriptions ?? [], ...first.enumDescriptions ?? []]) : undefined;
+};
+
 // The JSON values (as strings) a value info constrains its property to, if any.
 const valuesOf = (info: PropertyValueInfo): Set<string> | undefined => {
   if (info.const !== undefined) {
@@ -284,6 +289,7 @@ const intersectValueInfo = (first: PropertyValueInfo, second: PropertyValueInfo)
   return dropContradictoryValues({
     type,
     enum: enumValues,
+    enumDescriptions: mergeEnumDescriptions(first, second),
     const: bothHaveConst ? (constsMatch ? first.const : undefined) : (first.const ?? second.const),
     excluded: (first.excluded ?? second.excluded) ? unique(first.excluded, second.excluded) : undefined,
     excludedTypes: (first.excludedTypes ?? second.excludedTypes) ? unique(first.excludedTypes, second.excludedTypes) : undefined,
@@ -336,7 +342,7 @@ const unionValueInfo = (first: PropertyValueInfo, second: PropertyValueInfo): Pr
     enumValues = without(enumValues, excluded);
   }
 
-  return { type, enum: enumValues, excluded, excludedTypes, permitsAnyValue: namesTypeAndValues || undefined };
+  return { type, enum: enumValues, enumDescriptions: mergeEnumDescriptions(first, second), excluded, excludedTypes, permitsAnyValue: namesTypeAndValues || undefined };
 };
 
 const exactlyOneValueInfo = (infos: PropertyValueInfo[]): PropertyValueInfo => {
@@ -400,12 +406,17 @@ const resolveValueInfo = (ast: Record<string, unknown> | undefined, schemaUri: s
     const path = new Set(visited).add(schemaUri);
     // A combinator in a property's value schema isn't evaluated while that value is still unwritten, so no hook sees it so we resolve it here.
     const nestedInfos: PropertyValueInfo[] = [];
+    let enumValues: string[] | undefined;
+    let enumDescriptions: string[] | undefined;
 
     for (const [keywordId, , keywordValue] of node as [string, unknown, unknown][]) {
       if (keywordId === "https://json-schema.org/keyword/type") {
         info.type = new Set(typeList(keywordValue as string | string[]));
       } else if (keywordId === "https://json-schema.org/keyword/enum") {
-        info.enum = new Set(keywordValue as string[]);
+        enumValues = keywordValue as string[];
+        info.enum = new Set(enumValues);
+      } else if (keywordId === "https://json-schema.org/keyword/unknown#enumDescriptions") {
+        enumDescriptions = (keywordValue as [string, string[]])[1];
       } else if (keywordId === "https://json-schema.org/keyword/const") {
         info.const = keywordValue as string;
       } else if (keywordId === "https://json-schema.org/keyword/not") {
@@ -424,6 +435,15 @@ const resolveValueInfo = (ast: Record<string, unknown> | undefined, schemaUri: s
         const branches = (keywordValue as string[]).map((branchUri) => resolveValueInfo(ast, branchUri, path));
         if (branches.length > 0) {
           nestedInfos.push(exactlyOneValueInfo(branches));
+        }
+      }
+    }
+
+    if (enumValues && enumDescriptions) {
+      info.enumDescriptions = new Map();
+      for (const [index, value] of enumValues.entries()) {
+        if (typeof enumDescriptions[index] === "string") {
+          info.enumDescriptions.set(value, enumDescriptions[index]);
         }
       }
     }

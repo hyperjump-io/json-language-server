@@ -45,6 +45,7 @@ export class ValueCompletion implements CompletionsProvider {
       completionItems.push(...Pact.map((value) => ({
         label: value,
         kind: CompletionItemKind.EnumMember,
+        documentation: valueInfo.enumDescriptions?.get(value),
         insertTextFormat: InsertTextFormat.Snippet,
         textEdit: { range, newText: " " + value }
       }), valueInfo.enum));

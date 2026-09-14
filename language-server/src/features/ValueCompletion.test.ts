@@ -367,6 +367,117 @@ describe("Completions", () => {
     ]);
   });
 
+  test("Value completion: enumDescriptions attaches documentation to enum suggestions", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "level": {
+          "enum": ["debug", "info", "error"],
+          "enumDescriptions": ["Log everything", "Log informational messages and above"]
+        }
+      }
+    }`);
+
+    const instanceText = `{
+      "$schema": "${fixtureSchemaUri}",
+      "level":
+    }`;
+
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 16 }
+    });
+
+    const range = { start: { line: 2, character: 14 }, end: { line: 2, character: 16 } };
+    expect(completions).toEqual([
+      {
+        label: `"debug"`,
+        kind: CompletionItemKind.EnumMember,
+        documentation: "Log everything",
+        insertTextFormat: InsertTextFormat.Snippet,
+        textEdit: { range, newText: ` "debug"` }
+      },
+      {
+        label: `"info"`,
+        kind: CompletionItemKind.EnumMember,
+        documentation: "Log informational messages and above",
+        insertTextFormat: InsertTextFormat.Snippet,
+        textEdit: { range, newText: ` "info"` }
+      },
+      {
+        label: `"error"`,
+        kind: CompletionItemKind.EnumMember,
+        insertTextFormat: InsertTextFormat.Snippet,
+        textEdit: { range, newText: ` "error"` }
+      }
+    ]);
+  });
+
+  test("Value completion: enumDescriptions survive allOf intersection", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "properties": {
+            "level": { "enum": ["debug", "info"], "enumDescriptions": ["Log everything", "Log informational messages"] }
+          }
+        },
+        {
+          "properties": {
+            "level": { "enum": ["info", "error"], "enumDescriptions": ["Ignored duplicate", "Log errors only"] }
+          }
+        }
+      ]
+    }`);
+
+    const instanceText = `{
+      "$schema": "${fixtureSchemaUri}",
+      "level":
+    }`;
+
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 16 }
+    });
+
+    expect(completions).toEqual([
+      {
+        label: `"info"`,
+        kind: CompletionItemKind.EnumMember,
+        documentation: "Log informational messages",
+        insertTextFormat: InsertTextFormat.Snippet,
+        textEdit: {
+          range: { start: { line: 2, character: 14 }, end: { line: 2, character: 16 } },
+          newText: ` "info"`
+        }
+      }
+    ]);
+  });
+
   // allOf tests
   test("allOf : value completion suggests common enum info from both allOf branch", async () => {
     const diagnostics: Promise<void> = new Promise((resolve) => {
