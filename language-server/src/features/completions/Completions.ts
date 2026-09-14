@@ -1,3 +1,4 @@
+import * as JsonPointer from "@hyperjump/json-pointer";
 import { JsonDocuments } from "../../services/JsonDocuments.ts";
 import { JsonDocument } from "../../models/JsonDocument.ts";
 import { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.ts";
@@ -29,6 +30,9 @@ export class Completions {
                 incompleteLocations.add(jsonDocument.getPointerForNode(propertyNode));
               }
             }
+          } else if (node.type === "array") {
+            const pointer = JsonPointer.append(`${node.children!.length}`, jsonDocument.getPointerForNode(node));
+            incompleteLocations.add(pointer);
           }
         });
         return new CompletionsEvaluationPlugin(incompleteLocations);
@@ -38,7 +42,7 @@ export class Completions {
     server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
         completionProvider: {
-          triggerCharacters: [":", "\"", "[", "{"]
+          triggerCharacters: [":", "\"", "\n", " "]
         }
       };
 
@@ -47,22 +51,26 @@ export class Completions {
       };
     });
 
-    server.onCompletion((params) => {
+    server.onCompletion(async (params) => {
       const jsonDocument = this.jsonDocuments.get(params.textDocument.uri);
       if (!jsonDocument) {
         return [];
       }
 
-      return this.getCompletions(jsonDocument, params);
+      if (params.context?.triggerCharacter === " ") {
+        const cursorOffset = jsonDocument.offsetAt(params.position);
+        const node = jsonDocument.findNodeAtPosition(params.position)!;
+        if (node.type === "string" || !/[:,]/.test(jsonDocument.getText()[cursorOffset - 2])) {
+          return [];
+        }
+      }
+
+      const completionItems: CompletionItem[] = [];
+      for (const provider of this.providers) {
+        completionItems.push(...await provider.getCompletions(jsonDocument, params));
+      }
+
+      return completionItems;
     });
-  }
-
-  private async getCompletions(jsonDocument: JsonDocument, params: CompletionParams) {
-    const completionItems: CompletionItem[] = [];
-    for (const provider of this.providers) {
-      completionItems.push(...await provider.getCompletions(jsonDocument, params));
-    }
-
-    return completionItems;
   }
 }

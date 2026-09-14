@@ -151,6 +151,35 @@ describe("Value Completions", () => {
     });
   });
 
+  test("completions on colon with a space", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": { "const": "foo" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": 
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    }) as CompletionItem[];
+
+    expect(completions[0].textEdit).toEqual({
+      range: {
+        start: { line: 2, character: 14 },
+        end: { line: 2, character: 14 }
+      },
+      newText: `"foo"`
+    });
+  });
+
   test("completions for different properties", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3220,6 +3249,806 @@ describe("Value Completions", () => {
 
     expect(completions).toMatchObject([
       { label: `"onlyA"` }
+    ]);
+  });
+
+  test("value completion for an item in an empty array", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "const": "a" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": []
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: `"a"`,
+        textEdit: {
+          range: {
+            start: { line: 2, character: 15 },
+            end: { line: 2, character: 15 }
+          },
+          newText: `"a"`
+        }
+      }
+    ]);
+  });
+
+  test("value completion for an existing array item value", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "const": "a" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": [""]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 16 }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: `"a"`,
+        textEdit: {
+          range: {
+            start: { line: 2, character: 16 },
+            end: { line: 2, character: 18 }
+          },
+          newText: `"a"`
+        }
+      }
+    ]);
+  });
+
+  test("value completion for a partially typed array item value", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "const": "a" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["f"]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 17 }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: `"a"`,
+        textEdit: {
+          range: {
+            start: { line: 2, character: 16 },
+            end: { line: 2, character: 19 }
+          },
+          newText: `"a"`
+        }
+      }
+    ]);
+  });
+
+  test("value completion for a new item after a trailing comma", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "const": "a" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a",]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 19 }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: `"a"`,
+        textEdit: {
+          range: {
+            start: { line: 2, character: 19 },
+            end: { line: 2, character: 19 }
+          },
+          newText: ` "a"`
+        }
+      }
+    ]);
+  });
+
+  test("value completion for a new item after a trailing comma with a space", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "const": "a" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a", ]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 20 }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: `"a"`,
+        textEdit: {
+          range: {
+            start: { line: 2, character: 20 },
+            end: { line: 2, character: 20 }
+          },
+          newText: `"a"`
+        }
+      }
+    ]);
+  });
+
+  test("value completion for a new item at the beginning of an array", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "const": "a" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": [, "a"]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: `"a"`,
+        textEdit: {
+          range: {
+            start: { line: 2, character: 15 },
+            end: { line: 2, character: 15 }
+          },
+          newText: `"a"`
+        }
+      }
+    ]);
+  });
+
+  test("value completion for a new item in the middle of an array", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "const": "a" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a",, "a"]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 19 }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: `"a"`,
+        textEdit: {
+          range: {
+            start: { line: 2, character: 19 },
+            end: { line: 2, character: 19 }
+          },
+          newText: ` "a"`
+        }
+      }
+    ]);
+  });
+
+  test("items: property value completion inside an array item", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tag": { "enum": ["one", "two"] }
+            }
+          }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": [
+        {
+          "tag":
+        }
+      ]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 4, character: 14 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"one"` },
+      { label: `"two"` }
+    ]);
+  });
+
+  test("items: value completion for a nested array item", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "enum": ["x", "y"] }
+          }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": [[]]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 16 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"x"` },
+      { label: `"y"` }
+    ]);
+  });
+
+  test("prefixItems: value completion for first item", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "prefixItems": [
+            { "enum": ["a", "b"] },
+            { "enum": ["c", "d"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": []
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
+
+  test("prefixItems: value completion for a subsequent item", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "prefixItems": [
+            { "enum": ["a", "b"] },
+            { "enum": ["c", "d"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a",]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 19 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"c"` },
+      { label: `"d"` }
+    ]);
+  });
+
+  test("prefixItems takes precedence over items", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "prefixItems": [
+            { "enum": ["a", "b"] }
+          ],
+          "items": { "enum": ["z"] }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": []
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
+
+  test("prefixItems takes precedence over unevaluatedItems", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "allOf": [
+            {
+              "prefixItems": [
+                { "enum": ["a", "b"] }
+              ]
+            }
+          ],
+          "unevaluatedItems": { "enum": ["z"] }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": []
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
+
+  test("unevaluatedItems applies to items beyond the prefixItems", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "allOf": [
+            {
+              "prefixItems": [
+                { "enum": ["a", "b"] }
+              ]
+            }
+          ],
+          "unevaluatedItems": { "enum": ["z"] }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a",]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 19 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"z"` }
+    ]);
+  });
+
+  test("items takes precedence over unevaluatedItems", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "allOf": [
+            {
+              "type": "array",
+              "prefixItems": [
+                { "enum": ["a", "b"] }
+              ],
+              "items": { "enum": ["z"] }
+            }
+          ],
+          "unevalutatedItems": false
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a",]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 19 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"z"` }
+    ]);
+  });
+
+  test("items (draft-07): value completion for an item in an empty array", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "const": "a" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": []
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: `"a"`,
+        textEdit: {
+          range: {
+            start: { line: 2, character: 15 },
+            end: { line: 2, character: 15 }
+          },
+          newText: `"a"`
+        }
+      }
+    ]);
+  });
+
+  test("items (draft-07): value completion for a new item after a trailing comma", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "const": "a" }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a",]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 19 }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: `"a"`,
+        textEdit: {
+          range: {
+            start: { line: 2, character: 19 },
+            end: { line: 2, character: 19 }
+          },
+          newText: ` "a"`
+        }
+      }
+    ]);
+  });
+
+  test("items (draft-07): tuple form value completion for first item", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": [
+            { "enum": ["a", "b"] },
+            { "enum": ["c", "d"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": []
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
+
+  test("items (draft-07): tuple form value completion for a subsequent item", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": [
+            { "enum": ["a", "b"] },
+            { "enum": ["c", "d"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a",]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 19 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"c"` },
+      { label: `"d"` }
+    ]);
+  });
+
+  test("additionalItems (draft-07): value completion for an item beyond the tuple", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": [
+            { "enum": ["a", "b"] },
+            { "enum": ["c", "d"] }
+          ],
+          "additionalItems": { "enum": ["z"] }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a", "b",]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 24 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"z"` }
+    ]);
+  });
+
+  test("items (draft-07): tuple takes precedence over additionalItems", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": [
+            { "enum": ["a", "b"] },
+            { "enum": ["c", "d"] }
+          ],
+          "additionalItems": { "enum": ["z"] }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": []
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
+
+  test("additionalItems (draft-07): ignored when items is a single schema", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": { "enum": ["a", "b"] },
+          "additionalItems": { "enum": ["z"] }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a",]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 19 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
+
+  test("unevaluatedItems (draft-2019-09): applies to items beyond the tuple", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "allOf": [
+            {
+              "items": [
+                { "enum": ["a", "b"] }
+              ]
+            }
+          ],
+          "unevaluatedItems": { "enum": ["z"] }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": ["a",]
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 19 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"z"` }
     ]);
   });
 });

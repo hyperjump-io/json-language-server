@@ -1,53 +1,69 @@
 import { CompletionItemKind, InsertTextFormat } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
+import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 
 import type { CompletionsProvider } from "./Completions.ts";
-import type { CompletionItem, CompletionParams } from "vscode-languageserver";
+import type { CompletionItem, CompletionParams, Range } from "vscode-languageserver";
 import type { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.ts";
 
 export class ValueCompletionsProvider implements CompletionsProvider {
   async getCompletions(jsonDocument: JsonDocument, params: CompletionParams) {
-    let node = jsonDocument.findNodeAtPosition(params.position)!;
+    const node = jsonDocument.findNodeAtPosition(params.position)!;
 
-    while (node && node.type !== "property") {
-      node = node.parent!;
-    }
-
-    if (!node || node.colonOffset === undefined) {
+    if (node.parent?.type === "property" && node.parent.colonOffset === undefined) {
       return [];
     }
 
-    const instanceLocation = jsonDocument.getPointerForNode(node);
+    const cursorOffset = jsonDocument.offsetAt(params.position);
+
+    let instanceLocation: string;
+    let range: Range;
+
+    switch (node.type) {
+      case "property":
+        instanceLocation = jsonDocument.getPointerForNode(node);
+        range = { start: params.position, end: jsonDocument.positionAt(node.colonOffset! + 1) };
+        break;
+
+      case "array":
+        const index = Pact.pipe(
+          node.children!,
+          Pact.takeWhile((itemNode) => cursorOffset >= itemNode.offset),
+          Pact.count
+        );
+
+        instanceLocation = JsonPointer.append(`${index}`, jsonDocument.getPointerForNode(node));
+        range = { start: params.position, end: params.position };
+        break;
+
+      default:
+        instanceLocation = jsonDocument.getPointerForNode(node);
+        range = jsonDocument.rangeAt(node.offset, node.offset + node.length);
+    }
 
     const plugin = await jsonDocument.getEvaluationPlugin("completions") as CompletionsEvaluationPlugin;
 
-    const range = node.children![1]
-      ? jsonDocument.rangeAt(node.children![1].offset, node.children![1].offset + node.children![1].length)
-      : { start: params.position, end: jsonDocument.positionAt(node.colonOffset + 1) };
+    const completions: CompletionItem[] = [];
+    for (const completion of plugin.getCompletions(instanceLocation)) {
+      const snippet = completion.value
+        ? completion.value
+        : typeSnippets[completion.type!].snippet;
 
-    return Pact.pipe(
-      plugin.getCompletions(instanceLocation),
-      Pact.map((completion): CompletionItem => {
-        const snippet = completion.value
-          ? completion.value
-          : typeSnippets[completion.type!].snippet;
-
-        return {
-          label: completion.value ?? typeSnippets[completion.type!].label,
-          kind: CompletionItemKind.Value,
-          labelDetails: {
-            description: "hyperjump-json-language-server"
-          },
-          insertTextFormat: InsertTextFormat.Snippet,
-          textEdit: {
-            range: range,
-            newText: node.children![1] ? snippet : ` ${snippet}`
-          }
-        };
-      }),
-      Pact.collectArray
-    );
+      completions.push({
+        label: completion.value ?? typeSnippets[completion.type!].label,
+        kind: CompletionItemKind.Value,
+        labelDetails: {
+          description: "hyperjump-json-language-server"
+        },
+        insertTextFormat: InsertTextFormat.Snippet,
+        textEdit: {
+          range: range,
+          newText: /^[:,]$/.test(jsonDocument.getText()[cursorOffset]) ? ` ${snippet}` : snippet
+        }
+      });
+    }
+    return completions;
   }
 }
 
