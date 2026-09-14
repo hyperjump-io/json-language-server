@@ -92,6 +92,10 @@ export class CompletionsSet {
     }
 
     for (const [value, schemaLocations] of completionsSet.values) {
+      if (this.excludedValues.has(value) || this.excludedTypes.has(jsonTypeOf(value))) {
+        continue;
+      }
+
       if (!this.values.has(value) && !this.types.has(jsonTypeOf(value))) {
         continue;
       }

@@ -154,6 +154,13 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
       case "https://json-schema.org/keyword/if":
         break;
 
+      case "https://json-schema.org/keyword/not": {
+        for (const subschemaResult of context.subschemaResults!) {
+          this.negate(combinedCompletions, subschemaResult.completions);
+        }
+        break;
+      }
+
       default:
         for (const subschemaResult of context.subschemaResults!) {
           this.intersection(combinedCompletions, subschemaResult.completions);
@@ -270,6 +277,16 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
         a[instanceLocation].symmetricDifference(b[instanceLocation]);
       } else {
         a[instanceLocation] = b[instanceLocation];
+      }
+    }
+  }
+
+  private negate(a: Record<string, CompletionsSet>, b: Record<string, CompletionsSet>) {
+    for (const instanceLocation in b) {
+      if (a[instanceLocation]) {
+        a[instanceLocation].union(b[instanceLocation].negate());
+      } else {
+        a[instanceLocation] = b[instanceLocation].negate();
       }
     }
   }

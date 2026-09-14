@@ -1982,6 +1982,130 @@ describe("Value Completions", () => {
     ]);
   });
 
+  test("excluded value is not re-added when intersected with later enum values", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "allOf": [
+            { "not": { "const": "red" } },
+            { "type": "string" },
+            { "enum": ["red", "blue"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"blue"` }
+    ]);
+  });
+
+  test("not excludes the forbidden value instead of requiring it", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "enum": ["a", "b", "bad"] }
+      },
+      "not": {
+        "properties": {
+          "foo": { "const": "bad" }
+        },
+        "required": ["foo"]
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 11 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
+
+  test("not touching multiple properties does not incorrectly narrow either one", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "a": { "enum": ["x", "y"] },
+        "b": { "enum": ["p", "q"] }
+      },
+      "not": {
+        "properties": {
+          "a": { "const": "x" },
+          "b": { "const": "p" }
+        },
+        "required": ["a", "b"]
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "a": "x",
+      "b":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 9 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"q"` }
+    ]);
+  });
+
+  test("boolean not schema does not break completions", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "enum": ["a", "b"] }
+      },
+      "not": false
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 11 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"a"` },
+      { label: `"b"` }
+    ]);
+  });
+
   test("then applies when the if condition is met", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
