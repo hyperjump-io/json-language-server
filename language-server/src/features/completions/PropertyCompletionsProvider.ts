@@ -8,7 +8,7 @@ import type { JsonDocument } from "../../models/JsonDocument.ts";
 
 export class PropertyCompletionsProvider implements CompletionsProvider {
   async getCompletions(jsonDocument: JsonDocument, params: CompletionParams) {
-    const node = jsonDocument.findNodeAtPosition(params.position)!;
+    const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 })!;
 
     if (node.parent?.type !== "property" || node.parent.children?.[0] !== node || node.parent.colonOffset !== undefined) {
       return [];

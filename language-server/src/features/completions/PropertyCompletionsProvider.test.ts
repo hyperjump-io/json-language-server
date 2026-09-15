@@ -38,7 +38,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     });
 
     expect(completions).toEqual([]);
@@ -69,7 +69,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -103,7 +103,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -136,7 +136,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     }) as CompletionItem[];
 
     expect(completions[0].kind).toEqual(CompletionItemKind.Property);
@@ -167,7 +167,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     }) as CompletionItem[];
 
     expect(completions[0].filterText).toEqual(`"name"`);
@@ -198,7 +198,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     }) as CompletionItem[];
 
     expect(completions[0].textEdit).toEqual({
@@ -241,7 +241,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 10 }
+      position: { line: 4, character: 11 }
     });
 
     expect(completions).toMatchObject([
@@ -290,7 +290,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -340,7 +340,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -388,7 +388,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -438,7 +438,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -485,7 +485,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -535,7 +535,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -571,7 +571,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -621,7 +621,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 5, character: 8 }
+      position: { line: 5, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -671,7 +671,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 5, character: 8 }
+      position: { line: 5, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -717,7 +717,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -769,7 +769,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -819,7 +819,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 5, character: 8 }
+      position: { line: 5, character: 9 }
     });
 
     expect(completions).toMatchObject([]);
@@ -855,7 +855,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -905,7 +905,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -955,7 +955,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -995,7 +995,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -1037,7 +1037,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -1077,7 +1077,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 8 }
+      position: { line: 3, character: 9 }
     });
 
     expect(completions).toMatchObject([
@@ -1128,7 +1128,7 @@ describe("Property completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 8 }
+      position: { line: 4, character: 9 }
     });
 
     expect(completions).toMatchObject([

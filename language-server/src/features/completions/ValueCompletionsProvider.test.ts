@@ -31,7 +31,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -62,7 +62,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -93,7 +93,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toEqual([]);
@@ -116,12 +116,12 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     }) as CompletionItem[];
 
     expect(completions[0].textEdit).toEqual({
       range: {
-        start: { line: 2, character: 13 },
+        start: { line: 2, character: 14 },
         end: { line: 2, character: 14 }
       },
       newText: ` "foo"`
@@ -145,16 +145,39 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 14 }
+      position: { line: 2, character: 15 }
     }) as CompletionItem[];
 
     expect(completions[0].textEdit).toEqual({
       range: {
         start: { line: 2, character: 14 },
-        end: { line: 2, character: 14 }
+        end: { line: 2, character: 15 }
       },
       newText: `"foo"`
     });
+  });
+
+  test("no completions when the property key has no colon yet", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": { "const": "foo" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value"
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 13 }
+    });
+
+    expect(completions).toEqual([]);
   });
 
   test("completions for different properties", async () => {
@@ -174,7 +197,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toEqual([]);
@@ -197,7 +220,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     }) as CompletionItem[];
 
     expect(completions[0].textEdit).toEqual({
@@ -226,7 +249,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     }) as CompletionItem[];
 
     expect(completions[0].textEdit).toEqual({
@@ -255,7 +278,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 16 }
+      position: { line: 2, character: 17 }
     }) as CompletionItem[];
 
     expect(completions[0].textEdit).toEqual({
@@ -284,7 +307,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     }) as CompletionItem[];
 
     expect(completions[0].kind).toEqual(CompletionItemKind.Value);
@@ -307,7 +330,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     }) as CompletionItem[];
 
     expect(completions[0].insertTextFormat).toEqual(InsertTextFormat.Snippet);
@@ -330,7 +353,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -355,7 +378,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -382,7 +405,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -409,7 +432,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -434,7 +457,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -585,7 +608,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -615,7 +638,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -646,7 +669,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -736,7 +759,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -797,7 +820,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 14 }
+      position: { line: 2, character: 15 }
     }) as CompletionItem[];
 
     expect(completions).toMatchObject([
@@ -837,7 +860,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     }) as CompletionItem[];
 
     expect(completions).toMatchObject([
@@ -876,7 +899,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -942,7 +965,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -976,7 +999,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1010,7 +1033,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toEqual([]);
@@ -1108,7 +1131,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -1142,7 +1165,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1182,7 +1205,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1227,7 +1250,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1259,7 +1282,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1292,7 +1315,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 15 }
+      position: { line: 3, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -1336,7 +1359,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1379,7 +1402,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1423,7 +1446,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -1467,7 +1490,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1498,7 +1521,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1533,7 +1556,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1561,7 +1584,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1590,7 +1613,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1619,7 +1642,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 15 }
     });
 
     expect(completions).toMatchObject([
@@ -1648,7 +1671,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 15 }
     });
 
     expect(completions).toMatchObject([
@@ -1676,7 +1699,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 15 }
     });
 
     expect(completions).toMatchObject([
@@ -1704,7 +1727,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 15 }
     });
 
     expect(completions).toMatchObject([]);
@@ -1743,7 +1766,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1772,7 +1795,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1809,7 +1832,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1849,7 +1872,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 10 }
+      position: { line: 2, character: 11 }
     });
 
     expect(completions).toMatchObject([
@@ -1888,7 +1911,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -1945,7 +1968,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     }) as CompletionItem[];
 
     expect(completions).toMatchObject([
@@ -1979,7 +2002,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     }) as CompletionItem[];
 
     expect(completions).toMatchObject([
@@ -2011,7 +2034,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2042,7 +2065,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -2077,7 +2100,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 9 }
+      position: { line: 3, character: 10 }
     });
 
     expect(completions).toMatchObject([
@@ -2103,7 +2126,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -2139,7 +2162,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 14 }
+      position: { line: 3, character: 15 }
     }) as CompletionItem[];
 
     expect(completions).toMatchObject([
@@ -2174,7 +2197,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 14 }
+      position: { line: 3, character: 15 }
     }) as CompletionItem[];
 
     expect(completions).toMatchObject([
@@ -2205,7 +2228,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2240,7 +2263,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 12 }
+      position: { line: 3, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2273,7 +2296,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 12 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2309,7 +2332,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2344,7 +2367,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 18 }
+      position: { line: 4, character: 19 }
     });
 
     expect(completions).toMatchObject([
@@ -2380,7 +2403,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2424,7 +2447,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2457,7 +2480,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2499,7 +2522,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 14 }
+      position: { line: 2, character: 15 }
     });
 
     expect(completions).toMatchObject([
@@ -2525,7 +2548,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -2552,7 +2575,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -2584,7 +2607,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toEqual([]);
@@ -2633,7 +2656,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 10 }
+      position: { line: 2, character: 14 }
     });
 
     expect(completions).toEqual([]);
@@ -2683,7 +2706,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 10 }
+      position: { line: 2, character: 11 }
     });
 
     expect(completions).toMatchObject([
@@ -2712,7 +2735,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -2749,7 +2772,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 15 }
+      position: { line: 4, character: 16 }
     });
 
     expect(completions).toEqual([]);
@@ -2784,7 +2807,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 15 }
+      position: { line: 4, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -2823,7 +2846,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 15 }
+      position: { line: 4, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -2855,7 +2878,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -2898,7 +2921,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 13 }
+      position: { line: 3, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2941,7 +2964,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 13 }
+      position: { line: 3, character: 14 }
     });
 
     expect(completions).toMatchObject([
@@ -2983,8 +3006,8 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+      position: { line: 2, character: 14 }
+    });
 
     expect(completions).toMatchObject([
       { label: `"a"` },
@@ -3022,7 +3045,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 11 }
+      position: { line: 2, character: 12 }
     }) as CompletionItem[];
 
     expect(completions).toMatchObject([
@@ -3063,7 +3086,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 11 }
+      position: { line: 3, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -3103,7 +3126,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 11 }
+      position: { line: 3, character: 12 }
     });
 
     expect(completions).toMatchObject([
@@ -3142,7 +3165,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 3, character: 15 }
+      position: { line: 3, character: 17 }
     });
 
     expect(completions).toMatchObject([
@@ -3182,7 +3205,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 15 }
+      position: { line: 4, character: 17 }
     });
 
     expect(completions).toEqual([]);
@@ -3249,7 +3272,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -3257,8 +3280,8 @@ describe("Value Completions", () => {
         label: `"a"`,
         textEdit: {
           range: {
-            start: { line: 2, character: 15 },
-            end: { line: 2, character: 15 }
+            start: { line: 2, character: 16 },
+            end: { line: 2, character: 16 }
           },
           newText: `"a"`
         }
@@ -3286,7 +3309,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 16 }
+      position: { line: 2, character: 17 }
     });
 
     expect(completions).toMatchObject([
@@ -3323,7 +3346,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 17 }
+      position: { line: 2, character: 18 }
     });
 
     expect(completions).toMatchObject([
@@ -3360,7 +3383,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 19 }
+      position: { line: 2, character: 20 }
     });
 
     expect(completions).toMatchObject([
@@ -3368,8 +3391,8 @@ describe("Value Completions", () => {
         label: `"a"`,
         textEdit: {
           range: {
-            start: { line: 2, character: 19 },
-            end: { line: 2, character: 19 }
+            start: { line: 2, character: 20 },
+            end: { line: 2, character: 20 }
           },
           newText: ` "a"`
         }
@@ -3397,7 +3420,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 20 }
+      position: { line: 2, character: 21 }
     });
 
     expect(completions).toMatchObject([
@@ -3405,8 +3428,8 @@ describe("Value Completions", () => {
         label: `"a"`,
         textEdit: {
           range: {
-            start: { line: 2, character: 20 },
-            end: { line: 2, character: 20 }
+            start: { line: 2, character: 21 },
+            end: { line: 2, character: 21 }
           },
           newText: `"a"`
         }
@@ -3434,7 +3457,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -3442,8 +3465,8 @@ describe("Value Completions", () => {
         label: `"a"`,
         textEdit: {
           range: {
-            start: { line: 2, character: 15 },
-            end: { line: 2, character: 15 }
+            start: { line: 2, character: 16 },
+            end: { line: 2, character: 16 }
           },
           newText: `"a"`
         }
@@ -3471,7 +3494,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 19 }
+      position: { line: 2, character: 21 }
     });
 
     expect(completions).toMatchObject([
@@ -3479,8 +3502,8 @@ describe("Value Completions", () => {
         label: `"a"`,
         textEdit: {
           range: {
-            start: { line: 2, character: 19 },
-            end: { line: 2, character: 19 }
+            start: { line: 2, character: 21 },
+            end: { line: 2, character: 21 }
           },
           newText: ` "a"`
         }
@@ -3517,7 +3540,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 4, character: 14 }
+      position: { line: 4, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -3549,7 +3572,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 16 }
+      position: { line: 2, character: 17 }
     });
 
     expect(completions).toMatchObject([
@@ -3581,7 +3604,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -3613,7 +3636,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 19 }
+      position: { line: 2, character: 20 }
     });
 
     expect(completions).toMatchObject([
@@ -3645,7 +3668,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -3681,7 +3704,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -3717,7 +3740,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 19 }
+      position: { line: 2, character: 20 }
     });
 
     expect(completions).toMatchObject([
@@ -3753,7 +3776,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 19 }
+      position: { line: 2, character: 20 }
     });
 
     expect(completions).toMatchObject([
@@ -3781,7 +3804,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -3789,8 +3812,8 @@ describe("Value Completions", () => {
         label: `"a"`,
         textEdit: {
           range: {
-            start: { line: 2, character: 15 },
-            end: { line: 2, character: 15 }
+            start: { line: 2, character: 16 },
+            end: { line: 2, character: 16 }
           },
           newText: `"a"`
         }
@@ -3818,7 +3841,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 19 }
+      position: { line: 2, character: 20 }
     });
 
     expect(completions).toMatchObject([
@@ -3826,8 +3849,8 @@ describe("Value Completions", () => {
         label: `"a"`,
         textEdit: {
           range: {
-            start: { line: 2, character: 19 },
-            end: { line: 2, character: 19 }
+            start: { line: 2, character: 20 },
+            end: { line: 2, character: 20 }
           },
           newText: ` "a"`
         }
@@ -3858,7 +3881,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -3890,7 +3913,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 19 }
+      position: { line: 2, character: 20 }
     });
 
     expect(completions).toMatchObject([
@@ -3923,7 +3946,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 24 }
+      position: { line: 2, character: 25 }
     });
 
     expect(completions).toMatchObject([
@@ -3955,7 +3978,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 15 }
+      position: { line: 2, character: 16 }
     });
 
     expect(completions).toMatchObject([
@@ -3985,7 +4008,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 19 }
+      position: { line: 2, character: 20 }
     });
 
     expect(completions).toMatchObject([
@@ -4021,7 +4044,7 @@ describe("Value Completions", () => {
 
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 19 }
+      position: { line: 2, character: 20 }
     });
 
     expect(completions).toMatchObject([

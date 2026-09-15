@@ -9,9 +9,13 @@ import type { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.
 
 export class ValueCompletionsProvider implements CompletionsProvider {
   async getCompletions(jsonDocument: JsonDocument, params: CompletionParams) {
-    const node = jsonDocument.findNodeAtPosition(params.position)!;
+    const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 })!;
 
     if (node.parent?.type === "property" && node.parent.colonOffset === undefined) {
+      return [];
+    }
+
+    if (node.type === "property" && node.colonOffset === undefined) {
       return [];
     }
 
@@ -23,7 +27,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
     switch (node.type) {
       case "property":
         instanceLocation = jsonDocument.getPointerForNode(node);
-        range = { start: params.position, end: jsonDocument.positionAt(node.colonOffset! + 1) };
+        range = { start: jsonDocument.positionAt(node.colonOffset! + 1), end: params.position };
         break;
 
       case "array":
@@ -59,7 +63,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
         insertTextFormat: InsertTextFormat.Snippet,
         textEdit: {
           range: range,
-          newText: /^[:,]$/.test(jsonDocument.getText()[cursorOffset]) ? ` ${snippet}` : snippet
+          newText: /^[:,]$/.test(jsonDocument.getText()[cursorOffset - 1]) ? ` ${snippet}` : snippet
         }
       });
     }
