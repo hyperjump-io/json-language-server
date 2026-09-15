@@ -253,7 +253,11 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
     this.intersection(schemaContext.completions!, combinedCompletions);
   }
 
-  afterSchema(_url: string, _instance: JsonNode, context: CompletionsContext): void {
+  afterSchema(_url: string, instance: JsonNode, context: CompletionsContext, valid: boolean): void {
+    if (!valid) {
+      context.schemaFailedLocations!.add(instance.pointer);
+    }
+
     for (const location of context.schemaFailedLocations!) {
       context.failedLocations!.add(location);
     }
@@ -268,6 +272,23 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
 
   getCompletions(pointer: string) {
     return this.completions[pointer] ?? new CompletionsSet();
+  }
+
+  getPropertyCompletions(pointer: string) {
+    const propertyNames: string[] = [];
+
+    for (const completionPointer in this.completions) {
+      const [parentPointer, propertyName] = splitPointer(completionPointer);
+      if (parentPointer !== pointer) {
+        continue;
+      }
+
+      if (this.completions[completionPointer].size > 0) {
+        propertyNames.push(propertyName);
+      }
+    }
+
+    return propertyNames;
   }
 
   private buildCompletions(schemaLocation: string, context: CompletionsContext): CompletionsSet {

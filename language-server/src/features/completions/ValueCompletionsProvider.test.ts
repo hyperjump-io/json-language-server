@@ -99,29 +99,6 @@ describe("Value Completions", () => {
     expect(completions).toEqual([]);
   });
 
-  test("completions on property key", async () => {
-    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "value": { "const": "foo" }
-      }
-    }`);
-
-    await client.writeDocument("instance.json", `{
-      "$schema": "${fixtureSchemaUri}",
-      "value"
-    }`);
-    const uri = await client.openDocument("instance.json");
-
-    const completions = await client.sendRequest(CompletionRequest.type, {
-      textDocument: { uri },
-      position: { line: 2, character: 12 }
-    });
-
-    expect(completions).toHaveLength(0);
-  });
-
   test("completions on colon", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

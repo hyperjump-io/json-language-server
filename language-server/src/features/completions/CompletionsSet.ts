@@ -51,6 +51,10 @@ export class CompletionsSet {
     return completionsSet;
   }
 
+  get size() {
+    return this.values.size + this.types.size;
+  }
+
   private addValue(value: string, schemaLocation: string) {
     let completionValue = this.values.get(value);
 
