@@ -439,6 +439,8 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
 const splitPointer = (pointer: string) => {
   const position = pointer.lastIndexOf("/");
   const parentPointer = pointer.slice(0, position);
-  const propertyName = pointer.slice(position + 1);
+  const propertyName = pointer.slice(position + 1)
+    .replace(/~1/g, "/")
+    .replace(/~0/g, "~");
   return [parentPointer, propertyName];
 };

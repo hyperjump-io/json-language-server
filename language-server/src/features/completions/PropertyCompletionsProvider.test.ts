@@ -1085,6 +1085,41 @@ describe("Property completions", () => {
     ]);
   });
 
+  test("completion suggests a property name containing a slash unescaped", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "properties": {
+            "a/b": { "type": "string" },
+            "c~d": { "type": "string" }
+          }
+        }
+      }
+    }`);
+
+    const instanceText = `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": {
+        ""
+      }
+    }`;
+
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 9 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "a/b" },
+      { label: "c~d" }
+    ]);
+  });
+
   test("anyOf: excludes a branch's properties when an existing value fails that branch's own type, even though another branch's additionalProperties would accept it", async () => {
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
