@@ -59,8 +59,8 @@ export class Completions {
 
       if (params.context?.triggerCharacter === " ") {
         const cursorOffset = jsonDocument.offsetAt(params.position);
-        const node = jsonDocument.findNodeAtPosition(params.position)!;
-        if (node.type === "string" || !/[:,]/.test(jsonDocument.getText()[cursorOffset - 2])) {
+        const node = jsonDocument.findNodeAtPosition(params.position);
+        if (node?.type === "string" || !/[:,]/.test(jsonDocument.getText()[cursorOffset - 2])) {
           return [];
         }
       }

@@ -103,4 +103,20 @@ describe("Completions", () => {
 
     expect(completions).toEqual([]);
   });
+
+  test("should not crash when triggered by a space in a document with no parseable JSON", async () => {
+    await client.writeDocument("instance.json", ``);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 0, character: 0 },
+      context: {
+        triggerKind: CompletionTriggerKind.TriggerCharacter,
+        triggerCharacter: " "
+      }
+    });
+
+    expect(completions).toEqual([]);
+  });
 });
