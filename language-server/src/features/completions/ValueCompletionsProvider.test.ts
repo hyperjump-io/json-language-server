@@ -1882,6 +1882,165 @@ describe("Value Completions", () => {
     ]);
   });
 
+  test("not inside every anyOf branch still excludes the value from a later allOf enum", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "allOf": [
+            {
+              "anyOf": [
+                { "not": { "const": "red" } },
+                { "not": { "const": "red" } }
+              ]
+            },
+            { "enum": ["red", "blue"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"blue"` }
+    ]);
+  });
+
+  test("different nots in anyOf branches do not exclude either value from a later allOf enum", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "allOf": [
+            {
+              "anyOf": [
+                { "not": { "const": "red" } },
+                { "not": { "const": "green" } }
+              ]
+            },
+            { "enum": ["red", "green", "blue"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"red"` },
+      { label: `"green"` },
+      { label: `"blue"` }
+    ]);
+  });
+
+  test("a contradiction in one anyOf branch does not exclude the value from a later allOf enum", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "allOf": [
+            {
+              "anyOf": [
+                { "not": { "const": "red" } },
+                { "allOf": [{ "not": { "const": "green" } }, { "const": "green" }] },
+                { "not": { "const": "red" } }
+              ]
+            },
+            { "enum": ["red", "blue"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"blue"` }
+    ]);
+  });
+
+  test("not inside only one anyOf branch does not exclude the value from a later allOf enum", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "properties": {
+                "color": {
+                  "enum": ["red", "blue", "green"],
+                  "not": { "const": "red" }
+                }
+              }
+            },
+            {
+              "properties": {
+                "color": {
+                  "enum": ["red", "blue", "green"],
+                  "not": { "const": "blue" }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "properties": {
+            "color": { "enum": ["red", "blue", "green"] }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "color":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"blue"` },
+      { label: `"green"` },
+      { label: `"red"` }
+    ]);
+  });
+
   test("not inside a oneOf branch narrows values before the branch difference", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

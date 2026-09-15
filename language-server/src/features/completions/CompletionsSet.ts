@@ -127,15 +127,24 @@ export class CompletionsSet {
   }
 
   union(completionsSet: CompletionsSet) {
-    for (const value of this.excludedValues) {
-      if (!completionsSet.excludedValues.has(value)) {
-        this.excludedValues.delete(value);
-      }
+    if (completionsSet.size === 0) {
+      return this;
     }
 
-    for (const type of this.excludedTypes) {
-      if (!completionsSet.excludedTypes.has(type)) {
-        this.excludedTypes.delete(type);
+    if (this.size === 0) {
+      this.excludedValues = new Set(completionsSet.excludedValues);
+      this.excludedTypes = new Set(completionsSet.excludedTypes);
+    } else {
+      for (const value of this.excludedValues) {
+        if (!completionsSet.excludedValues.has(value)) {
+          this.excludedValues.delete(value);
+        }
+      }
+
+      for (const type of this.excludedTypes) {
+        if (!completionsSet.excludedTypes.has(type)) {
+          this.excludedTypes.delete(type);
+        }
       }
     }
 
