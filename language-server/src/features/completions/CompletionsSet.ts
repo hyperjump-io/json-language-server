@@ -1,3 +1,5 @@
+import * as Pact from "@hyperjump/pact";
+
 export class CompletionsSet {
   private values = new Map<string, string[]>();
   private excludedValues = new Set<string>();
@@ -136,13 +138,13 @@ export class CompletionsSet {
       this.excludedTypes = new Set(completionsSet.excludedTypes);
     } else {
       for (const value of this.excludedValues) {
-        if (!completionsSet.excludedValues.has(value)) {
+        if (this.offersValue(completionsSet, value)) {
           this.excludedValues.delete(value);
         }
       }
 
       for (const type of this.excludedTypes) {
-        if (!completionsSet.excludedTypes.has(type)) {
+        if (this.offersType(completionsSet, type)) {
           this.excludedTypes.delete(type);
         }
       }
@@ -255,6 +257,19 @@ export class CompletionsSet {
     this.excludedTypes = any.excludedTypes;
 
     return this;
+  }
+
+  private offersValue(completionsSet: CompletionsSet, value: string) {
+    return !completionsSet.excludedValues.has(value)
+      && !completionsSet.excludedTypes.has(jsonTypeOf(value))
+      && (completionsSet.values.has(value) || completionsSet.types.has(jsonTypeOf(value)));
+  }
+
+  private offersType(completionsSet: CompletionsSet, type: string): boolean {
+    return !completionsSet.excludedTypes.has(type)
+      && (completionsSet.types.has(type)
+        || (type === "integer" && completionsSet.types.has("number"))
+        || Pact.some((value) => jsonTypeOf(value) === type, completionsSet.values.keys()));
   }
 
   * [Symbol.iterator]() {

@@ -509,7 +509,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: "integer" }
@@ -534,7 +534,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: `""` }
@@ -559,7 +559,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: `[]` }
@@ -584,7 +584,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: `{}` }
@@ -700,7 +700,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: "integer" }
@@ -730,7 +730,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: "integer" }
@@ -791,7 +791,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: "number" }
@@ -821,7 +821,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 15 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: `"uri"` },
@@ -861,7 +861,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 14 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: `"auto"` },
@@ -932,7 +932,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: "number" }
@@ -1098,7 +1098,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: `""` }
@@ -1954,6 +1954,77 @@ describe("Value Completions", () => {
     ]);
   });
 
+  test("a const literal witnesses a negated type within a union", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "anyOf": [
+            { "not": { "type": "boolean" } },
+            { "const": true }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "null" },
+      { label: "true" },
+      { label: "number" },
+      { label: `""` },
+      { label: "[]" },
+      { label: "{}" }
+    ]);
+  });
+
+  test("a not-excluding branch does not un-exclude a value from a later allOf enum", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "allOf": [
+            {
+              "anyOf": [
+                { "not": { "const": "red" } },
+                { "const": "green" }
+              ]
+            },
+            { "enum": ["red", "green", "blue"] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `"green"` },
+      { label: `"blue"` }
+    ]);
+  });
+
   test("a contradiction in one anyOf branch does not exclude the value from a later allOf enum", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2100,7 +2171,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 13 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: `""` }
@@ -2128,7 +2199,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 14 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: "number" }
@@ -2162,7 +2233,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 14 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: "number" },
@@ -2322,7 +2393,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 3, character: 15 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: "number" }
@@ -2357,7 +2428,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 3, character: 15 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: `""` }
@@ -3205,7 +3276,7 @@ describe("Value Completions", () => {
     const completions = await client.sendRequest(CompletionRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 12 }
-    }) as CompletionItem[];
+    });
 
     expect(completions).toMatchObject([
       { label: `null` },
