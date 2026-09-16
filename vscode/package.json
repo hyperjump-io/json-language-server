@@ -26,7 +26,7 @@
     "esbuild": "^0.28.0"
   },
   "dependencies": {
-    "ignore": "^7.0.6",
+    "ignore": "^7.0.9",
     "vscode-languageclient": "^10.0.0"
   },
   "engines": {
