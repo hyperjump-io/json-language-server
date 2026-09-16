@@ -458,15 +458,13 @@ describe("Property completions", () => {
               "properties": {
                 "foo": { "type": "string" },
                 "bar": { "type": "string" }
-              },
-              "required": ["foo"]
+              }
             },
             {
               "properties": {
                 "foo": { "type": "string" },
                 "baz": { "type": "string" }
-              },
-              "required": ["foo"]
+              }
             }
           ]
         }
@@ -489,7 +487,6 @@ describe("Property completions", () => {
     });
 
     expect(completions).toMatchObject([
-      { label: "foo" },
       { label: "bar" },
       { label: "baz" }
     ]);

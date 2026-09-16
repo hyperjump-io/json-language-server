@@ -410,8 +410,8 @@ describe("Value Completions", () => {
 
     expect(completions).toMatchObject([
       { label: `null` },
-      { label: `"red"` },
-      { label: `42` }
+      { label: `42` },
+      { label: `"red"` }
     ]);
   });
 
@@ -864,12 +864,12 @@ describe("Value Completions", () => {
     });
 
     expect(completions).toMatchObject([
-      { label: `"auto"` },
-      { label: `"off"` },
       { label: "null" },
       { label: "true" },
       { label: "false" },
       { label: "number" },
+      { label: `"auto"` },
+      { label: `"off"` },
       { label: `""` },
       { label: "[]" },
       { label: "{}" }

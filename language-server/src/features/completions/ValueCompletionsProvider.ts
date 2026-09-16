@@ -50,12 +50,11 @@ export class ValueCompletionsProvider implements CompletionsProvider {
 
     const completions: CompletionItem[] = [];
     for (const completion of plugin.getCompletions(instanceLocation)) {
-      const snippet = completion.value
-        ? completion.value
-        : typeSnippets[completion.type!].snippet;
+      const label = completion.kind === "value" ? completion.value : typeSnippets[completion.type].label;
+      const snippet = completion.kind === "value" ? completion.value : typeSnippets[completion.type].snippet;
 
       completions.push({
-        label: completion.value ?? typeSnippets[completion.type!].label,
+        label,
         kind: CompletionItemKind.Value,
         labelDetails: {
           description: "hyperjump-json-language-server"
