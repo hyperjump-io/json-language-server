@@ -21,6 +21,7 @@ import "@hyperjump/json-schema/draft-2019-09";
 import "@hyperjump/json-schema/draft-07";
 import "@hyperjump/json-schema/draft-06";
 import "@hyperjump/json-schema/draft-04";
+import "./vscode-vocabulary.ts";
 
 import type { Connection } from "vscode-languageserver";
 

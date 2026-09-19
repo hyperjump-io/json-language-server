@@ -584,4 +584,59 @@ _hyperjump-json-language-server_`
       }
     });
   });
+
+  test("should return markdownDescription from a dialect that includes the vscode vocabulary", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    await client.writeDocument("meta-schema.json", `{
+      "$id": "https://example.com/dialect/vscode",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$vocabulary": {
+        "https://json-schema.org/draft/2020-12/vocab/core": true,
+        "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+        "https://json-schema.org/draft/2020-12/vocab/validation": true,
+        "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+        "https://microsoft.com/vocab/vscode": true
+      },
+      "$dynamicAnchor": "meta",
+      "allOf": [{ "$ref": "https://json-schema.org/draft/2020-12/schema" }]
+    }`);
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://example.com/dialect/vscode",
+      "type": "object",
+      "properties": {
+        "name": {
+          "markdownDescription": "The **vocabulary** description",
+          "type": "string"
+        }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "Alice"\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 10 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `The **vocabulary** description
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
 });

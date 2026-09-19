@@ -34,7 +34,8 @@ export class Hover {
           if (annotation["https://json-schema.org/keyword/title"]) {
             lines.push(`**${annotation["https://json-schema.org/keyword/title"] as string}**`);
           }
-          const description = (annotation["https://json-schema.org/keyword/unknown#markdownDescription"]
+          const description = (annotation["https://microsoft.com/keyword/markdownDescription"]
+            || annotation["https://json-schema.org/keyword/unknown#markdownDescription"]
             || annotation["https://json-schema.org/keyword/description"]) as string | undefined;
           if (description) {
             lines.push(description);
