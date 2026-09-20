@@ -473,8 +473,10 @@ _hyperjump-json-language-server_`
       }
     }`);
 
-    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "Alice"\n}`;
-    await client.writeDocument("instance.json", instanceText);
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "Alice"
+    }`);
     const uri = await client.openDocument("instance.json");
 
     await diagnostics;
@@ -518,8 +520,10 @@ _hyperjump-json-language-server_`
       }
     }`);
 
-    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "Alice"\n}`;
-    await client.writeDocument("instance.json", instanceText);
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "Alice"
+    }`);
     const uri = await client.openDocument("instance.json");
 
     await diagnostics;
@@ -561,16 +565,18 @@ _hyperjump-json-language-server_`
       }
     }`);
 
-    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "Alice"\n}`;
-    await client.writeDocument("instance.json", instanceText);
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "Alice"
+    }`);
     const uri = await client.openDocument("instance.json");
 
     await diagnostics;
 
-    // Hover over "name" key at line 2, character 4
+    // Hover over "name" key
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 4 }
+      position: { line: 2, character: 8 }
     });
 
     expect(result).toEqual({
@@ -603,7 +609,10 @@ _hyperjump-json-language-server_`
         "https://microsoft.com/vocab/vscode": true
       },
       "$dynamicAnchor": "meta",
-      "allOf": [{ "$ref": "https://json-schema.org/draft/2020-12/schema" }]
+      "allOf": [
+        { "$ref": "https://json-schema.org/draft/2020-12/schema" },
+        { "$ref": "https://microsoft.com/meta/vscode" }
+      ]
     }`);
 
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
@@ -617,8 +626,10 @@ _hyperjump-json-language-server_`
       }
     }`);
 
-    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "Alice"\n}`;
-    await client.writeDocument("instance.json", instanceText);
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "Alice"
+    }`);
     const uri = await client.openDocument("instance.json");
 
     await diagnostics;

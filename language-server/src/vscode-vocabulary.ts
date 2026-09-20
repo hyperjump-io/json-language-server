@@ -1,3 +1,4 @@
+import { registerSchema } from "@hyperjump/json-schema/draft-2020-12";
 import { addKeyword, defineVocabulary } from "@hyperjump/json-schema/experimental";
 import * as Browser from "@hyperjump/browser";
 
@@ -11,4 +12,13 @@ addKeyword({
 
 defineVocabulary("https://microsoft.com/vocab/vscode", {
   markdownDescription: "https://microsoft.com/keyword/markdownDescription"
+});
+
+registerSchema({
+  $id: "https://microsoft.com/meta/vscode",
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $dynamicAnchor: "meta",
+  properties: {
+    markdownDescription: { type: "string" }
+  }
 });
