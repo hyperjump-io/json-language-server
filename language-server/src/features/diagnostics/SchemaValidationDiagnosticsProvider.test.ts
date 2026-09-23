@@ -712,6 +712,174 @@ describe("Schema Validation", () => {
       }
     ]);
   });
+
+  test("should unregister the old $id when a schema's $id changes", async () => {
+    const oldSchemaId = "https://example.com/old-schema";
+    const newSchemaId = "https://example.com/new-schema";
+
+    await client.writeDocument("my-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${oldSchemaId}",
+      "type": "object"
+    }`);
+    const schemaValidation = client.getDiagnostics("my-schema.json");
+    await client.openDocument("my-schema.json");
+    await schemaValidation;
+
+    await client.writeDocument("my-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${newSchemaId}",
+      "type": "object"
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${oldSchemaId}"
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      expect.objectContaining({ message: `Unable to load resource '${oldSchemaId}'.` })
+    ]);
+  });
+
+  test("should unregister schema when a schema file that was never used is deleted", async () => {
+    const schemaId = "https://example.com/my-workspace-schema";
+
+    await client.writeDocument("delete-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object"
+    }`);
+    const schemaValidation = client.getDiagnostics("delete-schema.json");
+    await client.openDocument("delete-schema.json");
+    await schemaValidation;
+
+    await client.deleteDocument("delete-schema.json");
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${schemaId}"
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      expect.objectContaining({ message: `Unable to load resource '${schemaId}'.` })
+    ]);
+  });
+
+  test("should keep a registered schema when a schema it depends on changes", async () => {
+    const mainSchemaId = "https://example.com/main-schema";
+    const refSchemaId = "https://example.com/ref-schema";
+
+    await client.writeDocument("main-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${mainSchemaId}",
+      "$ref": "${refSchemaId}"
+    }`);
+    await client.writeDocument("ref-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${refSchemaId}",
+      "type": "string"
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${mainSchemaId}"
+    }`);
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(initialValidation).resolves.toEqual([
+      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+    ]);
+
+    const updatedDiagnostics = client.getDiagnostics("instance.json");
+    await client.writeDocument("ref-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${refSchemaId}",
+      "type": "object"
+    }`);
+
+    await expect(updatedDiagnostics).resolves.toEqual([]);
+  });
+
+  test("should keep a schema registered when another file with the same $id is deleted", async () => {
+    const schemaId = "https://example.com/duplicate-schema";
+
+    await client.writeDocument("a-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "string" }
+      }
+    }`);
+    const aValidation = client.getDiagnostics("a-schema.json");
+    await client.openDocument("a-schema.json");
+    await aValidation;
+
+    await client.writeDocument("b-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "number" }
+      }
+    }`);
+    const bValidation = client.getDiagnostics("b-schema.json");
+    await client.openDocument("b-schema.json");
+    await bValidation;
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${schemaId}",
+      "foo": 42
+    }`);
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(initialValidation).resolves.toEqual([]);
+
+    const updatedDiagnostics = client.getDiagnostics("instance.json");
+    await client.deleteDocument("a-schema.json");
+
+    await expect(updatedDiagnostics).resolves.toEqual([]);
+  });
+
+  test("should revalidate dependent documents when a schema whose $id has an empty fragment changes", async () => {
+    const schemaId = "https://example.com/draft-07-schema";
+
+    await client.writeDocument("my-schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$id": "${schemaId}#",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "string" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${schemaId}",
+      "foo": 42
+    }`);
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(initialValidation).resolves.toEqual([
+      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+    ]);
+
+    const updatedDiagnostics = client.getDiagnostics("instance.json");
+    await client.writeDocument("my-schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$id": "${schemaId}#",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "number" }
+      }
+    }`);
+
+    await expect(updatedDiagnostics).resolves.toEqual([]);
+  });
 });
 
 describe("Workspace scan", async () => {
