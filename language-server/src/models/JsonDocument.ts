@@ -3,14 +3,16 @@ import { TextDocument } from "vscode-languageserver-textdocument";
 import * as jsonc from "jsonc-parser";
 import * as JsonPointer from "@hyperjump/json-pointer";
 import { resolveIri } from "@hyperjump/uri";
+import { parse } from "../parser/parse.ts";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";
+import type { SyntaxError } from "../parser/parse.ts";
 
 export class JsonDocument implements TextDocument {
   private textDocument: TextDocument;
   private documentSchemaUri: string | undefined;
   private ast: jsonc.Node | undefined;
-  private parseErrors: jsonc.ParseError[] = [];
+  private parseErrors: SyntaxError[] = [];
 
   constructor(textDocument: TextDocument) {
     this.textDocument = textDocument;
@@ -20,7 +22,10 @@ export class JsonDocument implements TextDocument {
 
   private parse() {
     this.parseErrors = [];
-    this.ast = jsonc.parseTree(this.textDocument.getText(), this.parseErrors);
+
+    const parseResult = parse(this.textDocument.getText());
+    this.ast = parseResult.root;
+    this.parseErrors = parseResult.errors;
 
     this.documentSchemaUri = undefined;
     const schemaNode = this.findNodeAtPointer("/$schema");
