@@ -11,6 +11,7 @@ import { abbreviateUri } from "../util/utils.ts";
 
 import type { CompiledSchema, EvaluationPlugin } from "@hyperjump/json-schema/experimental";
 import type { Json } from "@hyperjump/json-schema-errors";
+import type { SchemaObject } from "@hyperjump/json-schema";
 import type { UriSchemePlugin } from "@hyperjump/browser";
 import type { Server } from "../services/Server.ts";
 import type { Workspace } from "./Workspace.ts";
@@ -28,7 +29,8 @@ export class SchemaStore {
   private workspace: Workspace;
   private compiledSchemaCache: Map<string, Promise<CompiledSchema>> = new Map();
   private catalog: Promise<SchemaStoreEntry[]>;
-  private workspaceSchemaUris: Map<string, string> = new Map();
+  private workspaceSchemaIds: Map<string, string> = new Map();
+  private workspaceSchemaFiles: Map<string, string> = new Map();
   private scanCompleted: Promise<void>;
 
   constructor(server: Server, workspace: Workspace) {
@@ -115,10 +117,11 @@ export class SchemaStore {
       this.scanCompleted = this.scanCompleted
         .then(async () => {
           for (const change of params.changes) {
-            const changedSchemaUri = normalizeIri(change.uri);
-            await this.clear(changedSchemaUri);
+            const changedFileUri = normalizeIri(change.uri);
+            await this.clear(changedFileUri);
+            this.unregisterWorkspaceSchema(changedFileUri);
             if (change.type !== FileChangeType.Deleted) {
-              await this.processWorkspaceSchemaFile(changedSchemaUri);
+              await this.processWorkspaceSchemaFile(changedFileUri);
             }
           }
         })
@@ -177,12 +180,13 @@ export class SchemaStore {
     return this.getDependenencies(compiledSchema);
   }
 
-  async clear(schemaUri: string) {
+  async clear(fileUri: string) {
+    const changedSchemaUri = this.workspaceSchemaIds.get(fileUri) ?? fileUri;
+
     for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
       try {
         const dependentSchemas = this.getDependenencies(await compiledSchema);
-        const actualSchemaUri = this.workspaceSchemaUris.get(schemaUri) ?? schemaUri;
-        if (!dependentSchemas.has(actualSchemaUri)) {
+        if (!dependentSchemas.has(changedSchemaUri)) {
           continue;
         }
       } catch {
@@ -190,8 +194,37 @@ export class SchemaStore {
 
       this.server.console.log(`clear schema cache for ${abbreviateUri(cachedSchemaUri)}`);
       this.compiledSchemaCache.delete(cachedSchemaUri);
-      unregisterSchema(cachedSchemaUri);
-      this.workspaceSchemaUris.delete(cachedSchemaUri);
+
+      // A workspace schema that depends on the changed file is re-registered
+      // rather than dropped because nothing else would register it again.
+      const cachedFileUri = this.workspaceSchemaFiles.get(cachedSchemaUri);
+      if (cachedFileUri && cachedFileUri !== fileUri) {
+        this.unregisterWorkspaceSchema(cachedFileUri);
+        await this.processWorkspaceSchemaFile(cachedFileUri);
+      } else {
+        unregisterSchema(cachedSchemaUri);
+      }
+    }
+  }
+
+  private registerWorkspaceSchema(fileUri: string, id: string, schema: SchemaObject) {
+    unregisterSchema(id);
+    registerSchema(schema);
+    this.workspaceSchemaIds.set(fileUri, id);
+    this.workspaceSchemaFiles.set(id, fileUri);
+  }
+
+  private unregisterWorkspaceSchema(fileUri: string) {
+    const id = this.workspaceSchemaIds.get(fileUri);
+    if (id === undefined) {
+      return;
+    }
+
+    this.workspaceSchemaIds.delete(fileUri);
+    // Another file with the same $id may have registered it since
+    if (this.workspaceSchemaFiles.get(id) === fileUri) {
+      unregisterSchema(id);
+      this.workspaceSchemaFiles.delete(id);
     }
   }
 
@@ -216,12 +249,10 @@ export class SchemaStore {
           || getKeywordName(dialectId, "https://json-schema.org/keyword/draft-04/id");
 
         if (idKeyword) {
-          const id = schema[idKeyword];
-          if (typeof id === "string") {
+          if (typeof schema[idKeyword] === "string") {
             try {
-              unregisterSchema(id);
-              registerSchema(schema);
-              this.workspaceSchemaUris.set(fileUri, id);
+              const id = toAbsoluteIri(schema[idKeyword]);
+              this.registerWorkspaceSchema(fileUri, id, schema);
 
               this.server.console.log(`Registered local schema: ${id} (from ${fileUri})`);
             } catch (error: unknown) {
