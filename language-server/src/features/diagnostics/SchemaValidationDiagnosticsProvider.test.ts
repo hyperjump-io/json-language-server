@@ -2,8 +2,6 @@ import { describe, test, expect, afterEach, beforeEach } from "vitest";
 import { PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../../test/TestClient.ts";
 
-import type { Diagnostic } from "vscode-languageserver";
-
 describe("Schema Validation", () => {
   let client: TestClient;
   let fixtureSchemaUri: string;
@@ -18,12 +16,6 @@ describe("Schema Validation", () => {
   });
 
   test("JSON Validation using Hyperjump - Valid Case", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -38,18 +30,13 @@ describe("Schema Validation", () => {
       "name": "Alice",
       "age" : 39
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toHaveLength(0);
   });
 
   test("JSON Validation using Hyperjump - Invalid Case", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -64,6 +51,7 @@ describe("Schema Validation", () => {
       "name": 1234,
       "age" : "hello"
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -73,12 +61,6 @@ describe("Schema Validation", () => {
   });
 
   test("schema validation is not skipped even if the JSON is invalid", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -93,6 +75,7 @@ describe("Schema Validation", () => {
       "name": "Alice"
       "age" : "not a number"
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -102,12 +85,6 @@ describe("Schema Validation", () => {
   });
 
   test("JSON Validation using Hyperjump - anyOf Formatting Case", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -125,6 +102,7 @@ describe("Schema Validation", () => {
       "$schema": "${fixtureSchemaUri}",
       "value": true
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -137,12 +115,6 @@ describe("Schema Validation", () => {
   });
 
   test("JSON Validation using Hyperjump - oneOf Formatting Case", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -160,6 +132,7 @@ describe("Schema Validation", () => {
       "$schema": "${fixtureSchemaUri}",
       "value": true
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -172,12 +145,6 @@ describe("Schema Validation", () => {
   });
 
   test("JSON Validation using Hyperjump - property name with slash (escape sequence)", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -190,6 +157,7 @@ describe("Schema Validation", () => {
       "$schema": "${fixtureSchemaUri}",
       "foo/bar": 11
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -198,12 +166,6 @@ describe("Schema Validation", () => {
   });
 
   test("property key that looks like a number should not be treated like one - object case", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -216,6 +178,7 @@ describe("Schema Validation", () => {
       "$schema": "${fixtureSchemaUri}",
       "0": 123
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -224,12 +187,6 @@ describe("Schema Validation", () => {
   });
 
   test("URI encoded characters in pointer are decoded correctly", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -242,6 +199,7 @@ describe("Schema Validation", () => {
       "$schema": "${fixtureSchemaUri}",
       "foo bar": 123
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -250,12 +208,6 @@ describe("Schema Validation", () => {
   });
 
   test("numeric segment in array should be treated as array index", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -271,6 +223,7 @@ describe("Schema Validation", () => {
       "$schema": "${fixtureSchemaUri}",
       "42": ["foo"]
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -279,54 +232,6 @@ describe("Schema Validation", () => {
   });
 
   test("after fixing schema validation errors, it should not return a diagnostic", async () => {
-    const initialValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
-    fixtureSchemaUri = await client.writeDocument("schema.json", `{
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "age": { "type": "number" }
-      }
-    }`);
-
-    const instanceUri = await client.writeDocument("instance.json", `{
-      "$schema": "${fixtureSchemaUri}",
-      "name": "Alice",
-      "age" : "not a number"
-    }`);
-    await client.openDocument("instance.json");
-
-    await expect(initialValidation).resolves.toHaveLength(1);
-
-    const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
-
-    await client.changeDocument("instance.json", `{
-      "$schema": "${fixtureSchemaUri}",
-      "name": "Alice",
-      "age" : 39
-    }`);
-
-    await expect(secondValidation).resolves.toHaveLength(0);
-  });
-
-  test("changing the schema should invalidate the cache", async () => {
-    const initialValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -341,18 +246,42 @@ describe("Schema Validation", () => {
       "name": "Alice",
       "age" : "not a number"
     }`);
-    const instanceUri = await client.openDocument("instance.json");
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
 
     await expect(initialValidation).resolves.toHaveLength(1);
 
-    const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const secondValidation = client.getDiagnostics("instance.json");
+    await client.changeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "Alice",
+      "age" : 39
+    }`);
 
+    await expect(secondValidation).resolves.toHaveLength(0);
+  });
+
+  test("changing the schema should invalidate the cache", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "age": { "type": "number" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "Alice",
+      "age" : "not a number"
+    }`);
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(initialValidation).resolves.toHaveLength(1);
+
+    const secondValidation = client.getDiagnostics("instance.json");
     await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -366,12 +295,6 @@ describe("Schema Validation", () => {
   });
 
   test("changing a referenced schema revalidates dependents", async () => {
-    const initialValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     const referencedSchema = await client.writeDocument("B.schema.json", `{
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "number"
@@ -389,18 +312,12 @@ describe("Schema Validation", () => {
     "$schema": "${fixtureSchemaUri}",
     "age": "not a number"
     }`);
-    const instanceUri = await client.openDocument("instance.json");
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
 
     await expect(initialValidation).resolves.toHaveLength(1);
 
-    const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
-
+    const secondValidation = client.getDiagnostics("instance.json");
     await client.writeDocument("B.schema.json", `{
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "string"
@@ -410,12 +327,6 @@ describe("Schema Validation", () => {
   });
 
   test("JSON Validation using Hyperjump - Relative $schema case", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -428,6 +339,7 @@ describe("Schema Validation", () => {
       "$schema": "schema.json",
       "name": 1234
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -436,29 +348,41 @@ describe("Schema Validation", () => {
   });
 
   test("changing a watched file should not revalidate documents with no $schema", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
-    await client.writeDocument("plain.json", `{ "foo": "bar" }`);
-    const plainUri = await client.openDocument("plain.json");
-    await diagnostics;
-
-    let revalidated = false;
-    client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-      if (params.uri === plainUri) {
-        revalidated = true;
-      }
-    });
-
-    fixtureSchemaUri = await client.writeDocument("unrelated.schema.json", `{
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object"
     }`);
 
-    expect(revalidated).toBe(false);
+    await client.writeDocument("plain.json", `{ "foo": "bar" }`);
+    const plainValidation = client.getDiagnostics("plain.json");
+    const plainUri = await client.openDocument("plain.json");
+    await plainValidation;
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}"
+    }`);
+    const instanceValidation = client.getDiagnostics("instance.json");
+    const instanceUri = await client.openDocument("instance.json");
+    await instanceValidation;
+
+    let plainRevalidated = false;
+    const instanceRevalidated = new Promise<void>((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === plainUri) {
+          plainRevalidated = true;
+        } else if (params.uri === instanceUri) {
+          resolve();
+        }
+      });
+    });
+
+    await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "array"
+    }`);
+    await instanceRevalidated;
+
+    expect(plainRevalidated).toBe(false);
   });
 
   test("A JSON syntax error should reset the schema errors", async () => {
@@ -470,30 +394,18 @@ describe("Schema Validation", () => {
       }
     }`);
 
-    const instanceUri = await client.writeDocument("instance.json", `{
+    await client.writeDocument("instance.json", `{
       "$schema": "${fixtureSchemaUri}",
       "name": 42
     }`);
 
     // Inital validation has a schema error
-    const initialValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const initialValidation = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
     await expect(initialValidation).resolves.to.toHaveLength(1);
 
     // Introduce syntax error
-    const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const secondValidation = client.getDiagnostics("instance.json");
     await client.changeDocument("instance.json", `{
       "$schema": "${fixtureSchemaUri}",
       "foo" "bar"
@@ -510,30 +422,18 @@ describe("Schema Validation", () => {
       }
     }`);
 
-    const instanceUri = await client.writeDocument("instance.json", `{
+    await client.writeDocument("instance.json", `{
       "$schema": "${fixtureSchemaUri}",
       "name": 42
     }`);
 
     // Inital validation has a schema error
-    const initialValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const initialValidation = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
     await expect(initialValidation).resolves.to.toHaveLength(1);
 
     // Remove $schema
-    const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const secondValidation = client.getDiagnostics("instance.json");
     await client.changeDocument("instance.json", `{
       "foo": "bar"
     }`);
@@ -549,30 +449,18 @@ describe("Schema Validation", () => {
       }
     }`);
 
-    const instanceUri = await client.writeDocument("instance.json", `{
+    await client.writeDocument("instance.json", `{
       "$schema": "${fixtureSchemaUri}",
       "name": 42
     }`);
 
     // Inital validation has a schema error
-    const initialValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const initialValidation = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
     await expect(initialValidation).resolves.to.toHaveLength(1);
 
     // Introducing a schema error should reset schema errors on dependent instances
-    const secondValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const secondValidation = client.getDiagnostics("instance.json");
     await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -604,19 +492,12 @@ describe("Schema Validation", () => {
     }`);
 
     // Open a document that uses the invalid schema
-    const instanceUri = await client.writeDocument("instance.json", `{
+    await client.writeDocument("instance.json", `{
       "$schema": "schema.json",
       "foo": 42
     }`);
 
-    const initialDiagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
-
+    const initialDiagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     // Confirm invlaid schema message
@@ -633,14 +514,8 @@ describe("Schema Validation", () => {
     ]);
 
     // Make the schema valid
-    const secondDiagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
 
+    const secondDiagnostics = client.getDiagnostics("instance.json");
     await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -654,12 +529,6 @@ describe("Schema Validation", () => {
   });
 
   test("$schema points to an invalid schema", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -674,6 +543,7 @@ describe("Schema Validation", () => {
       "name": "Alice",
       "age": 42
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -690,17 +560,12 @@ describe("Schema Validation", () => {
   });
 
   test("$schema points to a schema that doesn't exist", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("instance.json", `{
       "$schema": "${fixtureSchemaUri}",
       "name": "Alice",
       "age": 42
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -730,19 +595,11 @@ describe("Schema Validation", () => {
     }`);
 
     // 2. Create and open an instance file that references the local schema by its $id
-    let instanceUri: string;
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
-
-    instanceUri = await client.writeDocument("instance.json", `{
+    await client.writeDocument("instance.json", `{
       "$schema": "${schemaId}",
       "foo": 42
     }`);
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -772,17 +629,11 @@ describe("Schema Validation", () => {
     }`);
 
     // 2. Create instance and resolve initial validation
-    const instanceUri = await client.writeDocument("instance.json", `{
+    await client.writeDocument("instance.json", `{
       "$schema": "${schemaId}",
       "foo": 42
     }`);
-    const initialValidation: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const initialValidation = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(initialValidation).resolves.toEqual([
@@ -798,14 +649,8 @@ describe("Schema Validation", () => {
     ]);
 
     // 3. Update the schema to allow a number for "foo"
-    const updatedDiagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
 
+    const updatedDiagnostics = client.getDiagnostics("instance.json");
     await client.writeDocument("my-schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "$id": "${schemaId}",
@@ -831,17 +676,11 @@ describe("Schema Validation", () => {
       }
     }`);
 
-    const instanceUri = await client.writeDocument("instance.json", `{
+    await client.writeDocument("instance.json", `{
       "$schema": "${schemaId}",
       "baz": "true"
     }`);
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -857,13 +696,7 @@ describe("Schema Validation", () => {
     ]);
 
     // 2. Delete the schema file and wait for unregistration to complete on the server
-    const updatedDiagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const updatedDiagnostics = client.getDiagnostics("instance.json");
     await client.deleteDocument("delete-schema.json");
 
     // 3. Try to validate an instance against the deleted schema (should fail to load schema)
@@ -902,17 +735,11 @@ describe("Workspace scan", async () => {
     }`);
     await client.start();
 
-    const instanceUri = await client.writeDocument("instance.json", `{
+    await client.writeDocument("instance.json", `{
       "$schema": "${schemaId}",
       "bar": "not a number"
     }`);
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client?.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
@@ -953,17 +780,11 @@ describe("Workspace scan", async () => {
     await client.start();
 
     // Verify the server is still running and the valid schema works as expected
-    const instanceUri = await client.writeDocument("instance.json", `{
+    await client.writeDocument("instance.json", `{
       "$schema": "${validSchemaId}",
       "bar": "not a number"
     }`);
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client?.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === instanceUri) {
-          resolve(params.diagnostics);
-        }
-      });
-    });
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([

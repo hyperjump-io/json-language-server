@@ -1,8 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { TestClient } from "../test/TestClient.ts";
-import { PublishDiagnosticsNotification } from "vscode-languageserver";
-
-import type { Diagnostic } from "vscode-languageserver";
 
 describe("Schema Store Tests", () => {
   let client: TestClient;
@@ -58,26 +55,16 @@ describe("Schema Store Tests", () => {
   // Anywhere pattern
 
   test("schemastore.org anywhere pattern at workspace root", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("anywhere.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("anywhere.json");
     await client.openDocument("anywhere.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
   });
 
   test("schemastore.org anywhere pattern not at workspace root", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("sub-folder/anywhere.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("sub-folder/anywhere.json");
     await client.openDocument("sub-folder/anywhere.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
@@ -86,26 +73,16 @@ describe("Schema Store Tests", () => {
   // Explict-anywhere pattern
 
   test("schemastore.org explict-anywhere pattern at workspace root", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("explicit-anywhere.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("explicit-anywhere.json");
     await client.openDocument("explicit-anywhere.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
   });
 
   test("schemastore.org explict-anywhere pattern not at workspace root", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("sub-folder/explicit-anywhere.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("sub-folder/explicit-anywhere.json");
     await client.openDocument("sub-folder/explicit-anywhere.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
@@ -114,26 +91,16 @@ describe("Schema Store Tests", () => {
   // Root-only pattern
 
   test("schemastore.org root-only pattern at workspace root", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("root-only.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("root-only.json");
     await client.openDocument("root-only.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
   });
 
   test("schemastore.org root-only pattern not at workspace root", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("sub-folder/root-only.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("sub-folder/root-only.json");
     await client.openDocument("sub-folder/root-only.json");
 
     await expect(diagnostics).resolves.toHaveLength(0);
@@ -142,26 +109,16 @@ describe("Schema Store Tests", () => {
   // Sub-folder pattern
 
   test("schemastore.org sub-folder pattern at workspace root", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("sub-folder/schema.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("sub-folder/schema.json");
     await client.openDocument("sub-folder/schema.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
   });
 
   test("schemastore.org sub-folder pattern not at workspace root", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("path/to/sub-folder/schema.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("path/to/sub-folder/schema.json");
     await client.openDocument("path/to/sub-folder/schema.json");
 
     await expect(diagnostics).resolves.toHaveLength(0);
@@ -170,26 +127,16 @@ describe("Schema Store Tests", () => {
   // Wildcard pattern
 
   test("schemastore.org wildcard pattern at workspace root", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("wildcard/schema.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("wildcard/schema.json");
     await client.openDocument("wildcard/schema.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
   });
 
   test("schemastore.org wildcard pattern deep folders", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("wildcard/deep/schema.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("wildcard/deep/schema.json");
     await client.openDocument("wildcard/deep/schema.json");
 
     await expect(diagnostics).resolves.toHaveLength(0);
@@ -198,13 +145,8 @@ describe("Schema Store Tests", () => {
   // Double-wildcard pattern
 
   test("schemastore.org double-wildcard pattern deep folders", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("double-wildcard/deep/schema.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("double-wildcard/deep/schema.json");
     await client.openDocument("double-wildcard/deep/schema.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
@@ -213,13 +155,8 @@ describe("Schema Store Tests", () => {
   // Complex pattern
 
   test("schemastore.org complex pattern", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("complex/path/to/foo/v1/schema.json", `{ "foo": 42 }`);
+    const diagnostics = client.getDiagnostics("complex/path/to/foo/v1/schema.json");
     await client.openDocument("complex/path/to/foo/v1/schema.json");
 
     await expect(diagnostics).resolves.toHaveLength(1);
@@ -228,12 +165,6 @@ describe("Schema Store Tests", () => {
   // $schema conflict
 
   test("schemastore.org match and $schema", async () => {
-    const diagnostics: Promise<Diagnostic[]> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        resolve(params.diagnostics);
-      });
-    });
-
     await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -246,6 +177,7 @@ describe("Schema Store Tests", () => {
       "$schema": "schema.json",
       "foo": 42
     }`);
+    const diagnostics = client.getDiagnostics("anywhere.json");
     await client.openDocument("anywhere.json");
 
     await expect(diagnostics).resolves.toHaveLength(0);
