@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { HoverRequest, PublishDiagnosticsNotification } from "vscode-languageserver";
+import { HoverRequest } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
 
 describe("Hover", () => {
@@ -16,12 +16,6 @@ describe("Hover", () => {
   });
 
   test("should return title and description on hover over a property value", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -37,8 +31,6 @@ describe("Hover", () => {
     const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "Alice"\n}`;
     await client.writeDocument("instance.json", instanceText);
     const uri = await client.openDocument("instance.json");
-
-    await diagnostics;
 
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
@@ -72,12 +64,6 @@ _hyperjump-json-language-server_`
   });
 
   test("should return null on hover over a property with no title or description", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -89,8 +75,6 @@ _hyperjump-json-language-server_`
     await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "age": 30\n}`);
     const uri = await client.openDocument("instance.json");
 
-    await diagnostics;
-
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 8 }
@@ -100,12 +84,6 @@ _hyperjump-json-language-server_`
   });
 
   test("should return only title when description is absent", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -119,8 +97,6 @@ _hyperjump-json-language-server_`
 
     await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "status": "active"\n}`);
     const uri = await client.openDocument("instance.json");
-
-    await diagnostics;
 
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
@@ -140,12 +116,6 @@ _hyperjump-json-language-server_`
   });
 
   test("should return only description when title is absent", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -159,8 +129,6 @@ _hyperjump-json-language-server_`
 
     await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "status": "active"\n}`);
     const uri = await client.openDocument("instance.json");
-
-    await diagnostics;
 
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
@@ -192,12 +160,6 @@ _hyperjump-json-language-server_`
   });
 
   test("Hover should drop annotations for failing schemas", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -226,8 +188,6 @@ _hyperjump-json-language-server_`
     }`);
     const uri = await client.openDocument("instance.json");
 
-    await diagnostics;
-
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 10 }
@@ -248,12 +208,6 @@ _hyperjump-json-language-server_`
   });
 
   test("Hover should return all annotations if multiple are applicable at an instanceLocation", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument(
       "schema.json",
       `{
@@ -282,8 +236,6 @@ _hyperjump-json-language-server_`
     }`);
     const uri = await client.openDocument("instance.json");
 
-    await diagnostics;
-
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 10 }
@@ -308,12 +260,6 @@ _hyperjump-json-language-server_`
   });
 
   test("should not duplicate annotations when the referenced schema is edited while the instance stays open", async () => {
-    const initialValidation: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -327,18 +273,12 @@ _hyperjump-json-language-server_`
     }`);
 
     await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "age": 25\n}`);
+    const initialValidation = client.getDiagnostics("instance.json");
     const uri = await client.openDocument("instance.json");
 
     await initialValidation;
 
-    const secondValidation: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === uri) {
-          resolve();
-        }
-      });
-    });
-
+    const secondValidation = client.getDiagnostics("instance.json");
     await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -373,12 +313,6 @@ _hyperjump-json-language-server_`
   });
 
   test("if schema fails as a whole but a sub-schema passes then hover should return annotations for passing sub-schemas", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -401,8 +335,6 @@ _hyperjump-json-language-server_`
     }`);
     const uri = await client.openDocument("instance.json");
 
-    await diagnostics;
-
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
       position: { line: 2, character: 10 }
@@ -421,12 +353,6 @@ _hyperjump-json-language-server_`
   });
 
   test("hover with an invalid schema", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "invalid",
@@ -444,8 +370,6 @@ _hyperjump-json-language-server_`
     }`);
     const uri = await client.openDocument("instance.json");
 
-    await diagnostics;
-
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
       position: { line: 1, character: 10 }
@@ -455,12 +379,6 @@ _hyperjump-json-language-server_`
   });
 
   test("should return markdownDescription on hover when present", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -478,8 +396,6 @@ _hyperjump-json-language-server_`
       "name": "Alice"
     }`);
     const uri = await client.openDocument("instance.json");
-
-    await diagnostics;
 
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
@@ -501,12 +417,6 @@ _hyperjump-json-language-server_`
   });
 
   test("should prefer markdownDescription over description when both are present", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -525,8 +435,6 @@ _hyperjump-json-language-server_`
       "name": "Alice"
     }`);
     const uri = await client.openDocument("instance.json");
-
-    await diagnostics;
 
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
@@ -548,12 +456,6 @@ _hyperjump-json-language-server_`
   });
 
   test("should return markdownDescription when hovering over the property key", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -570,8 +472,6 @@ _hyperjump-json-language-server_`
       "name": "Alice"
     }`);
     const uri = await client.openDocument("instance.json");
-
-    await diagnostics;
 
     // Hover over "name" key
     const result = await client.sendRequest(HoverRequest.type, {
@@ -592,12 +492,6 @@ _hyperjump-json-language-server_`
   });
 
   test("should return markdownDescription from a dialect that includes the vscode vocabulary", async () => {
-    const diagnostics: Promise<void> = new Promise((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, () => {
-        resolve();
-      });
-    });
-
     await client.writeDocument("meta-schema.json", `{
       "$id": "https://example.com/dialect/vscode",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -631,8 +525,6 @@ _hyperjump-json-language-server_`
       "name": "Alice"
     }`);
     const uri = await client.openDocument("instance.json");
-
-    await diagnostics;
 
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },

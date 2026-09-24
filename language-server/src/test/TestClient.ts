@@ -14,6 +14,7 @@ import {
   FileChangeType,
   InitializedNotification,
   InitializeRequest,
+  PublishDiagnosticsNotification,
   RegistrationRequest,
   ShutdownRequest
 } from "vscode-languageserver";
@@ -29,6 +30,7 @@ import { ReadFileRequest } from "../protocol/hyperjump-readFile.ts";
 
 import type {
   Connection,
+  Diagnostic,
   DidChangeConfigurationRegistrationOptions,
   InitializeParams,
   ServerCapabilities
@@ -335,6 +337,18 @@ export class TestClient {
       textDocument: {
         uri: fullUri
       }
+    });
+  }
+
+  async getDiagnostics(uri: string) {
+    const fullUri = resolveIri(uri, await this.workspaceFolder + "/");
+
+    return new Promise<Diagnostic[]>((resolve) => {
+      this.client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+        if (params.uri === fullUri) {
+          resolve(params.diagnostics);
+        }
+      });
     });
   }
 }
