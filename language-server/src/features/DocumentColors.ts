@@ -4,6 +4,7 @@ import type { Color, ColorInformation, ColorPresentation, ServerCapabilities } f
 import type { Node } from "jsonc-parser";
 import type { Server } from "../services/Server.ts";
 import type { JsonDocuments } from "../services/JsonDocuments.ts";
+import type { JsonSchema } from "../services/JsonSchema.ts";
 
 const FORMAT_KEYWORDS = new Set([
   "https://json-schema.org/keyword/draft-2020-12/format",
@@ -18,7 +19,7 @@ const FORMAT_KEYWORDS = new Set([
 export class DocumentColors {
   private jsonDocuments: JsonDocuments;
 
-  constructor(server: Server, jsonDocuments: JsonDocuments) {
+  constructor(server: Server, jsonDocuments: JsonDocuments, jsonSchema: JsonSchema) {
     this.jsonDocuments = jsonDocuments;
 
     server.onInitialize(() => {
@@ -31,9 +32,7 @@ export class DocumentColors {
       };
     });
 
-    jsonDocuments.onDidCreate((jsonDocument) => {
-      jsonDocument.registerEvaluationPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
-    });
+    jsonSchema.registerPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
 
     server.onDocumentColor(async (params) => {
       const jsonDocument = this.jsonDocuments.get(params.textDocument.uri);
@@ -43,7 +42,8 @@ export class DocumentColors {
       }
 
       try {
-        const annotationsEvaluationPlugin = await jsonDocument.getEvaluationPlugin<AnnotationsEvaluationPlugin>(AnnotationsEvaluationPlugin.id);
+        const result = await jsonSchema.validate(jsonDocument);
+        const annotationsEvaluationPlugin = result.plugins.get(AnnotationsEvaluationPlugin.id) as AnnotationsEvaluationPlugin;
 
         const stringNodes: Node[] = [];
         jsonDocument.walkNodes(ast, (node) => {

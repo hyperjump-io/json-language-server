@@ -6,8 +6,15 @@ import * as Pact from "@hyperjump/pact";
 import type { CompletionsProvider } from "./Completions.ts";
 import type { CompletionItem, CompletionParams, Range } from "vscode-languageserver";
 import type { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.ts";
+import type { JsonSchema } from "../../services/JsonSchema.ts";
 
 export class ValueCompletionsProvider implements CompletionsProvider {
+  private jsonSchema: JsonSchema;
+
+  constructor(jsonSchema: JsonSchema) {
+    this.jsonSchema = jsonSchema;
+  }
+
   async getCompletions(jsonDocument: JsonDocument, params: CompletionParams) {
     const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 });
     if (!node) {
@@ -52,7 +59,8 @@ export class ValueCompletionsProvider implements CompletionsProvider {
     const completions: CompletionItem[] = [];
 
     try {
-      const plugin = await jsonDocument.getEvaluationPlugin("completions") as CompletionsEvaluationPlugin;
+      const result = await this.jsonSchema.validate(jsonDocument);
+      const plugin = result.plugins.get("completions") as CompletionsEvaluationPlugin;
 
       for (const completion of plugin.getCompletions(instanceLocation)) {
         const label = completion.kind === "value" ? completion.value : typeSnippets[completion.type].label;

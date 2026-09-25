@@ -4,9 +4,10 @@ import { AnnotationsEvaluationPlugin } from "./AnnotationsEvaluationPlugin.ts";
 
 import type { Server } from "../services/Server.ts";
 import type { ServerCapabilities } from "vscode-languageserver";
+import type { JsonSchema } from "../services/JsonSchema.ts";
 
 export class Hover {
-  constructor(server: Server, jsonDocuments: JsonDocuments) {
+  constructor(server: Server, jsonDocuments: JsonDocuments, jsonSchema: JsonSchema) {
     server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
         hoverProvider: true
@@ -17,17 +18,16 @@ export class Hover {
       };
     });
 
-    jsonDocuments.onDidCreate((jsonDocument) => {
-      jsonDocument.registerEvaluationPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
-    });
+    jsonSchema.registerPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
 
     server.onHover(async (params) => {
       const jsonDocument = jsonDocuments.get(params.textDocument.uri)!;
 
       try {
         const node = jsonDocument.findNodeAtPosition(params.position)!;
-        const annotationsEvaluationPlugin = await jsonDocument.getEvaluationPlugin<AnnotationsEvaluationPlugin>(AnnotationsEvaluationPlugin.id);
-        const annotations = annotationsEvaluationPlugin!.getAnnotations(jsonDocument.getPointerForNode(node));
+        const result = await jsonSchema.validate(jsonDocument);
+        const annotationsEvaluationPlugin = result.plugins.get(AnnotationsEvaluationPlugin.id) as AnnotationsEvaluationPlugin;
+        const annotations = annotationsEvaluationPlugin.getAnnotations(jsonDocument.getPointerForNode(node));
 
         const lines: string[] = [];
         for (const annotation of annotations) {

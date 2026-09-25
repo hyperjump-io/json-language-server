@@ -1,6 +1,7 @@
 import { Server } from "./services/Server.ts";
 import { JsonDocuments } from "./services/JsonDocuments.ts";
-import { SchemaStore } from "./services/SchemaStore.ts";
+import { JsonSchema } from "./services/JsonSchema.ts";
+import { JsonSchemaRegistry } from "./services/JsonSchemaRegistry.ts";
 import { Workspace } from "./services/Workspace.ts";
 import { Diagnostics } from "./features/diagnostics/Diagnostics.ts";
 import { SyntaxValidationDiagnosticsProvider } from "./features/diagnostics/SyntaxValidationDiagnosticsProvider.ts";
@@ -16,13 +17,6 @@ import { SelectionRanges } from "./features/SelectionRanges.ts";
 import { DocumentLinks } from "./features/DocumentLinks.ts";
 import { DocumentColors } from "./features/DocumentColors.ts";
 
-import "@hyperjump/json-schema/draft-2020-12";
-import "@hyperjump/json-schema/draft-2019-09";
-import "@hyperjump/json-schema/draft-07";
-import "@hyperjump/json-schema/draft-06";
-import "@hyperjump/json-schema/draft-04";
-import "./vscode-vocabulary.ts";
-
 import type { Connection } from "vscode-languageserver";
 
 export type LanguageServerSettings = {
@@ -30,29 +24,30 @@ export type LanguageServerSettings = {
 
 export const buildServer = (connection: Connection): Server => {
   const server = new Server(connection);
-
   const workspace = new Workspace(server);
-  const schemaStore = new SchemaStore(server, workspace);
 
-  const documents = new JsonDocuments(server, schemaStore);
-  documents.listen(server);
+  const jsonDocuments = new JsonDocuments(server);
+  jsonDocuments.listen(server);
 
-  new Diagnostics(server, documents, workspace, [
+  const registry = new JsonSchemaRegistry(server, workspace);
+  const jsonSchema = new JsonSchema(server, workspace, jsonDocuments, registry);
+
+  new Diagnostics(server, jsonDocuments, jsonSchema, [
     new SyntaxValidationDiagnosticsProvider(),
-    new SchemaValidationDiagnosticsProvider()
+    new SchemaValidationDiagnosticsProvider(jsonSchema)
   ]);
 
-  new Formatting(server, documents);
-  new Hover(server, documents);
-  new Completions(server, documents, [
-    new PropertyCompletionsProvider(),
-    new ValueCompletionsProvider()
+  new Formatting(server, jsonDocuments);
+  new Hover(server, jsonDocuments, jsonSchema);
+  new Completions(server, jsonDocuments, jsonSchema, [
+    new PropertyCompletionsProvider(jsonSchema),
+    new ValueCompletionsProvider(jsonSchema)
   ]);
-  new FoldingRanges(server, documents);
-  new DocumentSymbols(server, documents);
-  new SelectionRanges(server, documents);
-  new DocumentLinks(server, documents, workspace);
-  new DocumentColors(server, documents);
+  new FoldingRanges(server, jsonDocuments);
+  new DocumentSymbols(server, jsonDocuments);
+  new SelectionRanges(server, jsonDocuments);
+  new DocumentLinks(server, jsonDocuments, workspace);
+  new DocumentColors(server, jsonDocuments, jsonSchema);
 
   return server;
 };

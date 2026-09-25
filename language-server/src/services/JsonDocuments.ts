@@ -2,24 +2,20 @@ import { TextDocuments, TextDocumentSyncKind } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { JsonDocument } from "../models/JsonDocument.ts";
 import { Server } from "./Server.ts";
+import { abbreviateUri } from "../util/utils.ts";
 
-import type { Disposable, DocumentUri, ServerCapabilities, TextDocumentContentChangeEvent } from "vscode-languageserver";
-import type { SchemaStore } from "./SchemaStore.ts";
+import type { DocumentUri, ServerCapabilities, TextDocumentContentChangeEvent } from "vscode-languageserver";
 
 export class JsonDocuments extends TextDocuments<JsonDocument> {
-  private didCreateListeners: Set<(jsonDocument: JsonDocument) => void> = new Set();
-
-  constructor(server: Server, schemaStore: SchemaStore) {
+  constructor(server: Server) {
     super({
       create: (uri: DocumentUri, languageId: string, version: number, content: string) => {
+        server.console.log(`validate ${abbreviateUri(uri)} JSON syntax`);
         const textDocument = TextDocument.create(uri, languageId, version, content);
-        const jsonDocument = new JsonDocument(textDocument, schemaStore, server);
-        for (const listener of this.didCreateListeners) {
-          listener(jsonDocument);
-        }
-        return jsonDocument;
+        return new JsonDocument(textDocument);
       },
       update(document: JsonDocument, changes: TextDocumentContentChangeEvent[], version: number) {
+        server.console.log(`validate ${abbreviateUri(document.uri)} JSON syntax`);
         document.update(changes, version);
         return document;
       }
@@ -34,14 +30,5 @@ export class JsonDocuments extends TextDocuments<JsonDocument> {
         capabilities: serverCapabilities
       };
     });
-  }
-
-  onDidCreate(listener: (jsonDocument: JsonDocument) => void): Disposable {
-    this.didCreateListeners.add(listener);
-    return {
-      dispose: () => {
-        this.didCreateListeners.delete(listener);
-      }
-    };
   }
 }

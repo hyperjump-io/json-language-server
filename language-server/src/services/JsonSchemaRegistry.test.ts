@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { TestClient } from "../test/TestClient.ts";
 
-describe("Schema Store Tests", () => {
+describe("SchemaStore Tests", () => {
   let client: TestClient;
 
   beforeEach(async () => {

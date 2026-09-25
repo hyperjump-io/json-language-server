@@ -31,7 +31,7 @@ export class DocumentLinks {
         return [];
       }
 
-      const schemaUri = await jsonDocument.getSchemaUri();
+      const schemaUri = jsonDocument.getSchemaUri();
       if (!schemaUri) {
         return [];
       }
