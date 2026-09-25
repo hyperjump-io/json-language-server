@@ -4,14 +4,17 @@ import type { DocumentLink, ServerCapabilities } from "vscode-languageserver";
 import type { Server } from "../services/Server.ts";
 import type { JsonDocuments } from "../services/JsonDocuments.ts";
 import type { Workspace } from "../services/Workspace.ts";
+import type { SchemaStore } from "../services/SchemaStore.ts";
 
 export class DocumentLinks {
   private jsonDocuments: JsonDocuments;
   private workspace: Workspace;
+  private schemaStore: SchemaStore;
 
-  constructor(server: Server, jsonDocuments: JsonDocuments, workspace: Workspace) {
+  constructor(server: Server, jsonDocuments: JsonDocuments, workspace: Workspace, schemaStore: SchemaStore) {
     this.jsonDocuments = jsonDocuments;
     this.workspace = workspace;
+    this.schemaStore = schemaStore;
 
     server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
@@ -31,7 +34,7 @@ export class DocumentLinks {
         return [];
       }
 
-      const schemaUri = await jsonDocument.getSchemaUri();
+      const schemaUri = await this.schemaStore.getSchemaUri(jsonDocument);
       if (!schemaUri) {
         return [];
       }

@@ -34,25 +34,25 @@ export const buildServer = (connection: Connection): Server => {
   const workspace = new Workspace(server);
   const schemaStore = new SchemaStore(server, workspace);
 
-  const documents = new JsonDocuments(server, schemaStore);
+  const documents = new JsonDocuments(server);
   documents.listen(server);
 
-  new Diagnostics(server, documents, workspace, [
+  new Diagnostics(server, documents, schemaStore, [
     new SyntaxValidationDiagnosticsProvider(),
-    new SchemaValidationDiagnosticsProvider()
+    new SchemaValidationDiagnosticsProvider(schemaStore)
   ]);
 
   new Formatting(server, documents);
-  new Hover(server, documents);
-  new Completions(server, documents, [
-    new PropertyCompletionsProvider(),
-    new ValueCompletionsProvider()
+  new Hover(server, documents, schemaStore);
+  new Completions(server, documents, schemaStore, [
+    new PropertyCompletionsProvider(schemaStore),
+    new ValueCompletionsProvider(schemaStore)
   ]);
   new FoldingRanges(server, documents);
   new DocumentSymbols(server, documents);
   new SelectionRanges(server, documents);
-  new DocumentLinks(server, documents, workspace);
-  new DocumentColors(server, documents);
+  new DocumentLinks(server, documents, workspace, schemaStore);
+  new DocumentColors(server, documents, schemaStore);
 
   return server;
 };

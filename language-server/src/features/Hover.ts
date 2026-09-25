@@ -3,10 +3,11 @@ import { JsonDocuments } from "../services/JsonDocuments.ts";
 import { AnnotationsEvaluationPlugin } from "./AnnotationsEvaluationPlugin.ts";
 
 import type { Server } from "../services/Server.ts";
+import type { SchemaStore } from "../services/SchemaStore.ts";
 import type { ServerCapabilities } from "vscode-languageserver";
 
 export class Hover {
-  constructor(server: Server, jsonDocuments: JsonDocuments) {
+  constructor(server: Server, jsonDocuments: JsonDocuments, schemaStore: SchemaStore) {
     server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
         hoverProvider: true
@@ -17,16 +18,14 @@ export class Hover {
       };
     });
 
-    jsonDocuments.onDidCreate((jsonDocument) => {
-      jsonDocument.registerEvaluationPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
-    });
+    schemaStore.registerPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
 
     server.onHover(async (params) => {
       const jsonDocument = jsonDocuments.get(params.textDocument.uri)!;
 
       try {
         const node = jsonDocument.findNodeAtPosition(params.position)!;
-        const annotationsEvaluationPlugin = await jsonDocument.getEvaluationPlugin<AnnotationsEvaluationPlugin>(AnnotationsEvaluationPlugin.id);
+        const annotationsEvaluationPlugin = await schemaStore.getEvaluationPlugin<AnnotationsEvaluationPlugin>(jsonDocument, AnnotationsEvaluationPlugin.id);
         const annotations = annotationsEvaluationPlugin!.getAnnotations(jsonDocument.getPointerForNode(node));
 
         const lines: string[] = [];

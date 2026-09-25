@@ -10,33 +10,53 @@ import { FileChangeType } from "vscode-languageserver";
 import { abbreviateUri } from "../util/utils.ts";
 
 import type { CompiledSchema, EvaluationPlugin } from "@hyperjump/json-schema/experimental";
-import type { Json } from "@hyperjump/json-schema-errors";
+import type { ValidationResult } from "@hyperjump/json-schema-errors";
 import type { SchemaObject } from "@hyperjump/json-schema";
 import type { UriSchemePlugin } from "@hyperjump/browser";
 import type { Server } from "../services/Server.ts";
 import type { Workspace } from "./Workspace.ts";
+import type { JsonDocument } from "../models/JsonDocument.ts";
 
 type SchemaStoreEntry = {
   name: string;
   description: string;
-  fileMatch: string[];
+  fileMatch: string[] | undefined;
   url: string;
   versions: Record<string, string>;
+};
+
+type CatalogMatcher = {
+  url: string;
+  matcher: ignore.Ignore;
+};
+
+type EvaluationPluginFactory = (jsonDocument: JsonDocument) => EvaluationPlugin;
+
+type SchemaEvaluation = {
+  version: number;
+  schemaUri: string | undefined;
+  compiledSchema: CompiledSchema | undefined;
+  plugins: Map<string, EvaluationPlugin>;
+  result: ValidationResult | undefined;
 };
 
 export class SchemaStore {
   private server: Server;
   private workspace: Workspace;
   private compiledSchemaCache: Map<string, Promise<CompiledSchema>> = new Map();
-  private catalog: Promise<SchemaStoreEntry[]>;
+  private evaluationCache: WeakMap<JsonDocument, SchemaEvaluation> = new WeakMap();
+  private pluginFactories: Map<string, EvaluationPluginFactory> = new Map();
+  private catalogMatchers: Promise<CatalogMatcher[]>;
   private workspaceSchemaIds: Map<string, string> = new Map();
   private workspaceSchemaFiles: Map<string, string> = new Map();
   private scanCompleted: Promise<void>;
+  private didChangeSchemaHandlers: Set<() => Promise<void> | void> = new Set();
 
   constructor(server: Server, workspace: Workspace) {
     this.server = server;
     this.workspace = workspace;
-    this.catalog = new Promise((resolve) => {
+
+    const catalog: Promise<SchemaStoreEntry[]> = new Promise((resolve) => {
       server.onInitialized(async () => {
         const startTime = performance.now();
         try {
@@ -51,6 +71,21 @@ export class SchemaStore {
       });
     });
 
+    // Built once so matching a document doesn't rebuild a matcher for every catalog entry
+    this.catalogMatchers = catalog.then((catalog) => {
+      return Pact.pipe(
+        catalog,
+        Pact.filter((schemaStoreEntry) => !!schemaStoreEntry.fileMatch),
+        Pact.map((schemaStoreEntry) => {
+          return {
+            url: schemaStoreEntry.url,
+            matcher: ignore().add(schemaStoreEntry.fileMatch!)
+          };
+        }),
+        Pact.collectArray
+      );
+    });
+
     this.scanCompleted = new Promise<void>((resolve) => {
       server.onInitialized(async () => {
         this.server.console.log("Scanning workspace for self-identifying schemas...");
@@ -62,7 +97,7 @@ export class SchemaStore {
       });
     }).catch(() => {});
 
-    const schemaAllowList = this.catalog.then((catalog) => {
+    const schemaAllowList = catalog.then((catalog) => {
       return Pact.pipe(
         catalog,
         Pact.map((entry: { url: string }) => entry.url),
@@ -128,6 +163,11 @@ export class SchemaStore {
         .catch(() => { });
 
       await this.scanCompleted;
+
+      // Notified after the chain completes because handlers may validate, and validation waits for the chain
+      for (const handler of this.didChangeSchemaHandlers) {
+        await handler();
+      }
     });
 
     server.onShutdown(() => {
@@ -137,56 +177,117 @@ export class SchemaStore {
     });
   }
 
-  async getSchemaUri(fileUri: string) {
-    for (const { fileMatch, url } of await this.catalog) {
-      if (!fileMatch) {
-        continue;
+  onDidChangeSchema(handler: () => Promise<void> | void) {
+    this.didChangeSchemaHandlers.add(handler);
+  }
+
+  registerPlugin(id: string, factory: EvaluationPluginFactory) {
+    this.pluginFactories.set(id, factory);
+  }
+
+  async getEvaluationPlugin<PluginType extends EvaluationPlugin>(jsonDocument: JsonDocument, id: string) {
+    const schemaEvaluation = await this.validate(jsonDocument);
+    return schemaEvaluation.plugins.get(id) as PluginType | undefined;
+  }
+
+  async getSchemaErrors(jsonDocument: JsonDocument) {
+    const schemaEvaluation = await this.validate(jsonDocument);
+    return schemaEvaluation.result;
+  }
+
+  async getSchemaUri(jsonDocument: JsonDocument) {
+    const schemaNode = jsonDocument.findNodeAtPointer("/$schema");
+    if (schemaNode) {
+      try {
+        return resolveIri(schemaNode.value, jsonDocument.uri);
+      } catch {
+        return schemaNode.value as string;
+      }
+    } else {
+      for (const { url, matcher } of await this.catalogMatchers) {
+        for (const workspaceUri of this.workspace.workspaceFolders) {
+          if (!jsonDocument.uri.startsWith(workspaceUri + "/")) {
+            continue;
+          }
+
+          const relativePath = toRelativeIri(workspaceUri + "/", jsonDocument.uri);
+          if (matcher.ignores(relativePath)) {
+            return url;
+          }
+        }
+      }
+    }
+  }
+
+  private async validate(jsonDocument: JsonDocument): Promise<SchemaEvaluation> {
+    const version = jsonDocument.version;
+    const schemaUri = await this.getSchemaUri(jsonDocument);
+
+    let compiledSchema: CompiledSchema | undefined;
+    if (schemaUri) {
+      await this.scanCompleted;
+
+      if (!this.compiledSchemaCache.has(schemaUri)) {
+        this.compiledSchemaCache.set(schemaUri, (async () => {
+          const startTime = performance.now();
+          const schema = await getSchema(schemaUri);
+          const compiledSchema = await compile(schema);
+          this.server.console.log(`compile schema for ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+          return compiledSchema;
+        })());
       }
 
-      const ig = ignore().add(fileMatch);
-      for (const workspaceUri of this.workspace.workspaceFolders) {
-        if (!fileUri.startsWith(workspaceUri + "/")) {
-          continue;
-        }
+      compiledSchema = await this.compiledSchemaCache.get(schemaUri);
+    }
 
-        const relativePath = toRelativeIri(workspaceUri + "/", fileUri);
-        if (ig.ignores(relativePath)) {
-          return url;
-        }
-      }
+    // The document was edited while waiting
+    if (jsonDocument.version !== version) {
+      return this.validate(jsonDocument);
+    }
+
+    // An evaluation is current as long as the document hasn't been edited and
+    // the compiled schema hasn't changed
+    const cached = this.evaluationCache.get(jsonDocument);
+    if (cached?.version === version && cached.compiledSchema === compiledSchema) {
+      return cached;
+    }
+
+    const plugins = new Map<string, EvaluationPlugin>();
+    for (const [id, factory] of this.pluginFactories) {
+      plugins.set(id, factory(jsonDocument));
+    }
+
+    let result: ValidationResult | undefined;
+    if (schemaUri && compiledSchema) {
+      const instance = jsonc.parse(jsonDocument.getText());
+      const startTime = performance.now();
+      result = evaluateCompiledSchema(compiledSchema, instance, { plugins: [...plugins.values()] });
+      this.server.console.log(`validate ${abbreviateUri(jsonDocument.uri)} against schema ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+    }
+
+    const schemaEvaluation = { version, schemaUri, compiledSchema, plugins, result };
+    this.evaluationCache.set(jsonDocument, schemaEvaluation);
+    return schemaEvaluation;
+  }
+
+  async isStale(jsonDocument: JsonDocument) {
+    const cached = this.evaluationCache.get(jsonDocument);
+    if (!cached || cached.version !== jsonDocument.version) {
+      return true;
+    }
+
+    if (!cached.schemaUri) {
+      return false;
+    }
+
+    try {
+      return await this.compiledSchemaCache.get(cached.schemaUri) !== cached.compiledSchema;
+    } catch {
+      return true;
     }
   }
 
-  async validate(schemaUri: string, instance: Json, instanceUri: string, plugins: EvaluationPlugin[] = []) {
-    await this.scanCompleted;
-
-    if (!this.compiledSchemaCache.has(schemaUri)) {
-      this.compiledSchemaCache.set(schemaUri, (async function (server) {
-        const startTime = performance.now();
-        const schema = await getSchema(schemaUri);
-        const compiledSchema = await compile(schema);
-        server.console.log(`compile schema for ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
-        return compiledSchema;
-      }(this.server)));
-    }
-
-    const compiledSchema = await this.compiledSchemaCache.get(schemaUri)!;
-    const startTime = performance.now();
-    const result = evaluateCompiledSchema(compiledSchema, instance, { plugins });
-    this.server.console.log(`validate ${abbreviateUri(instanceUri)} against schema ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
-    return result;
-  }
-
-  async getDependentSchemaUris(schemaUri: string) {
-    const compiledSchemaPromise = this.compiledSchemaCache.get(schemaUri);
-    if (compiledSchemaPromise === undefined) {
-      return;
-    }
-    const compiledSchema = await compiledSchemaPromise;
-    return this.getDependenencies(compiledSchema);
-  }
-
-  async clear(fileUri: string) {
+  private async clear(fileUri: string) {
     const changedSchemaUri = this.workspaceSchemaIds.get(fileUri) ?? fileUri;
 
     for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {

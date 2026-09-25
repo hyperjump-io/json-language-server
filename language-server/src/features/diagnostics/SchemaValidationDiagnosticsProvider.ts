@@ -3,13 +3,20 @@ import { JsonDocument } from "../../models/JsonDocument.ts";
 
 import type { ErrorObject } from "@hyperjump/json-schema-errors";
 import type { DiagnosticsProvider } from "./Diagnostics.ts";
+import type { SchemaStore } from "../../services/SchemaStore.ts";
 
 export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider {
+  private schemaStore: SchemaStore;
+
+  constructor(schemaStore: SchemaStore) {
+    this.schemaStore = schemaStore;
+  }
+
   async getDiagnostics(jsonDocument: JsonDocument) {
     const schemaDiagnostics: Diagnostic[] = [];
 
     try {
-      const result = await jsonDocument.getSchemaErrors();
+      const result = await this.schemaStore.getSchemaErrors(jsonDocument);
 
       if (result?.valid === false) {
         const errors = result.errors;

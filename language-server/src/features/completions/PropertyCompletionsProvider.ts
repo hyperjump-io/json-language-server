@@ -5,8 +5,15 @@ import type { CompletionItem, CompletionParams } from "vscode-languageserver";
 import type { CompletionsProvider } from "./Completions.ts";
 import type { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.ts";
 import type { JsonDocument } from "../../models/JsonDocument.ts";
+import type { SchemaStore } from "../../services/SchemaStore.ts";
 
 export class PropertyCompletionsProvider implements CompletionsProvider {
+  private schemaStore: SchemaStore;
+
+  constructor(schemaStore: SchemaStore) {
+    this.schemaStore = schemaStore;
+  }
+
   async getCompletions(jsonDocument: JsonDocument, params: CompletionParams) {
     const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 });
     if (!node) {
@@ -30,7 +37,7 @@ export class PropertyCompletionsProvider implements CompletionsProvider {
     const completionItems: CompletionItem[] = [];
 
     try {
-      const plugin = await jsonDocument.getEvaluationPlugin("completions") as CompletionsEvaluationPlugin;
+      const plugin = await this.schemaStore.getEvaluationPlugin(jsonDocument, "completions") as CompletionsEvaluationPlugin;
 
       for (const propertyName of plugin.getPropertyCompletions(instanceLocation)) {
         if (existingPropertyNames.has(propertyName)) {

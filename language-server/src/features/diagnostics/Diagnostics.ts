@@ -1,8 +1,7 @@
 import { Server } from "../../services/Server.ts";
 import { JsonDocuments } from "../../services/JsonDocuments.ts";
-import { Workspace } from "../../services/Workspace.ts";
+import { SchemaStore } from "../../services/SchemaStore.ts";
 import { JsonDocument } from "../../models/JsonDocument.ts";
-import { normalizeIri } from "@hyperjump/uri";
 import { abbreviateUri } from "../../util/utils.ts";
 
 import type { Diagnostic } from "vscode-languageserver";
@@ -13,23 +12,22 @@ export type DiagnosticsProvider = {
 
 export class Diagnostics {
   private server: Server;
-  private jsonDocuments: JsonDocuments;
   private providers: DiagnosticsProvider[];
   private pendingSends: Map<string, AbortController> = new Map();
 
-  constructor(server: Server, jsonDocuments: JsonDocuments, workspace: Workspace, providers: DiagnosticsProvider[]) {
+  constructor(server: Server, jsonDocuments: JsonDocuments, schemaStore: SchemaStore, providers: DiagnosticsProvider[]) {
     this.server = server;
-    this.jsonDocuments = jsonDocuments;
     this.providers = providers;
 
     jsonDocuments.onDidChangeContent(async (change) => {
       await this.sendDiagnostics(change.document);
     });
 
-    workspace.onDidChangeWatchedFiles(async (params) => {
-      for (const change of params.changes) {
-        const changedUri = normalizeIri(change.uri);
-        await this.revalidateDependentDocuments(changedUri);
+    schemaStore.onDidChangeSchema(async () => {
+      for (const jsonDocument of jsonDocuments.all()) {
+        if (await schemaStore.isStale(jsonDocument)) {
+          await this.sendDiagnostics(jsonDocument);
+        }
       }
     });
   }
@@ -52,15 +50,6 @@ export class Diagnostics {
         diagnostics: diagnostics
       });
       this.server.console.log(`send diagnostics for ${abbreviateUri(document.uri)}`);
-    }
-  }
-
-  private async revalidateDependentDocuments(schemaUri: string) {
-    for (const jsonDocument of this.jsonDocuments.all()) {
-      if (await jsonDocument.dependsOn(schemaUri)) {
-        jsonDocument.validateSchema();
-        await this.sendDiagnostics(jsonDocument);
-      }
     }
   }
 }

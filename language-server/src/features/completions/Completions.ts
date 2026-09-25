@@ -4,6 +4,7 @@ import { JsonDocument } from "../../models/JsonDocument.ts";
 import { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.ts";
 
 import type { Server } from "../../services/Server.ts";
+import type { SchemaStore } from "../../services/SchemaStore.ts";
 import type { CompletionItem, CompletionParams, ServerCapabilities } from "vscode-languageserver";
 
 const completionsEvaluationPluginId = "completions";
@@ -16,32 +17,30 @@ export class Completions {
   private jsonDocuments: JsonDocuments;
   private providers: CompletionsProvider[];
 
-  constructor(server: Server, jsonDocuments: JsonDocuments, providers: CompletionsProvider[]) {
+  constructor(server: Server, jsonDocuments: JsonDocuments, schemaStore: SchemaStore, providers: CompletionsProvider[]) {
     this.jsonDocuments = jsonDocuments;
     this.providers = providers;
 
-    jsonDocuments.onDidCreate((jsonDocument) => {
-      jsonDocument.registerEvaluationPlugin(completionsEvaluationPluginId, () => {
-        const incompleteLocations: Set<string> = new Set();
-        const ast = jsonDocument.findNodeAtPointer("");
-        if (!ast) {
-          return new CompletionsEvaluationPlugin(incompleteLocations);
-        }
-
-        jsonDocument.walkNodes(ast, (node) => {
-          if (node.type === "object") {
-            for (const propertyNode of node.children!) {
-              if (propertyNode.children!.length === 1) {
-                incompleteLocations.add(jsonDocument.getPointerForNode(propertyNode));
-              }
-            }
-          } else if (node.type === "array") {
-            const pointer = JsonPointer.append(`${node.children!.length}`, jsonDocument.getPointerForNode(node));
-            incompleteLocations.add(pointer);
-          }
-        });
+    schemaStore.registerPlugin(completionsEvaluationPluginId, (jsonDocument) => {
+      const incompleteLocations: Set<string> = new Set();
+      const ast = jsonDocument.findNodeAtPointer("");
+      if (!ast) {
         return new CompletionsEvaluationPlugin(incompleteLocations);
+      }
+
+      jsonDocument.walkNodes(ast, (node) => {
+        if (node.type === "object") {
+          for (const propertyNode of node.children!) {
+            if (propertyNode.children!.length === 1) {
+              incompleteLocations.add(jsonDocument.getPointerForNode(propertyNode));
+            }
+          }
+        } else if (node.type === "array") {
+          const pointer = JsonPointer.append(`${node.children!.length}`, jsonDocument.getPointerForNode(node));
+          incompleteLocations.add(pointer);
+        }
       });
+      return new CompletionsEvaluationPlugin(incompleteLocations);
     });
 
     server.onInitialize(() => {
