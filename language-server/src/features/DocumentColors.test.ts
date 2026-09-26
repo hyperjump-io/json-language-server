@@ -304,4 +304,18 @@ describe("DocumentColors", () => {
       }
     ]);
   });
+
+  test("should return no colors when the schema can't be loaded", async () => {
+    await client.writeDocument("instance.json", `{
+      "$schema": "./missing.json",
+      "color": "#ff0000"
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const result = await client.sendRequest(DocumentColorRequest.type, {
+      textDocument: { uri }
+    });
+
+    expect(result).toEqual([]);
+  });
 });

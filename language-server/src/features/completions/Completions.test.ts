@@ -119,4 +119,30 @@ describe("Completions", () => {
 
     expect(completions).toEqual([]);
   });
+
+  test("should return no completions in an empty document", async () => {
+    await client.writeDocument("instance.json", ``);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 0, character: 0 }
+    });
+
+    expect(completions).toEqual([]);
+  });
+
+  test("should return no completions after the root value", async () => {
+    await client.writeDocument("instance.json", `{}
+
+`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 0 }
+    });
+
+    expect(completions).toEqual([]);
+  });
 });

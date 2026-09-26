@@ -1167,4 +1167,19 @@ describe("Property completions", () => {
       { label: "c" }
     ]);
   });
+
+  test("completion returns no completions when the schema can't be loaded", async () => {
+    await client.writeDocument("instance.json", `{
+      "$schema": "./missing.json",
+      ""
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 7 }
+    });
+
+    expect(completions).toEqual([]);
+  });
 });

@@ -42,9 +42,9 @@ export class DocumentColors {
         return [];
       }
 
-      const annotationsEvaluationPlugin = await jsonDocument.getEvaluationPlugin<AnnotationsEvaluationPlugin>(AnnotationsEvaluationPlugin.id);
-
       try {
+        const annotationsEvaluationPlugin = await jsonDocument.getEvaluationPlugin<AnnotationsEvaluationPlugin>(AnnotationsEvaluationPlugin.id);
+
         const stringNodes: Node[] = [];
         jsonDocument.walkNodes(ast, (node) => {
           if (node.type === "string") {
