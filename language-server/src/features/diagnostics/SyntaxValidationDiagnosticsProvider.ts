@@ -1,5 +1,4 @@
 import { DiagnosticSeverity } from "vscode-languageserver";
-import * as jsonc from "jsonc-parser";
 
 import type { DiagnosticsProvider } from "./Diagnostics.ts";
 import { JsonDocument } from "../../models/JsonDocument.ts";
@@ -9,7 +8,7 @@ export class SyntaxValidationDiagnosticsProvider implements DiagnosticsProvider 
     return jsonDocument.getParseErrors().map((error) => ({
       severity: DiagnosticSeverity.Error,
       range: jsonDocument.rangeAt(error.offset, error.offset + error.length),
-      message: jsonc.printParseErrorCode(error.error),
+      message: error.code,
       source: "hyperjump-json-language-server"
     }));
   }

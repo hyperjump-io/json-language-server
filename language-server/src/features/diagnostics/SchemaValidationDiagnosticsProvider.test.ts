@@ -79,7 +79,7 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "CommaExpected" }),
+      expect.objectContaining({ message: "comma-expected" }),
       expect.objectContaining({ message: "Expected a \u2068number\u2069" })
     ]);
   });

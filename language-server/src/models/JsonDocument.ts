@@ -6,10 +6,12 @@ import { resolveIri } from "@hyperjump/uri";
 import { SchemaStore } from "../services/SchemaStore.ts";
 import { Server } from "../services/Server.ts";
 import { abbreviateUri } from "../util/utils.ts";
+import { parse } from "../parser/parse.ts";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";
 import type { EvaluationPlugin } from "@hyperjump/json-schema/experimental";
 import type { ValidationResult } from "@hyperjump/json-schema-errors";
+import type { SyntaxError } from "../parser/parse.ts";
 
 type SchemaEvaluation = {
   result: ValidationResult | undefined;
@@ -21,7 +23,7 @@ export class JsonDocument implements TextDocument {
   private schemaStore: SchemaStore;
   private server: Server;
   private ast: jsonc.Node | undefined;
-  private parseErrors: jsonc.ParseError[] = [];
+  private parseErrors: SyntaxError[] = [];
   private schemaEvaluation: Promise<SchemaEvaluation | undefined> = Promise.resolve(undefined);
   private schemaUri: Promise<string | undefined> = Promise.resolve(undefined);
   private evaluationPluginFactories: Map<string, () => EvaluationPlugin> = new Map();
@@ -45,7 +47,9 @@ export class JsonDocument implements TextDocument {
     this.schemaEvaluation = Promise.resolve(undefined);
     this.schemaUri = Promise.resolve(undefined);
 
-    this.ast = jsonc.parseTree(this.textDocument.getText(), this.parseErrors);
+    const parseResult = parse(this.textDocument.getText());
+    this.ast = parseResult.root;
+    this.parseErrors = parseResult.errors;
 
     const schemaNode = this.findNodeAtPointer("/$schema");
     if (schemaNode) {
