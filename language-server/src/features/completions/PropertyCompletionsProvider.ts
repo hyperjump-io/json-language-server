@@ -8,7 +8,10 @@ import type { JsonDocument } from "../../models/JsonDocument.ts";
 
 export class PropertyCompletionsProvider implements CompletionsProvider {
   async getCompletions(jsonDocument: JsonDocument, params: CompletionParams) {
-    const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 })!;
+    const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 });
+    if (!node) {
+      return [];
+    }
 
     if (node.parent?.type !== "property" || node.parent.children?.[0] !== node || node.parent.colonOffset !== undefined) {
       return [];
@@ -24,29 +27,34 @@ export class PropertyCompletionsProvider implements CompletionsProvider {
     const instanceLocation = jsonDocument.getPointerForNode(objectNode);
     const range = jsonDocument.rangeAt(node.offset, node.offset + node.length);
 
-    const plugin = await jsonDocument.getEvaluationPlugin("completions") as CompletionsEvaluationPlugin;
-    const propertyNames = plugin.getPropertyCompletions(instanceLocation);
-
     const completionItems: CompletionItem[] = [];
-    for (const propertyName of propertyNames) {
-      if (existingPropertyNames.has(propertyName)) {
-        continue;
-      }
 
-      completionItems.push({
-        label: propertyName,
-        kind: CompletionItemKind.Property,
-        labelDetails: {
-          description: "hyperjump-json-language-server"
-        },
-        filterText: JSON.stringify(propertyName),
-        textEdit: {
-          range: range,
-          newText: `"${propertyName}": `
-        },
-        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
-      });
+    try {
+      const plugin = await jsonDocument.getEvaluationPlugin("completions") as CompletionsEvaluationPlugin;
+
+      for (const propertyName of plugin.getPropertyCompletions(instanceLocation)) {
+        if (existingPropertyNames.has(propertyName)) {
+          continue;
+        }
+
+        completionItems.push({
+          label: propertyName,
+          kind: CompletionItemKind.Property,
+          labelDetails: {
+            description: "hyperjump-json-language-server"
+          },
+          filterText: JSON.stringify(propertyName),
+          textEdit: {
+            range: range,
+            newText: `"${propertyName}": `
+          },
+          command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+        });
+      }
+    } catch {
+      // No completions on schema error
     }
+
     return completionItems;
   }
 }

@@ -9,7 +9,10 @@ import type { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.
 
 export class ValueCompletionsProvider implements CompletionsProvider {
   async getCompletions(jsonDocument: JsonDocument, params: CompletionParams) {
-    const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 })!;
+    const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 });
+    if (!node) {
+      return [];
+    }
 
     if (node.parent?.type === "property" && node.parent.colonOffset === undefined) {
       return [];
@@ -46,26 +49,32 @@ export class ValueCompletionsProvider implements CompletionsProvider {
         range = jsonDocument.rangeAt(node.offset, node.offset + node.length);
     }
 
-    const plugin = await jsonDocument.getEvaluationPlugin("completions") as CompletionsEvaluationPlugin;
-
     const completions: CompletionItem[] = [];
-    for (const completion of plugin.getCompletions(instanceLocation)) {
-      const label = completion.kind === "value" ? completion.value : typeSnippets[completion.type].label;
-      const snippet = completion.kind === "value" ? completion.value : typeSnippets[completion.type].snippet;
 
-      completions.push({
-        label,
-        kind: CompletionItemKind.Value,
-        labelDetails: {
-          description: "hyperjump-json-language-server"
-        },
-        insertTextFormat: InsertTextFormat.Snippet,
-        textEdit: {
-          range: range,
-          newText: /^[:,]$/.test(jsonDocument.getText()[cursorOffset - 1]) ? ` ${snippet}` : snippet
-        }
-      });
+    try {
+      const plugin = await jsonDocument.getEvaluationPlugin("completions") as CompletionsEvaluationPlugin;
+
+      for (const completion of plugin.getCompletions(instanceLocation)) {
+        const label = completion.kind === "value" ? completion.value : typeSnippets[completion.type].label;
+        const snippet = completion.kind === "value" ? completion.value : typeSnippets[completion.type].snippet;
+
+        completions.push({
+          label,
+          kind: CompletionItemKind.Value,
+          labelDetails: {
+            description: "hyperjump-json-language-server"
+          },
+          insertTextFormat: InsertTextFormat.Snippet,
+          textEdit: {
+            range: range,
+            newText: /^[:,]$/.test(jsonDocument.getText()[cursorOffset - 1]) ? ` ${snippet}` : snippet
+          }
+        });
+      }
+    } catch {
+      // No completions on schema error
     }
+
     return completions;
   }
 }

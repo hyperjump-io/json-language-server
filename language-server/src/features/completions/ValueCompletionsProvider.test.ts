@@ -4281,4 +4281,19 @@ describe("Value Completions", () => {
       { label: `"z"` }
     ]);
   });
+
+  test("completion returns no completions when the schema can't be loaded", async () => {
+    await client.writeDocument("instance.json", `{
+      "$schema": "./missing.json",
+      "value": 
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toEqual([]);
+  });
 });

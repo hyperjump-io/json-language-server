@@ -23,7 +23,12 @@ export class Completions {
     jsonDocuments.onDidCreate((jsonDocument) => {
       jsonDocument.registerEvaluationPlugin(completionsEvaluationPluginId, () => {
         const incompleteLocations: Set<string> = new Set();
-        jsonDocument.walkNodes(jsonDocument.findNodeAtPointer("")!, (node) => {
+        const ast = jsonDocument.findNodeAtPointer("");
+        if (!ast) {
+          return new CompletionsEvaluationPlugin(incompleteLocations);
+        }
+
+        jsonDocument.walkNodes(ast, (node) => {
           if (node.type === "object") {
             for (const propertyNode of node.children!) {
               if (propertyNode.children!.length === 1) {
