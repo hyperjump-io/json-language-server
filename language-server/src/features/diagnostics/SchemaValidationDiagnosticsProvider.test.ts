@@ -803,7 +803,7 @@ describe("Schema Validation", () => {
     await expect(updatedDiagnostics).resolves.toEqual([]);
   });
 
-  test("should keep a schema registered when another file with the same $id is deleted", async () => {
+  test("should keep a schema registered when a file with a duplicate $id is deleted", async () => {
     const schemaId = "https://example.com/duplicate-schema";
 
     await client.writeDocument("a-schema.json", `{
@@ -818,6 +818,7 @@ describe("Schema Validation", () => {
     await client.openDocument("a-schema.json");
     await aValidation;
 
+    // Fails to register because a-schema.json already registered the $id
     await client.writeDocument("b-schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "$id": "${schemaId}",
@@ -830,19 +831,18 @@ describe("Schema Validation", () => {
     await client.openDocument("b-schema.json");
     await bValidation;
 
+    await client.deleteDocument("b-schema.json");
+
     await client.writeDocument("instance.json", `{
       "$schema": "${schemaId}",
       "foo": 42
     }`);
-    const initialValidation = client.getDiagnostics("instance.json");
+    const diagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
 
-    await expect(initialValidation).resolves.toEqual([]);
-
-    const updatedDiagnostics = client.getDiagnostics("instance.json");
-    await client.deleteDocument("a-schema.json");
-
-    await expect(updatedDiagnostics).resolves.toEqual([]);
+    await expect(diagnostics).resolves.toEqual([
+      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+    ]);
   });
 
   test("should revalidate dependent documents when a schema whose $id has an empty fragment changes", async () => {

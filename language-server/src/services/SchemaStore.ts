@@ -129,6 +129,12 @@ export class SchemaStore {
 
       await this.scanCompleted;
     });
+
+    server.onShutdown(() => {
+      for (const fileUri of this.workspaceSchemaIds.keys()) {
+        this.unregisterWorkspaceSchema(fileUri);
+      }
+    });
   }
 
   async getSchemaUri(fileUri: string) {
@@ -208,7 +214,6 @@ export class SchemaStore {
   }
 
   private registerWorkspaceSchema(fileUri: string, id: string, schema: SchemaObject) {
-    unregisterSchema(id);
     registerSchema(schema);
     this.workspaceSchemaIds.set(fileUri, id);
     this.workspaceSchemaFiles.set(id, fileUri);
@@ -220,12 +225,9 @@ export class SchemaStore {
       return;
     }
 
+    unregisterSchema(id);
     this.workspaceSchemaIds.delete(fileUri);
-    // Another file with the same $id may have registered it since
-    if (this.workspaceSchemaFiles.get(id) === fileUri) {
-      unregisterSchema(id);
-      this.workspaceSchemaFiles.delete(id);
-    }
+    this.workspaceSchemaFiles.delete(id);
   }
 
   private getDependenencies(compiledSchema: CompiledSchema) {
