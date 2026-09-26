@@ -31,8 +31,7 @@ export class DocumentColors {
       };
     });
 
-    jsonDocuments.onDidCreate((jsonDocument) => {
-      jsonDocument.registerEvaluationPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
+    jsonDocuments.onDidCreate(() => {
     });
 
     server.onDocumentColor(async (params) => {

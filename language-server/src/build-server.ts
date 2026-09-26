@@ -10,6 +10,7 @@ import { Hover } from "./features/Hover.ts";
 import { Completions } from "./features/completions/Completions.ts";
 import { PropertyCompletionsProvider } from "./features/completions/PropertyCompletionsProvider.ts";
 import { ValueCompletionsProvider } from "./features/completions/ValueCompletionsProvider.ts";
+import { DefaultSnippetsCompletionsProvider } from "./features/completions/DefaultSnippetsCompletionsProvider.ts";
 import { FoldingRanges } from "./features/FoldingRanges.ts";
 import { DocumentSymbols } from "./features/DocumentSymbols.ts";
 import { SelectionRanges } from "./features/SelectionRanges.ts";
@@ -46,7 +47,8 @@ export const buildServer = (connection: Connection): Server => {
   new Hover(server, documents);
   new Completions(server, documents, [
     new PropertyCompletionsProvider(),
-    new ValueCompletionsProvider()
+    new ValueCompletionsProvider(),
+    new DefaultSnippetsCompletionsProvider()
   ]);
   new FoldingRanges(server, documents);
   new DocumentSymbols(server, documents);

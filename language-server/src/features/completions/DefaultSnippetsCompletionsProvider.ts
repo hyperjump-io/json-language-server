@@ -2,17 +2,22 @@ import { CompletionItemKind, InsertTextFormat } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
 import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
+import { AnnotationsEvaluationPlugin } from "../AnnotationsEvaluationPlugin.ts";
 
 import type { CompletionsProvider } from "./Completions.ts";
 import type { CompletionItem, CompletionParams, Range } from "vscode-languageserver";
-import type { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.ts";
 
-export class ValueCompletionsProvider implements CompletionsProvider {
+type DefaultSnippet = {
+  label?: string;
+  description?: string;
+  markdownDescription?: string;
+  body?: string | string[];
+  bodyText?: string;
+};
+
+export class DefaultSnippetsCompletionsProvider implements CompletionsProvider {
   async getCompletions(jsonDocument: JsonDocument, params: CompletionParams) {
-    const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 });
-    if (!node) {
-      return [];
-    }
+    const node = jsonDocument.findNodeAtPosition({ ...params.position, character: params.position.character - 1 })!;
 
     if (node.parent?.type === "property" && node.parent.children?.[0] === node) {
       return [];
@@ -49,40 +54,49 @@ export class ValueCompletionsProvider implements CompletionsProvider {
         range = jsonDocument.rangeAt(node.offset, node.offset + node.length);
     }
 
+    const annotationsPlugin = await jsonDocument.getEvaluationPlugin<AnnotationsEvaluationPlugin>(AnnotationsEvaluationPlugin.id);
+
     const completions: CompletionItem[] = [];
+    for (const annotation of annotationsPlugin?.getAnnotations(instanceLocation) ?? []) {
+      const defaultSnippets = (annotation["https://microsoft.com/keyword/defaultSnippets"]
+        ?? annotation["https://json-schema.org/keyword/unknown#defaultSnippets"]
+        ?? []) as DefaultSnippet[];
 
-    try {
-      const plugin = await jsonDocument.getEvaluationPlugin("completions") as CompletionsEvaluationPlugin;
-
-      for (const completion of plugin.getCompletions(instanceLocation)) {
-        const label = completion.kind === "value" ? completion.value : typeSnippets[completion.type].label;
-        const snippet = completion.kind === "value" ? completion.value : typeSnippets[completion.type].snippet;
-
+      for (const snippet of defaultSnippets) {
         completions.push({
-          label,
-          kind: CompletionItemKind.Value,
-          labelDetails: {
-            description: "hyperjump-json-language-server"
-          },
+          label: snippet.label ?? "snippet",
+          kind: CompletionItemKind.Snippet,
+          detail: snippet.description,
           insertTextFormat: InsertTextFormat.Snippet,
           textEdit: {
-            range: range,
-            newText: /^[:,]$/.test(jsonDocument.getText()[cursorOffset - 1]) ? ` ${snippet}` : snippet
+            range,
+            newText: normalizeSnippetBody(snippet)
           }
         });
       }
-    } catch {
-      // No completions on schema error
     }
-
     return completions;
   }
 }
 
-const typeSnippets: Record<string, { label: string; snippet: string }> = {
-  integer: { label: "integer", snippet: "$0" },
-  number: { label: "number", snippet: "$0" },
-  string: { label: `""`, snippet: `"$0"` },
-  array: { label: "[]", snippet: "[$0]" },
-  object: { label: "{}", snippet: "{$0}" }
-};
+function normalizeSnippetBody(snippet: DefaultSnippet): string {
+  if (typeof snippet.bodyText === "string") {
+    return snippet.bodyText;
+  }
+
+  if (snippet.body !== undefined) {
+    if (typeof snippet.body === "string") {
+      return snippet.body;
+    }
+
+    if (Array.isArray(snippet.body)) {
+      return snippet.body
+        .map((v) => typeof v === "string" ? v : JSON.stringify(v))
+        .join("\n");
+    }
+
+    return JSON.stringify(snippet.body);
+  }
+
+  return "";
+}

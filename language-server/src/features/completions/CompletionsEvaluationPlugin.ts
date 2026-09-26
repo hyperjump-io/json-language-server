@@ -25,6 +25,8 @@ type SubschemaResult = {
 };
 
 export class CompletionsEvaluationPlugin implements EvaluationPlugin<CompletionsContext> {
+  static readonly id = "completions";
+
   private completions: Record<string, JsonValueSet> = Object.create(null);
   private incompleteLocations: Set<string>;
 

@@ -17,8 +17,7 @@ export class Hover {
       };
     });
 
-    jsonDocuments.onDidCreate((jsonDocument) => {
-      jsonDocument.registerEvaluationPlugin(AnnotationsEvaluationPlugin.id, () => new AnnotationsEvaluationPlugin());
+    jsonDocuments.onDidCreate(() => {
     });
 
     server.onHover(async (params) => {
