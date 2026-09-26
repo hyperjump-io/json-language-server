@@ -23,7 +23,7 @@ export class JsonDocument implements TextDocument {
   private parse() {
     this.parseErrors = [];
 
-    const parseResult = parse(this.textDocument.getText());
+    const parseResult = parse(this.textDocument.getText(), { allowComments: this.languageId === "jsonc" });
     this.ast = parseResult.root;
     this.parseErrors = parseResult.errors;
 

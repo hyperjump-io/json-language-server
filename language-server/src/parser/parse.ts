@@ -16,6 +16,7 @@ export type SyntaxErrorCode
     | "invalid-escape"
     | "invalid-character"
     | "number-invalid"
+    | "comment-not-allowed"
     | "comment-not-closed"
     | "invalid-literal"
     | "end-of-file-expected";
@@ -32,17 +33,15 @@ export type ParseResult = {
   errors: SyntaxError[];
 };
 
-type MutableNode = {
-  type: NodeType;
-  value?: unknown;
-  offset: number;
-  length: number;
-  colonOffset?: number;
-  parent?: MutableNode;
-  children?: MutableNode[];
+export type ParseOptions = {
+  allowComments?: boolean;
 };
 
-const NUMBER_TERMINATORS = new Set([",", ":", "{", "}", "[", "]", "\""]);
+type MutableNode = {
+  -readonly [K in keyof Node]: Node[K];
+};
+
+const NUMBER_TERMINATORS = new Set([",", ":", "{", "}", "[", "]", "\"", "/"]);
 
 const endsNumber = (character: string) => {
   return NUMBER_TERMINATORS.has(character) || character.trim() === "";
@@ -50,15 +49,17 @@ const endsNumber = (character: string) => {
 
 const VALID_ESCAPES = new Set(["\"", "\\", "/", "b", "f", "n", "r", "t", "u"]);
 
-export const parse = (text: string): ParseResult => {
-  const scanner = jsonc.createScanner(text, true);
+export const parse = (text: string, options: ParseOptions = {}): ParseResult => {
+  const scanner = jsonc.createScanner(text, false);
   const errors: SyntaxError[] = [];
-  let stringRanToEndOfFile = false;
+  let ranToEndOfFile = false;
 
   let kindState: jsonc.SyntaxKind = jsonc.SyntaxKind.Unknown;
   let offset = 0;
   let length = 0;
   let tokenValue = "";
+  let previousOffset = 0;
+  let previousLength = 0;
 
   const kind = () => kindState;
 
@@ -68,6 +69,10 @@ export const parse = (text: string): ParseResult => {
       error.data = data;
     }
     errors.push(error);
+  };
+
+  const reportAtPrevious = (code: SyntaxErrorCode) => {
+    report(code, previousOffset, Math.max(previousLength, 1));
   };
 
   const raw = () => {
@@ -81,7 +86,7 @@ export const parse = (text: string): ParseResult => {
 
       case jsonc.ScanError.UnexpectedEndOfString:
         report("string-not-closed", offset, length);
-        stringRanToEndOfFile = offset + length === text.length;
+        ranToEndOfFile = offset + length === text.length;
         return;
 
       case jsonc.ScanError.InvalidEscapeCharacter:
@@ -99,6 +104,7 @@ export const parse = (text: string): ParseResult => {
 
       case jsonc.ScanError.UnexpectedEndOfComment:
         report("comment-not-closed", offset, length);
+        ranToEndOfFile = true;
         return;
 
       default:
@@ -122,17 +128,47 @@ export const parse = (text: string): ParseResult => {
     scanner.setPosition(end);
   };
 
+  const skipComment = (scanError: jsonc.ScanError) => {
+    if (options.allowComments) {
+      reportScanError(scanError);
+      return;
+    }
+
+    report("comment-not-allowed", offset, length);
+    if (scanError === jsonc.ScanError.UnexpectedEndOfComment) {
+      ranToEndOfFile = true;
+    }
+  };
+
   const next = () => {
-    kindState = scanner.scan();
-    offset = scanner.getTokenOffset();
-    length = scanner.getTokenLength();
-    tokenValue = scanner.getTokenValue();
+    previousOffset = offset;
+    previousLength = length;
 
-    const scanError = scanner.getTokenError();
-    reportScanError(scanError);
+    for (;;) {
+      kindState = scanner.scan();
+      offset = scanner.getTokenOffset();
+      length = scanner.getTokenLength();
+      tokenValue = scanner.getTokenValue();
+      const scanError = scanner.getTokenError();
 
-    if (kind() === jsonc.SyntaxKind.NumericLiteral && scanError === jsonc.ScanError.None) {
-      absorbInvalidNumber();
+      switch (kind()) {
+        case jsonc.SyntaxKind.Trivia:
+        case jsonc.SyntaxKind.LineBreakTrivia:
+          continue;
+
+        case jsonc.SyntaxKind.LineCommentTrivia:
+        case jsonc.SyntaxKind.BlockCommentTrivia:
+          skipComment(scanError);
+          continue;
+      }
+
+      reportScanError(scanError);
+
+      if (kind() === jsonc.SyntaxKind.NumericLiteral && scanError === jsonc.ScanError.None) {
+        absorbInvalidNumber();
+      }
+
+      return;
     }
   };
 
@@ -143,6 +179,27 @@ export const parse = (text: string): ParseResult => {
   const finish = (target: MutableNode, end: number) => {
     target.length = end - target.offset;
     return target;
+  };
+
+  const reportNotClosed = (code: SyntaxErrorCode, container: MutableNode, openOffset: number) => {
+    if (ranToEndOfFile) {
+      return;
+    }
+
+    const lastItem = container.children?.at(-1);
+    if (lastItem) {
+      report(code, lastItem.offset, lastItem.length);
+    } else {
+      report(code, openOffset, 1);
+    }
+  };
+
+  const reportMissing = () => {
+    if (kind() === jsonc.SyntaxKind.CommaToken) {
+      reportAtPrevious("value-expected");
+    } else {
+      report("value-expected", offset, Math.max(length, 1));
+    }
   };
 
   const parseString = (parent?: MutableNode) => {
@@ -197,7 +254,7 @@ export const parse = (text: string): ParseResult => {
       property.colonOffset = offset;
       next();
     } else {
-      report("colon-expected", offset, Math.max(length, 1));
+      reportAtPrevious("colon-expected");
     }
 
     const value = parseValue(property);
@@ -205,7 +262,7 @@ export const parse = (text: string): ParseResult => {
       property.children.push(value);
       finish(property, value.offset + value.length);
     } else {
-      report("value-expected", offset, Math.max(length, 1));
+      reportAtPrevious("value-expected");
       finish(property, scanner.getPosition());
     }
 
@@ -221,7 +278,7 @@ export const parse = (text: string): ParseResult => {
     while (kind() !== jsonc.SyntaxKind.CloseBraceToken && kind() !== jsonc.SyntaxKind.EOF && kind() !== jsonc.SyntaxKind.CloseBracketToken) {
       const property = parseProperty(object);
       if (!property) {
-        report("value-expected", offset, Math.max(length, 1));
+        reportMissing();
         if (kind() !== jsonc.SyntaxKind.CommaToken) {
           break;
         }
@@ -237,14 +294,12 @@ export const parse = (text: string): ParseResult => {
           report("trailing-comma", commaOffset, 1);
         }
       } else if (kind() !== jsonc.SyntaxKind.CloseBraceToken && kind() !== jsonc.SyntaxKind.EOF && kind() !== jsonc.SyntaxKind.CloseBracketToken) {
-        report("comma-expected", offset, Math.max(length, 1));
+        reportAtPrevious("comma-expected");
       }
     }
 
     if (kind() !== jsonc.SyntaxKind.CloseBraceToken) {
-      if (!stringRanToEndOfFile) {
-        report("brace-not-closed", openOffset, 1);
-      }
+      reportNotClosed("brace-not-closed", object, openOffset);
       return finish(object, offset);
     }
 
@@ -262,7 +317,7 @@ export const parse = (text: string): ParseResult => {
     while (kind() !== jsonc.SyntaxKind.CloseBracketToken && kind() !== jsonc.SyntaxKind.EOF && kind() !== jsonc.SyntaxKind.CloseBraceToken) {
       const item = parseValue(array);
       if (!item) {
-        report("value-expected", offset, Math.max(length, 1));
+        reportMissing();
         if (kind() !== jsonc.SyntaxKind.CommaToken) {
           break;
         }
@@ -278,14 +333,12 @@ export const parse = (text: string): ParseResult => {
           report("trailing-comma", commaOffset, 1);
         }
       } else if (kind() !== jsonc.SyntaxKind.CloseBracketToken && kind() !== jsonc.SyntaxKind.EOF && kind() !== jsonc.SyntaxKind.CloseBraceToken) {
-        report("comma-expected", offset, Math.max(length, 1));
+        reportAtPrevious("comma-expected");
       }
     }
 
     if (kind() !== jsonc.SyntaxKind.CloseBracketToken) {
-      if (!stringRanToEndOfFile) {
-        report("bracket-not-closed", openOffset, 1);
-      }
+      reportNotClosed("bracket-not-closed", array, openOffset);
       return finish(array, offset);
     }
 
@@ -339,10 +392,10 @@ export const parse = (text: string): ParseResult => {
   const root = parseValue();
 
   if (kind() !== jsonc.SyntaxKind.EOF) {
-    report("end-of-file-expected", offset, Math.max(length, 1));
+    report("end-of-file-expected", offset, Math.max(text.trimEnd().length - offset, 1));
   }
 
-  return { root: root as Node | undefined, errors };
+  return { root, errors };
 };
 
 const assertHandled = (scanError: never) => {

@@ -304,7 +304,7 @@ export class TestClient {
     await this.client.sendNotification(DidOpenTextDocumentNotification.type, {
       textDocument: {
         uri: fullUri,
-        languageId: "json",
+        languageId: fullPath.endsWith(".jsonc") ? "jsonc" : "json",
         version: 0,
         text: await readFile(fullPath, "utf-8")
       }

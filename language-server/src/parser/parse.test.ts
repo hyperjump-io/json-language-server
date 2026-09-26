@@ -48,40 +48,72 @@ describe("parse", () => {
     ]);
   });
 
-  test("a missing comma points at the member that needed one before it", () => {
-    const { errors } = parse(`{ "a": 1 "b": 2 }`);
+  test("a missing comma points at the value it should follow", () => {
+    const { errors } = parse(`{
+      "a": 1
+      "b": 2
+    }`);
 
     expect(errors).toEqual([
-      { code: "comma-expected", offset: 9, length: 3 }
+      { code: "comma-expected", offset: 13, length: 1 }
     ]);
   });
 
-  test("a missing colon points at the value that needed one before it", () => {
+  test("a missing colon points at the key it should follow", () => {
     const { errors } = parse(`{ "a" 1 }`);
 
     expect(errors).toEqual([
-      { code: "colon-expected", offset: 6, length: 1 }
+      { code: "colon-expected", offset: 2, length: 3 }
     ]);
   });
 
-  test("a property with no value points at the token found instead", () => {
-    const { errors } = parse(`{ "a": }`);
+  test("a property name with nothing after it is missing both a colon and a value", () => {
+    const { errors } = parse(`{"a"}`);
 
     expect(errors).toEqual([
-      { code: "value-expected", offset: 7, length: 1 }
+      { code: "colon-expected", offset: 1, length: 3 },
+      { code: "value-expected", offset: 1, length: 3 }
     ]);
   });
 
-  test("an unclosed object points at the brace that was never closed", () => {
-    const { errors } = parse(`{ "a": 1`);
+  test("a property with no value points at the colon rather than the next line", () => {
+    const { errors } = parse(`{
+      "a":
+    }`);
+
+    expect(errors).toEqual([
+      { code: "value-expected", offset: 11, length: 1 }
+    ]);
+  });
+
+  test("an unclosed object points at its last property", () => {
+    const { errors } = parse(`{
+      "a": 1,
+      "b": 2`);
+
+    expect(errors).toEqual([
+      { code: "brace-not-closed", offset: 22, length: 6 }
+    ]);
+  });
+
+  test("an unclosed empty object points at the opening brace", () => {
+    const { errors } = parse(`{`);
 
     expect(errors).toEqual([
       { code: "brace-not-closed", offset: 0, length: 1 }
     ]);
   });
 
-  test("an unclosed array points at the bracket that was never closed", () => {
+  test("an unclosed array points at its last item", () => {
     const { errors } = parse(`{ "a": [1, 2 }`);
+
+    expect(errors).toEqual([
+      { code: "bracket-not-closed", offset: 11, length: 1 }
+    ]);
+  });
+
+  test("an unclosed empty array points at the opening bracket", () => {
+    const { errors } = parse(`{ "a": [ }`);
 
     expect(errors).toEqual([
       { code: "bracket-not-closed", offset: 7, length: 1 }
@@ -184,21 +216,44 @@ describe("parse", () => {
     ]);
   });
 
-  test("a second top level value points at where the document should have ended", () => {
-    const { errors } = parse(`{"a":1} {"b":2}`);
+  test("everything after the end of the document is reported", () => {
+    const { errors } = parse(`{
+      "a": 1
+    }
+    {
+      "b": 2
+    }`);
 
     expect(errors).toEqual([
-      { code: "end-of-file-expected", offset: 8, length: 1 }
+      { code: "end-of-file-expected", offset: 25, length: 20 }
+    ]);
+  });
+
+  test("trailing whitespace is not part of the content after the document", () => {
+    const { errors } = parse(`{
+      "a": 1
+    }
+    {
+      "b": 2
+    }
+    `);
+
+    expect(errors).toEqual([
+      { code: "end-of-file-expected", offset: 25, length: 20 }
     ]);
   });
 });
 
 describe("recovery", () => {
   test("a trailing comma inside a nested object is reported once", () => {
-    const { errors } = parse(`{ "a": { "b": 1, } }`);
+    const { errors } = parse(`{
+      "a": {
+        "b": 1,
+      }
+    }`);
 
     expect(errors).toEqual([
-      { code: "trailing-comma", offset: 15, length: 1 }
+      { code: "trailing-comma", offset: 29, length: 1 }
     ]);
   });
 
@@ -211,12 +266,16 @@ describe("recovery", () => {
   });
 
   test("three mistakes in one object give three errors", () => {
-    const { errors } = parse(`{ a: 1, "b" 2, 'c': 3 }`);
+    const { errors } = parse(`{
+      a: 1,
+      "b" 2,
+      'c': 3
+    }`);
 
     expect(errors).toEqual([
-      { code: "property-key-not-quoted", offset: 2, length: 1 },
-      { code: "colon-expected", offset: 12, length: 1 },
-      { code: "property-key-single-quoted", offset: 15, length: 3 }
+      { code: "property-key-not-quoted", offset: 8, length: 1 },
+      { code: "colon-expected", offset: 20, length: 3 },
+      { code: "property-key-single-quoted", offset: 33, length: 3 }
     ]);
   });
 
@@ -224,7 +283,7 @@ describe("recovery", () => {
     const { errors } = parse(`{ "a": 1,, "b": 2 }`);
 
     expect(errors).toEqual([
-      { code: "value-expected", offset: 9, length: 1 }
+      { code: "value-expected", offset: 8, length: 1 }
     ]);
   });
 
@@ -232,7 +291,7 @@ describe("recovery", () => {
     const { errors } = parse(`[1, , 2]`);
 
     expect(errors).toEqual([
-      { code: "value-expected", offset: 4, length: 1 }
+      { code: "value-expected", offset: 2, length: 1 }
     ]);
   });
 
@@ -261,23 +320,42 @@ describe("recovery", () => {
     ]);
   });
 
-  test("a missing value deep inside nested containers is reported once", () => {
-    const { errors } = parse(`{ "a": [ { "b": } ] }`);
+  test("a number directly against a string is three separate mistakes", () => {
+    const { errors } = parse(`{ "a": 1"b" }`);
 
     expect(errors).toEqual([
-      { code: "value-expected", offset: 16, length: 1 }
+      { code: "comma-expected", offset: 7, length: 1 },
+      { code: "colon-expected", offset: 8, length: 3 },
+      { code: "value-expected", offset: 8, length: 3 }
+    ]);
+  });
+
+  test("a missing value deep inside nested containers is reported once", () => {
+    const { errors } = parse(`{
+      "a": [
+        {
+          "b":
+        }
+      ]
+    }`);
+
+    expect(errors).toEqual([
+      { code: "value-expected", offset: 38, length: 1 }
     ]);
   });
 
   test("an unclosed outer object is reported once when the inner one closes", () => {
-    const { errors } = parse(`{ "a": { "b": 1 }`);
+    const { errors } = parse(`{
+      "a": {
+        "b": 1
+      }`);
 
     expect(errors).toEqual([
-      { code: "brace-not-closed", offset: 0, length: 1 }
+      { code: "brace-not-closed", offset: 8, length: 29 }
     ]);
   });
 
-  test("an unterminated string deep in the document does not also report the containers", () => {
+  test("an unterminated string that runs to the end of the document does not also report the containers", () => {
     const { errors } = parse(`{ "a": { "b": "x } }`);
 
     expect(errors).toEqual([
@@ -286,47 +364,119 @@ describe("recovery", () => {
   });
 
   test("a mistake after a well formed nested object is still found", () => {
-    const { errors } = parse(`{ "a": { "b": 1 }, c: 2 }`);
+    const { errors } = parse(`{
+      "a": {
+        "b": 1
+      },
+      c: 2
+    }`);
 
     expect(errors).toEqual([
-      { code: "property-key-not-quoted", offset: 19, length: 1 }
+      { code: "property-key-not-quoted", offset: 45, length: 1 }
     ]);
   });
 
   test("two trailing commas in different containers are both reported", () => {
-    const { errors } = parse(`{ "a": [1,], "b": {"c":1,} }`);
+    const { errors } = parse(`{
+      "a": [1,],
+      "b": {
+        "c": 1,
+      }
+    }`);
 
     expect(errors).toEqual([
-      { code: "trailing-comma", offset: 9, length: 1 },
-      { code: "trailing-comma", offset: 24, length: 1 }
+      { code: "trailing-comma", offset: 15, length: 1 },
+      { code: "trailing-comma", offset: 46, length: 1 }
     ]);
   });
 
   test("a truncated document reports every container left open", () => {
-    const { errors } = parse(`{"a":{"b":{"c":[1,2`);
+    const { errors } = parse(`{
+      "a": {
+        "b": {
+          "c": [1, 2`);
 
     expect(errors).toEqual([
-      { code: "bracket-not-closed", offset: 15, length: 1 },
-      { code: "brace-not-closed", offset: 10, length: 1 },
-      { code: "brace-not-closed", offset: 5, length: 1 },
-      { code: "brace-not-closed", offset: 0, length: 1 }
+      { code: "bracket-not-closed", offset: 49, length: 1 },
+      { code: "brace-not-closed", offset: 40, length: 10 },
+      { code: "brace-not-closed", offset: 23, length: 27 },
+      { code: "brace-not-closed", offset: 8, length: 42 }
     ]);
   });
 
   test("an unterminated string that ends at a newline does not hide a later unclosed array", () => {
-    const { errors } = parse(`{\n  "a": "x\n  "b": [1, 2\n}`);
+    const { errors } = parse(`{
+      "a": "x
+      "b": [1, 2
+    }`);
 
     expect(errors).toEqual([
-      { code: "string-not-closed", offset: 9, length: 2 },
-      { code: "comma-expected", offset: 14, length: 3 },
-      { code: "bracket-not-closed", offset: 19, length: 1 }
+      { code: "string-not-closed", offset: 13, length: 2 },
+      { code: "comma-expected", offset: 13, length: 2 },
+      { code: "bracket-not-closed", offset: 31, length: 1 }
     ]);
   });
 
   test("recovery keeps the rest of the tree usable", () => {
-    const { root } = parse(`{ a: 1, "b" 2, 'c': 3 }`);
+    const { root } = parse(`{
+      a: 1,
+      "b" 2,
+      'c': 3
+    }`);
 
     expect(root?.children?.length).toBe(3);
     expect(root?.children?.map((property) => property.children?.[0].value)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("comments", () => {
+  test("a line comment is not allowed in JSON", () => {
+    const { errors } = parse(`{
+      // hi
+      "a": 1
+    }`);
+
+    expect(errors).toEqual([
+      { code: "comment-not-allowed", offset: 8, length: 5 }
+    ]);
+  });
+
+  test("a block comment is not allowed in JSON", () => {
+    const { errors } = parse(`{ /* hi */ "a": 1 }`);
+
+    expect(errors).toEqual([
+      { code: "comment-not-allowed", offset: 2, length: 8 }
+    ]);
+  });
+
+  test("comments are allowed in JSONC", () => {
+    const { errors } = parse(`{
+      // hi
+      "a": /* one */ 1
+    }`, { allowComments: true });
+
+    expect(errors).toEqual([]);
+  });
+
+  test("an unclosed block comment in JSONC is reported once", () => {
+    const { errors } = parse(`{ "a": 1 /* hi }`, { allowComments: true });
+
+    expect(errors).toEqual([
+      { code: "comment-not-closed", offset: 9, length: 7 }
+    ]);
+  });
+
+  test("an unclosed block comment in JSON is only reported as not allowed", () => {
+    const { errors } = parse(`{ "a": 1 /* hi }`);
+
+    expect(errors).toEqual([
+      { code: "comment-not-allowed", offset: 9, length: 7 }
+    ]);
+  });
+
+  test("a comment directly after a number does not make the number invalid", () => {
+    const { errors } = parse(`{ "a": 1/* one */ }`, { allowComments: true });
+
+    expect(errors).toEqual([]);
   });
 });
