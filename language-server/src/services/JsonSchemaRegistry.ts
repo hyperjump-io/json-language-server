@@ -3,6 +3,7 @@ import { resolveIri, toAbsoluteIri, toRelativeIri } from "@hyperjump/uri";
 import ignore from "ignore";
 import * as jsonc from "jsonc-parser";
 
+import type { JsonDocuments } from "./JsonDocuments.ts";
 import type { Server } from "./Server.ts";
 import type { Workspace } from "./Workspace.ts";
 import type { SchemaObject } from "@hyperjump/json-schema";
@@ -26,6 +27,8 @@ type DidChangeSchemaHandler = (params: DidChangeSchemaParams) => Promise<void> |
 type DidChangeSchemaParams = {
   schemaUri: string;
   fileUri: string;
+  // The open document whose edit caused this change. It's already re-diagnosed for the edit.
+  editedDocumentUri?: string;
 };
 
 const readChunkSize = 100;
@@ -33,6 +36,7 @@ const readChunkSize = 100;
 export class JsonSchemaRegistry {
   private server: Server;
   private workspace: Workspace;
+  private jsonDocuments: JsonDocuments;
   private catalogMatchers: Promise<CatalogMatcher[]>;
   private schemas: Promise<Set<string>>;
   private workspaceSchemas: Map<string, string> = new Map();
@@ -40,9 +44,10 @@ export class JsonSchemaRegistry {
   private didChangeSchemaHandlers: Set<DidChangeSchemaHandler> = new Set();
   private pending: Promise<void>;
 
-  constructor(server: Server, workspace: Workspace) {
+  constructor(server: Server, workspace: Workspace, jsonDocuments: JsonDocuments) {
     this.server = server;
     this.workspace = workspace;
+    this.jsonDocuments = jsonDocuments;
 
     const catalog: Promise<SchemaStoreEntry[]> = new Promise((resolve) => {
       // Not awaited so the workspace scan doesn't wait for the download
@@ -67,19 +72,21 @@ export class JsonSchemaRegistry {
     });
 
     workspace.onDidChangeWatchedFiles(async (params) => {
-      // Changes are applied in the order they're received. Otherwise, which of two schemas with the
-      // same id gets registered would depend on which file read finishes first.
-      const applied = this.pending.then(() => this.applyChanges(params.changes.map((change) => change.uri)));
-      this.pending = applied.then(() => undefined, () => undefined);
+      // The open document is the source of truth until it's closed
+      const fileUris = params.changes
+        .map((change) => change.uri)
+        .filter((fileUri) => !jsonDocuments.get(fileUri));
+      await this.enqueue(fileUris);
+    });
 
-      // Handlers aren't part of the queue because they can wait on `ready`
-      for (const [fileUri, schemaUris] of await applied) {
-        for (const schemaUri of schemaUris) {
-          for (const handler of this.didChangeSchemaHandlers) {
-            await handler({ schemaUri, fileUri });
-          }
-        }
-      }
+    // Fires on open as well as on change
+    jsonDocuments.onDidChangeContent(async ({ document }) => {
+      await this.enqueue([document.uri], document.uri);
+    });
+
+    // The document is no longer tracked when this fires, so this falls back to the file system
+    jsonDocuments.onDidClose(async ({ document }) => {
+      await this.enqueue([document.uri]);
     });
 
     server.onShutdown(() => {
@@ -190,6 +197,22 @@ export class JsonSchemaRegistry {
     }
   }
 
+  private async enqueue(fileUris: string[], editedDocumentUri?: string) {
+    // Changes are applied in the order they're received. Otherwise, which of two schemas with the
+    // same id gets registered would depend on which file read finishes first.
+    const applied = this.pending.then(() => this.applyChanges(fileUris));
+    this.pending = applied.then(() => undefined, () => undefined);
+
+    // Handlers aren't part of the queue because they can wait on `ready`
+    for (const [fileUri, schemaUris] of await applied) {
+      for (const schemaUri of schemaUris) {
+        for (const handler of this.didChangeSchemaHandlers) {
+          await handler({ schemaUri, fileUri, editedDocumentUri });
+        }
+      }
+    }
+  }
+
   private async applyChanges(fileUris: string[]) {
     const refreshed: [string, Set<string>][] = [];
 
@@ -254,6 +277,13 @@ export class JsonSchemaRegistry {
   }
 
   private async readJson(fileUri: string): Promise<unknown> {
+    // An open document is already parsed
+    const jsonDocument = this.jsonDocuments.get(fileUri);
+    if (jsonDocument) {
+      const root = jsonDocument.findNodeAtPointer("");
+      return root && jsonDocument.getNodeValue(root) as unknown;
+    }
+
     try {
       return jsonc.parse(await this.workspace.readFile(fileUri)) as unknown;
     } catch {

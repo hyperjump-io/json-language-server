@@ -77,7 +77,7 @@ export class JsonSchema {
         let responseUri = toAbsoluteIri(uri);
 
         const contentType = await getFileMediaType(responseUri);
-        const file = await workspace.readFile(uri);
+        const file = jsonDocuments.get(responseUri)?.getText() ?? await workspace.readFile(uri);
         const stream = new Blob([file]).stream();
         const response = new Response(stream, {
           headers: { "Content-Type": contentType }
@@ -97,7 +97,7 @@ export class JsonSchema {
       this.fileSchemaUris.delete(params.document.uri);
     });
 
-    registry.onDidChangeSchema(async ({ schemaUri, fileUri }) => {
+    registry.onDidChangeSchema(async ({ schemaUri, fileUri, editedDocumentUri }) => {
       const changedSchemaUris = new Set<string>();
       for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
         if (cachedSchemaUri === schemaUri || await this.dependsOn(compiledSchema, schemaUri)) {
@@ -108,6 +108,10 @@ export class JsonSchema {
       }
 
       for (const jsonDocument of jsonDocuments.all()) {
+        if (jsonDocument.uri === editedDocumentUri) {
+          continue;
+        }
+
         const documentSchemaUri = await this.getSchemaUri(jsonDocument);
         if (jsonDocument.uri !== fileUri
           && await this.registry.getSchemaUri(jsonDocument.uri) !== schemaUri

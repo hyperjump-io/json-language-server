@@ -726,6 +726,7 @@ describe("Schema Validation", () => {
     const schemaValidation = client.getDiagnostics("my-schema.json");
     await client.openDocument("my-schema.json");
     await schemaValidation;
+    await client.closeDocument("my-schema.json");
 
     await client.writeDocument("my-schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -755,6 +756,7 @@ describe("Schema Validation", () => {
     const schemaValidation = client.getDiagnostics("delete-schema.json");
     await client.openDocument("delete-schema.json");
     await schemaValidation;
+    await client.closeDocument("delete-schema.json");
 
     await client.deleteDocument("delete-schema.json");
 
@@ -832,6 +834,7 @@ describe("Schema Validation", () => {
     await client.openDocument("b-schema.json");
     await bValidation;
 
+    await client.closeDocument("b-schema.json");
     await client.deleteDocument("b-schema.json");
 
     await client.writeDocument("instance.json", `{
@@ -880,6 +883,196 @@ describe("Schema Validation", () => {
     }`);
 
     await expect(updatedDiagnostics).resolves.toEqual([]);
+  });
+
+  test("should validate against the unsaved content of an open schema", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "string" }
+      }
+    }`);
+    await client.openDocument("schema.json");
+    await client.changeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "number" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo": 42
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toHaveLength(0);
+  });
+
+  test("editing an open schema revalidates dependents", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "string" }
+      }
+    }`);
+    await client.openDocument("schema.json");
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo": 42
+    }`);
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(initialValidation).resolves.toHaveLength(1);
+
+    const secondValidation = client.getDiagnostics("instance.json");
+    await client.changeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "number" }
+      }
+    }`);
+
+    await expect(secondValidation).resolves.toHaveLength(0);
+  });
+
+  test("editing an open referenced schema revalidates dependents", async () => {
+    const referencedSchema = await client.writeDocument("B.schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "number"
+    }`);
+    await client.openDocument("B.schema.json");
+
+    fixtureSchemaUri = await client.writeDocument("A.schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "age": { "$ref": "${referencedSchema}" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "age": "not a number"
+    }`);
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(initialValidation).resolves.toHaveLength(1);
+
+    const secondValidation = client.getDiagnostics("instance.json");
+    await client.changeDocument("B.schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "string"
+    }`);
+
+    await expect(secondValidation).resolves.toHaveLength(0);
+  });
+
+  test("editing an open self-identifying schema revalidates dependents", async () => {
+    const schemaId = "https://example.com/my-workspace-schema";
+
+    await client.writeDocument("my-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "string" }
+      }
+    }`);
+    await client.openDocument("my-schema.json");
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${schemaId}",
+      "foo": 42
+    }`);
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(initialValidation).resolves.toHaveLength(1);
+
+    const secondValidation = client.getDiagnostics("instance.json");
+    await client.changeDocument("my-schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${schemaId}",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "number" }
+      }
+    }`);
+
+    await expect(secondValidation).resolves.toHaveLength(0);
+  });
+
+  test("closing an open schema with unsaved changes reverts to the file system version", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "string" }
+      }
+    }`);
+    await client.openDocument("schema.json");
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo": 42
+    }`);
+    const initialValidation = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(initialValidation).resolves.toHaveLength(1);
+
+    const secondValidation = client.getDiagnostics("instance.json");
+    await client.changeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "number" }
+      }
+    }`);
+
+    await expect(secondValidation).resolves.toHaveLength(0);
+
+    const thirdValidation = client.getDiagnostics("instance.json");
+    await client.closeDocument("schema.json");
+
+    await expect(thirdValidation).resolves.toHaveLength(1);
+  });
+
+  test("file system changes to an open schema are ignored", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "string" }
+      }
+    }`);
+    await client.openDocument("schema.json");
+
+    await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "number" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo": 42
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toHaveLength(1);
   });
 });
 

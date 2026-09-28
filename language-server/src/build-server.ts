@@ -32,7 +32,7 @@ export const buildServer = (connection: Connection): Server => {
   const jsonDocuments = new JsonDocuments(server);
   jsonDocuments.listen(server);
 
-  const registry = new JsonSchemaRegistry(server, workspace);
+  const registry = new JsonSchemaRegistry(server, workspace, jsonDocuments);
   const jsonSchema = new JsonSchema(server, workspace, jsonDocuments, registry);
   jsonSchema.registerPlugin(LspEvaluationPlugin.id, (jsonDocument) => {
     return new LspEvaluationPlugin(jsonDocument.collectIncompleteLocations());
