@@ -96,7 +96,7 @@ export class JsonSchema {
       this.fileSchemaUris.delete(params.document.uri);
     });
 
-    registry.onDidChangeSchema(async ({ schemaUri }) => {
+    registry.onDidChangeSchema(async ({ schemaUri, fileUri }) => {
       const changedSchemaUris = new Set<string>();
       for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
         if (cachedSchemaUri === schemaUri || await this.dependsOn(compiledSchema, schemaUri)) {
@@ -108,7 +108,10 @@ export class JsonSchema {
 
       for (const jsonDocument of jsonDocuments.all()) {
         const documentSchemaUri = await this.getSchemaUri(jsonDocument);
-        if (!documentSchemaUri || !changedSchemaUris.has(documentSchemaUri)) {
+        if (jsonDocument.uri !== fileUri
+          && await this.registry.getSchemaUri(jsonDocument.uri) !== schemaUri
+          && (!documentSchemaUri || !changedSchemaUris.has(documentSchemaUri))
+        ) {
           continue;
         }
 

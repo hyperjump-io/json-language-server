@@ -7,7 +7,7 @@ import type { Server } from "./Server.ts";
 import type { Workspace } from "./Workspace.ts";
 import type { SchemaObject } from "@hyperjump/json-schema";
 import { getKeywordName, hasDialect } from "@hyperjump/json-schema/experimental";
-import { registerSchema, unregisterSchema } from "@hyperjump/json-schema";
+import { hasSchema, registerSchema, unregisterSchema } from "@hyperjump/json-schema";
 
 type SchemaStoreEntry = {
   name: string;
@@ -25,6 +25,7 @@ type CatalogMatcher = {
 type DidChangeSchemaHandler = (params: DidChangeSchemaParams) => Promise<void> | void;
 type DidChangeSchemaParams = {
   schemaUri: string;
+  fileUri: string;
 };
 
 const readChunkSize = 100;
@@ -35,6 +36,7 @@ export class JsonSchemaRegistry {
   private catalogMatchers: Promise<CatalogMatcher[]>;
   private schemas: Promise<Set<string>>;
   private workspaceSchemas: Map<string, string> = new Map();
+  private failedSchemas: Map<string, { id: string; message: string }> = new Map();
   private didChangeSchemaHandlers: Set<DidChangeSchemaHandler> = new Set();
   private pending: Promise<void>;
 
@@ -71,10 +73,10 @@ export class JsonSchemaRegistry {
       this.pending = applied.then(() => undefined, () => undefined);
 
       // Handlers aren't part of the queue because they can wait on `ready`
-      for (const schemaUris of await applied) {
+      for (const [fileUri, schemaUris] of await applied) {
         for (const schemaUri of schemaUris) {
           for (const handler of this.didChangeSchemaHandlers) {
-            await handler({ schemaUri });
+            await handler({ schemaUri, fileUri });
           }
         }
       }
@@ -138,6 +140,28 @@ export class JsonSchemaRegistry {
     return this.workspaceSchemas.get(fileUri);
   }
 
+  getRegistrationError(fileUri: string) {
+    return this.failedSchemas.get(fileUri)?.message;
+  }
+
+  // Files with schemas that failed to register because another schema already uses the id
+  getDuplicates(schemaUri: string) {
+    // Registered ids never have a fragment, but $schema can, e.g. "https://example.com/schema#"
+    schemaUri = toAbsoluteIri(schemaUri);
+    return Pact.pipe(
+      this.failedSchemas,
+      Pact.filter(([, { id }]) => id === schemaUri && this.isWorkspaceSchema(id)),
+      Pact.map(([fileUri]) => fileUri),
+      Pact.collectArray
+    );
+  }
+
+  private isWorkspaceSchema(schemaUri: string) {
+    return Pact.some((workspaceSchemaUri) => {
+      return workspaceSchemaUri === schemaUri && hasSchema(schemaUri);
+    }, this.workspaceSchemas.values());
+  }
+
   async has(schemaUri: string) {
     return (await this.schemas).has(schemaUri);
   }
@@ -156,7 +180,7 @@ export class JsonSchemaRegistry {
   }
 
   private async applyChanges(fileUris: string[]) {
-    const refreshed: Set<string>[] = [];
+    const refreshed: [string, Set<string>][] = [];
 
     // Reading is the slow part, so files are read in parallel and then applied in order. Chunked so
     // a large workspace scan doesn't hold every file in memory at once.
@@ -164,8 +188,17 @@ export class JsonSchemaRegistry {
       const chunk = fileUris.slice(start, start + readChunkSize);
       const contents = await Promise.all(chunk.map((fileUri) => this.readJson(fileUri)));
 
-      for (const [index, fileUri] of chunk.entries()) {
-        refreshed.push(this.refresh(fileUri, contents[index]));
+      for (const [index, changedFileUri] of chunk.entries()) {
+        const schemaUris = this.refresh(changedFileUri, contents[index]);
+        refreshed.push([changedFileUri, schemaUris]);
+
+        // A schema that failed to register because of a duplicate id might succeed now.
+        // Iterate a copy because a retry that fails again is re-added to the map.
+        for (const [fileUri, { id }] of [...this.failedSchemas]) {
+          if (schemaUris.has(id) && !hasSchema(id)) {
+            refreshed.push([fileUri, this.refresh(fileUri, await this.readJson(fileUri))]);
+          }
+        }
       }
     }
 
@@ -179,6 +212,8 @@ export class JsonSchemaRegistry {
     const workspaceSchema = this.toWorkspaceSchema(fileUri, json);
 
     const oldSchemaUri = this.workspaceSchemas.get(fileUri);
+    const oldFailedSchemaUri = this.failedSchemas.get(fileUri)?.id;
+    this.failedSchemas.delete(fileUri);
     if (oldSchemaUri) {
       unregisterSchema(oldSchemaUri);
       this.workspaceSchemas.delete(fileUri);
@@ -190,7 +225,10 @@ export class JsonSchemaRegistry {
         this.workspaceSchemas.set(fileUri, workspaceSchema.id);
         this.server.console.log(`Registered local schema: ${workspaceSchema.id} (from ${fileUri})`);
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = hasSchema(workspaceSchema.id) && !this.isWorkspaceSchema(workspaceSchema.id)
+          ? `'${workspaceSchema.id}' is a built-in schema and can't be redefined`
+          : error instanceof Error ? error.message : String(error);
+        this.failedSchemas.set(fileUri, { id: workspaceSchema.id, message });
         this.server.console.error(`Failed to process local schema at ${fileUri}: ${message}`);
       }
     } else if (workspaceSchema) {
@@ -198,9 +236,10 @@ export class JsonSchemaRegistry {
     }
 
     const newSchemaUri = this.workspaceSchemas.get(fileUri);
+    const newFailedSchemaUri = this.failedSchemas.get(fileUri)?.id;
 
     // Not a schema before or after this change
-    return new Set([oldSchemaUri, newSchemaUri].filter((uri) => uri !== undefined));
+    return new Set([oldSchemaUri, oldFailedSchemaUri, newSchemaUri, newFailedSchemaUri].filter((uri) => uri !== undefined));
   }
 
   private async readJson(fileUri: string): Promise<unknown> {
