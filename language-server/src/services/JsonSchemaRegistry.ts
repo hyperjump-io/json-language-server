@@ -27,16 +27,16 @@ type DidChangeSchemaParams = {
   schemaUri: string;
 };
 
+const readChunkSize = 100;
+
 export class JsonSchemaRegistry {
   private server: Server;
   private workspace: Workspace;
   private catalogMatchers: Promise<CatalogMatcher[]>;
   private schemas: Promise<Set<string>>;
   private workspaceSchemas: Map<string, string> = new Map();
-  private pendingRefreshes: Map<string, symbol> = new Map();
   private didChangeSchemaHandlers: Set<DidChangeSchemaHandler> = new Set();
-
-  readonly ready: Promise<void>;
+  private pending: Promise<void>;
 
   constructor(server: Server, workspace: Workspace) {
     this.server = server;
@@ -49,13 +49,11 @@ export class JsonSchemaRegistry {
       });
     });
 
-    this.ready = new Promise((resolve) => {
+    this.pending = new Promise((resolve) => {
       server.onInitialized(async () => {
         server.console.log("Scanning workspace for self-identifying schemas...");
         try {
-          for (const fileUri of await this.workspace.findFiles("**/*.{json,jsonc}")) {
-            await this.refresh(fileUri);
-          }
+          await this.applyChanges(await this.workspace.findFiles("**/*.{json,jsonc}"));
           server.console.log("Scanning completed");
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
@@ -67,13 +65,19 @@ export class JsonSchemaRegistry {
     });
 
     workspace.onDidChangeWatchedFiles(async (params) => {
-      await Promise.all(params.changes.map(async (change) => {
-        for (const schemaUri of await this.refresh(change.uri)) {
+      // Changes are applied in the order they're received. Otherwise, which of two schemas with the
+      // same id gets registered would depend on which file read finishes first.
+      const applied = this.pending.then(() => this.applyChanges(params.changes.map((change) => change.uri)));
+      this.pending = applied.then(() => undefined, () => undefined);
+
+      // Handlers aren't part of the queue because they can wait on `ready`
+      for (const schemaUris of await applied) {
+        for (const schemaUri of schemaUris) {
           for (const handler of this.didChangeSchemaHandlers) {
             await handler({ schemaUri });
           }
         }
-      }));
+      }
     });
 
     server.onShutdown(() => {
@@ -104,6 +108,11 @@ export class JsonSchemaRegistry {
         Pact.collectSet
       );
     });
+  }
+
+  // Resolves when the workspace scan and all file changes received so far have been applied
+  get ready() {
+    return this.pending;
   }
 
   onDidChangeSchema(handler: DidChangeSchemaHandler) {
@@ -146,19 +155,29 @@ export class JsonSchemaRegistry {
     }
   }
 
-  private async refresh(fileUri: string): Promise<Set<string>> {
-    const token = Symbol();
-    this.pendingRefreshes.set(fileUri, token);
+  private async applyChanges(fileUris: string[]) {
+    const refreshed: Set<string>[] = [];
 
-    const workspaceSchema = await this.readWorkspaceSchema(fileUri);
+    // Reading is the slow part, so files are read in parallel and then applied in order. Chunked so
+    // a large workspace scan doesn't hold every file in memory at once.
+    for (let start = 0; start < fileUris.length; start += readChunkSize) {
+      const chunk = fileUris.slice(start, start + readChunkSize);
+      const contents = await Promise.all(chunk.map((fileUri) => this.readJson(fileUri)));
 
-    // A newer refresh of this file started while this one was reading it
-    if (this.pendingRefreshes.get(fileUri) !== token) {
-      return new Set();
+      for (const [index, fileUri] of chunk.entries()) {
+        refreshed.push(this.refresh(fileUri, contents[index]));
+      }
     }
-    this.pendingRefreshes.delete(fileUri);
 
-    // No awaits from here on so no other refresh can interleave
+    return refreshed;
+  }
+
+  // Only call from the queue in `pending` so changes are applied in order
+  private refresh(fileUri: string, json: unknown): Set<string> {
+    // Interpreted here rather than when read because a dialect can come from a schema registered
+    // by an earlier change
+    const workspaceSchema = this.toWorkspaceSchema(fileUri, json);
+
     const oldSchemaUri = this.workspaceSchemas.get(fileUri);
     if (oldSchemaUri) {
       unregisterSchema(oldSchemaUri);
@@ -184,10 +203,17 @@ export class JsonSchemaRegistry {
     return new Set([oldSchemaUri, newSchemaUri].filter((uri) => uri !== undefined));
   }
 
-  private async readWorkspaceSchema(fileUri: string): Promise<{ id: string; schema?: SchemaObject } | undefined> {
+  private async readJson(fileUri: string): Promise<unknown> {
     try {
-      const text = await this.workspace.readFile(fileUri);
-      const schema = jsonc.parse(text);
+      return jsonc.parse(await this.workspace.readFile(fileUri)) as unknown;
+    } catch {
+      // Deleted or unreadable
+    }
+  }
+
+  private toWorkspaceSchema(fileUri: string, json: unknown): { id: string; schema?: SchemaObject } | undefined {
+    try {
+      const schema = json as SchemaObject | undefined;
 
       if (typeof schema?.["$schema"] === "string") {
         const dialectId = toAbsoluteIri(resolveIri(schema.$schema, fileUri));
