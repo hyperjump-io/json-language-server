@@ -1,6 +1,6 @@
 import { getKeyword } from "@hyperjump/json-schema/experimental";
-import * as Instance from "@hyperjump/json-schema/instance/experimental";
 import * as JsonPointer from "@hyperjump/json-pointer";
+import { SubschemaTracker } from "./SubschemaTracker.ts";
 
 import type { EvaluationPlugin, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
@@ -12,9 +12,6 @@ type Annotations = Record<string, Annotation[]>;
 type MatchingSchemaContext = ValidationContext & {
   pendingAnnotations?: Annotation;
   schemaAnnotations?: Annotations;
-  annotationsSubschemaResults?: SubschemaResult[];
-  annotationsFailedLocations?: Set<string>;
-  annotationsSchemaFailedLocations?: Set<string>;
   dynamicAnchors?: Record<string, string>;
   evaluatedProperties?: Set<string>;
   schemaEvaluatedProperties?: Set<string>;
@@ -24,16 +21,12 @@ type MatchingSchemaContext = ValidationContext & {
   annotationsUnevaluatedItems?: number[];
 };
 
-type SubschemaResult = {
-  annotations: Annotations;
-  failedLocations: Set<string>;
-};
-
 export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
   static readonly id = "annotations";
 
   private annotations: Annotations = Object.create(null);
   private incompleteLocations: Set<string>;
+  private subschemaTracker = new SubschemaTracker<Annotations>();
 
   constructor(incompleteLocations: Set<string> = new Set()) {
     this.incompleteLocations = incompleteLocations;
@@ -42,14 +35,13 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
   beforeSchema(_url: string, _instance: JsonNode, context: MatchingSchemaContext): void {
     context.pendingAnnotations = {};
     context.schemaAnnotations = Object.create(null);
-    context.annotationsFailedLocations ??= new Set();
-    context.annotationsSchemaFailedLocations = new Set();
+    this.subschemaTracker.beforeSchema(context);
   }
 
   beforeKeyword(keywordNode: Node<unknown>, instance: JsonNode, context: MatchingSchemaContext, schemaContext: MatchingSchemaContext): void {
     const [keywordId, , keywordValue] = keywordNode;
 
-    context.annotationsSubschemaResults = [];
+    this.subschemaTracker.beforeKeyword(context);
 
     switch (keywordId) {
       case "https://json-schema.org/keyword/properties": {
@@ -184,12 +176,7 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
       context.evaluatedItems?.add(itemIndex);
     }
 
-    if (!valid) {
-      schemaContext.annotationsSchemaFailedLocations!.add(instance.pointer);
-      for (const location of context.annotationsFailedLocations ?? []) {
-        schemaContext.annotationsSchemaFailedLocations!.add(location);
-      }
-    }
+    this.subschemaTracker.afterKeyword(instance, context, valid, schemaContext);
 
     if (keyword.annotation) {
       schemaContext.pendingAnnotations ??= {};
@@ -199,15 +186,16 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
     // Annotations are retained for failing subschemas because the instance is
     // usually invalid while it's being edited. Only anyOf/oneOf alternatives
     // that are ruled out by a discriminating location are dropped.
+    const subschemaResults = this.subschemaTracker.getSubschemaResults(context);
     let subschemaAnnotations: Annotations[];
     switch (keywordId) {
       case "https://json-schema.org/keyword/anyOf":
       case "https://json-schema.org/keyword/oneOf":
-        subschemaAnnotations = this.discriminate(context.annotationsSubschemaResults!, instance);
+        subschemaAnnotations = this.subschemaTracker.discriminate(subschemaResults, instance);
         break;
 
       default:
-        subschemaAnnotations = context.annotationsSubschemaResults!.map((result) => result.annotations);
+        subschemaAnnotations = subschemaResults.map((result) => result.value);
     }
 
     for (const annotations of subschemaAnnotations) {
@@ -216,68 +204,17 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
   }
 
   afterSchema(_schemaUri: string, instance: JsonNode, context: MatchingSchemaContext, valid: boolean): void {
-    if (!valid) {
-      context.annotationsSchemaFailedLocations!.add(instance.pointer);
-    }
-
-    for (const location of context.annotationsSchemaFailedLocations!) {
-      context.annotationsFailedLocations!.add(location);
-    }
-
     if (valid && context.pendingAnnotations) {
       appendAnnotations(context.schemaAnnotations!, { [instance.pointer]: [context.pendingAnnotations] });
     }
 
-    context.annotationsSubschemaResults?.push({
-      annotations: context.schemaAnnotations!,
-      failedLocations: context.annotationsSchemaFailedLocations!
-    });
+    this.subschemaTracker.afterSchema(instance, context, valid, context.schemaAnnotations!);
 
     this.annotations = context.schemaAnnotations!;
   }
 
   getAnnotations(instanceLocation: string): Annotation[] {
     return this.annotations[instanceLocation] ?? [];
-  }
-
-  private discriminate(alternatives: SubschemaResult[], instance: JsonNode) {
-    const locations: string[] = [];
-    switch (Instance.typeOf(instance)) {
-      case "object":
-        for (const propertyValueNode of Instance.values(instance)) {
-          locations.push(propertyValueNode.pointer);
-        }
-        break;
-
-      case "array":
-        for (const itemNode of Instance.iter(instance)) {
-          locations.push(itemNode.pointer);
-        }
-        break;
-
-      default:
-        locations.push(instance.pointer);
-    }
-
-    const passingLocations: Set<string> = new Set();
-    for (const alternative of alternatives) {
-      for (const pointer of locations) {
-        if (!alternative.failedLocations.has(pointer)) {
-          passingLocations.add(pointer);
-        }
-      }
-    }
-
-    const passingAlternatives: Annotations[] = [];
-    for (const alternative of alternatives) {
-      if (locations.some((pointer) => alternative.failedLocations.has(pointer) && passingLocations.has(pointer))) {
-        continue;
-      }
-
-      passingAlternatives.push(alternative.annotations);
-    }
-
-    return passingAlternatives;
   }
 
   private buildAnnotations(schemaLocation: string, context: MatchingSchemaContext): Annotation[] {
