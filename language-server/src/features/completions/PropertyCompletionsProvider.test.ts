@@ -77,6 +77,41 @@ describe("Property completions", () => {
     ]);
   });
 
+  test("completion escapes property names that need escaping in JSON", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", String.raw`{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "properties": {
+            "a\"b": { "type": "string" },
+            "C:\\dir": { "type": "string" }
+          }
+        }
+      }
+    }`);
+
+    const instanceText = `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": {
+        ""
+      }
+    }`;
+
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 9 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: `a"b`, textEdit: { newText: String.raw`"a\"b": ` } },
+      { label: String.raw`C:\dir`, textEdit: { newText: String.raw`"C:\\dir": ` } }
+    ]);
+  });
+
   test("completion suggests a property literally named the empty string", async () => {
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

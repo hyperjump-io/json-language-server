@@ -99,6 +99,33 @@ describe("Value Completions", () => {
     expect(completions).toEqual([]);
   });
 
+  test("enum values with snippet syntax characters are escaped", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", String.raw`{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": { "enum": ["\\d+", "$HOME", "a}b"] }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: String.raw`"\\d+"`, textEdit: { newText: String.raw` "\\\\d+"` } },
+      { label: `"$HOME"`, textEdit: { newText: String.raw` "\$HOME"` } },
+      { label: `"a}b"`, textEdit: { newText: String.raw` "a\}b"` } }
+    ]);
+  });
+
   test("completions on colon", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

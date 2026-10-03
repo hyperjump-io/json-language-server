@@ -52,7 +52,7 @@ export class PropertyCompletionsProvider implements CompletionsProvider {
           filterText: JSON.stringify(propertyName),
           textEdit: {
             range: context.range,
-            newText: `"${propertyName}": `
+            newText: `${JSON.stringify(propertyName)}: `
           },
           command: { title: "Suggest", command: "editor.action.triggerSuggest" }
         });

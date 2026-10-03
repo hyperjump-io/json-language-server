@@ -31,7 +31,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
 
       for (const completion of plugin.getCompletions(context.instanceLocation)) {
         const label = completion.kind === "value" ? completion.value : typeSnippets[completion.type].label;
-        const snippet = completion.kind === "value" ? completion.value : typeSnippets[completion.type].snippet;
+        const snippet = completion.kind === "value" ? escapeSnippet(completion.value) : typeSnippets[completion.type].snippet;
 
         completions.push({
           label,
@@ -52,6 +52,10 @@ export class ValueCompletionsProvider implements CompletionsProvider {
     return completions;
   }
 }
+
+// Values are inserted literally, so characters with meaning in snippet syntax
+// need to be escaped.
+const escapeSnippet = (text: string) => text.replace(/[\\$}]/g, "\\$&");
 
 const typeSnippets: Record<string, { label: string; snippet: string }> = {
   integer: { label: "integer", snippet: "$0" },
