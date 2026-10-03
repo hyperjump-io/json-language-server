@@ -225,6 +225,67 @@ describe("Value Completions", () => {
     expect(completions).toContainEqual(expect.objectContaining({ label: "FromBranchTwo" }));
   });
 
+  test("defaultSnippets from a $ref and its sibling are both offered for an incomplete location", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/base",
+          "defaultSnippets": [{ "label": "FromSibling", "bodyText": "\\"sibling\\"" }]
+        }
+      },
+      "$defs": {
+        "base": {
+          "defaultSnippets": [{ "label": "FromRef", "bodyText": "\\"ref\\"" }]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromRef" }));
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromSibling" }));
+  });
+
+  test("defaultSnippets from all allOf subschemas are offered for an incomplete location", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "allOf": [
+            { "defaultSnippets": [{ "label": "FromFirst", "bodyText": "\\"first\\"" }] },
+            { "defaultSnippets": [{ "label": "FromSecond", "bodyText": "\\"second\\"" }] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromFirst" }));
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromSecond" }));
+  });
+
   test("defaultSnippets from a oneOf branch ruled out by a discriminating property are not offered", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -217,6 +217,9 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
     return this.annotations[instanceLocation] ?? [];
   }
 
+  // Produces one annotation object per schema, in the same shape as annotations
+  // collected for complete locations, so annotations for the same keyword from
+  // different schemas don't overwrite each other.
   private buildAnnotations(schemaLocation: string, context: MatchingSchemaContext): Annotation[] {
     const nodes = context.ast[schemaLocation];
 
@@ -224,45 +227,40 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
       return [{}];
     }
 
-    let branches: Annotation[] = [{}];
+    const subschemaAnnotations: Annotation[] = [];
+    const schemaAnnotation: Annotation = {};
 
     for (const node of nodes) {
       const [keywordId, , keywordValue] = node;
 
       switch (keywordId) {
         case "https://json-schema.org/keyword/ref":
-          branches = crossMerge(branches, this.buildAnnotations(keywordValue as string, context));
+          subschemaAnnotations.push(...this.buildAnnotations(keywordValue as string, context));
           break;
 
         case "https://json-schema.org/keyword/dynamicRef":
-          branches = crossMerge(branches, this.buildAnnotations(context.dynamicAnchors![keywordValue as string], context));
+          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![keywordValue as string], context));
           break;
 
         case "https://json-schema.org/keyword/draft-2020-12/dynamicRef": {
           const [, fragment, ref] = keywordValue as [string, string, string];
-          branches = crossMerge(branches, this.buildAnnotations(context.dynamicAnchors![fragment] ?? ref, context));
+          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![fragment] ?? ref, context));
           break;
         }
 
         case "https://json-schema.org/keyword/allOf":
+        case "https://json-schema.org/keyword/anyOf":
+        case "https://json-schema.org/keyword/oneOf":
           for (const subSchemaLocation of keywordValue as string[]) {
-            branches = crossMerge(branches, this.buildAnnotations(subSchemaLocation, context));
+            subschemaAnnotations.push(...this.buildAnnotations(subSchemaLocation, context));
           }
           break;
-
-        case "https://json-schema.org/keyword/anyOf":
-        case "https://json-schema.org/keyword/oneOf": {
-          const alternatives = (keywordValue as string[]).flatMap((sub) => this.buildAnnotations(sub, context));
-          branches = crossMerge(branches, alternatives);
-          break;
-        }
 
         default: {
           const keyword = getKeyword(keywordId);
           if (keyword?.annotation) {
             try {
-              const value = keyword.annotation(keywordValue, undefined as unknown as JsonNode, context);
-              branches = branches.map((branch) => ({ ...branch, [keywordId]: value }));
+              schemaAnnotation[keywordId] = keyword.annotation(keywordValue, undefined as unknown as JsonNode, context);
             } catch {
               // Some annotation functions expect a real instance node; skip rather than crash.
             }
@@ -271,7 +269,7 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
       }
     }
 
-    return branches;
+    return [...subschemaAnnotations, schemaAnnotation];
   }
 
   private recordBuiltAnnotation(pointer: string, schemaLocation: string, context: MatchingSchemaContext) {
@@ -292,14 +290,4 @@ function splitPointer(pointer: string): [string, string] {
     .replace(/~1/g, "/")
     .replace(/~0/g, "~");
   return [pointer.slice(0, lastSlash), propertyName];
-}
-
-function crossMerge(a: Annotation[], b: Annotation[]): Annotation[] {
-  const result: Annotation[] = [];
-  for (const x of a) {
-    for (const y of b) {
-      result.push({ ...x, ...y });
-    }
-  }
-  return result;
 }
