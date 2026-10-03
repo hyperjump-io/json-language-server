@@ -2,6 +2,7 @@ import * as Instance from "@hyperjump/json-schema/instance/experimental";
 import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { JsonValueSet } from "./JsonValueSet.ts";
+import { SubschemaTracker } from "../SubschemaTracker.ts";
 
 import type { EvaluationPlugin, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
@@ -9,9 +10,6 @@ import type { JsonSchemaType, ValueEntry } from "./JsonValueSet.ts";
 
 type CompletionsContext = ValidationContext & {
   completions?: Record<string, JsonValueSet>;
-  subschemaResults?: SubschemaResult[];
-  failedLocations?: Set<string>;
-  schemaFailedLocations?: Set<string>;
   dynamicAnchors?: Record<string, string>;
   evaluatedProperties?: Set<string>;
   schemaEvaluatedProperties?: Set<string>;
@@ -21,16 +19,12 @@ type CompletionsContext = ValidationContext & {
   completionsUnevaluatedItems?: number[];
 };
 
-type SubschemaResult = {
-  completions: Record<string, JsonValueSet>;
-  failedLocations: Set<string>;
-};
-
 export class CompletionsEvaluationPlugin implements EvaluationPlugin<CompletionsContext> {
   static readonly id = "completions";
 
   private completions: Record<string, JsonValueSet> = Object.create(null);
   private incompleteLocations: Set<string>;
+  private subschemaTracker = new SubschemaTracker<Record<string, JsonValueSet>>();
 
   constructor(incompleteLocations: Set<string>) {
     this.incompleteLocations = incompleteLocations;
@@ -38,14 +32,13 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
 
   beforeSchema(_url: string, _instance: JsonNode, context: CompletionsContext): void {
     context.completions = Object.create(null);
-    context.failedLocations ??= new Set();
-    context.schemaFailedLocations = new Set();
+    this.subschemaTracker.beforeSchema(context);
   }
 
   beforeKeyword(keywordNode: Node<unknown>, instance: JsonNode, context: CompletionsContext, schemaContext: CompletionsContext): void {
     const [keywordId, , keywordValue] = keywordNode;
 
-    context.subschemaResults = [];
+    this.subschemaTracker.beforeKeyword(context);
 
     switch (keywordId) {
       case "https://json-schema.org/keyword/properties": {
@@ -220,26 +213,22 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
       context.evaluatedItems?.add(itemIndex);
     }
 
-    if (!valid) {
-      schemaContext.schemaFailedLocations!.add(instance.pointer);
-      for (const location of context.failedLocations! ?? []) {
-        schemaContext.schemaFailedLocations!.add(location);
-      }
-    }
+    this.subschemaTracker.afterKeyword(instance, context, valid, schemaContext);
 
     const [keywordId] = keywordNode;
+    const subschemaResults = this.subschemaTracker.getSubschemaResults(context);
     let combinedCompletions: Record<string, JsonValueSet> = Object.create(null);
 
     switch (keywordId) {
       case "https://json-schema.org/keyword/anyOf": {
-        for (const subschemaCompletions of this.discriminate(context.subschemaResults!, instance)) {
+        for (const subschemaCompletions of this.subschemaTracker.discriminate(subschemaResults, instance)) {
           combinedCompletions = this.union(combinedCompletions, subschemaCompletions);
         }
         break;
       }
 
       case "https://json-schema.org/keyword/oneOf": {
-        combinedCompletions = this.exclusiveUnion(this.discriminate(context.subschemaResults!, instance));
+        combinedCompletions = this.exclusiveUnion(this.subschemaTracker.discriminate(subschemaResults, instance));
         break;
       }
 
@@ -247,15 +236,15 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
         break;
 
       case "https://json-schema.org/keyword/not": {
-        for (const subschemaResult of context.subschemaResults!) {
-          combinedCompletions = this.negate(combinedCompletions, subschemaResult.completions);
+        for (const subschemaResult of subschemaResults) {
+          combinedCompletions = this.negate(combinedCompletions, subschemaResult.value);
         }
         break;
       }
 
       default:
-        for (const subschemaResult of context.subschemaResults!) {
-          combinedCompletions = this.intersection(combinedCompletions, subschemaResult.completions);
+        for (const subschemaResult of subschemaResults) {
+          combinedCompletions = this.intersection(combinedCompletions, subschemaResult.value);
         }
     }
 
@@ -263,18 +252,7 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
   }
 
   afterSchema(_url: string, instance: JsonNode, context: CompletionsContext, valid: boolean): void {
-    if (!valid) {
-      context.schemaFailedLocations!.add(instance.pointer);
-    }
-
-    for (const location of context.schemaFailedLocations!) {
-      context.failedLocations!.add(location);
-    }
-
-    context.subschemaResults?.push({
-      completions: context.completions!,
-      failedLocations: context.schemaFailedLocations!
-    });
+    this.subschemaTracker.afterSchema(instance, context, valid, context.completions!);
 
     this.completions = context.completions!;
   }
@@ -310,7 +288,14 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
     return propertyNames;
   }
 
-  private buildCompletions(schemaLocation: string, context: CompletionsContext): JsonValueSet {
+  // `inProgress` holds the schemas currently being expanded so a schema that
+  // references itself in-place doesn't recurse forever. A cycle adds no
+  // information, so it's treated as unconstrained.
+  private buildCompletions(schemaLocation: string, context: CompletionsContext, inProgress: Set<string> = new Set()): JsonValueSet {
+    if (inProgress.has(schemaLocation)) {
+      return JsonValueSet.any();
+    }
+
     const nodes = context.ast[schemaLocation];
 
     if (nodes === true) {
@@ -321,7 +306,9 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
       return new JsonValueSet();
     }
 
-    return Pact.pipe(
+    inProgress.add(schemaLocation);
+
+    const completions = Pact.pipe(
       nodes,
       Pact.map((node) => {
         const [keywordId, , keywordValue] = node;
@@ -339,33 +326,33 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
           }
 
           case "https://json-schema.org/keyword/ref":
-            return this.buildCompletions(keywordValue as string, context);
+            return this.buildCompletions(keywordValue as string, context, inProgress);
 
           case "https://json-schema.org/keyword/dynamicRef":
-            return this.buildCompletions(context.dynamicAnchors![keywordValue as string], context);
+            return this.buildCompletions(context.dynamicAnchors![keywordValue as string], context, inProgress);
 
           case "https://json-schema.org/keyword/draft-2020-12/dynamicRef": {
             const [, fragment, ref] = keywordValue as [string, string, string];
-            return this.buildCompletions(context.dynamicAnchors![fragment] ?? ref, context);
+            return this.buildCompletions(context.dynamicAnchors![fragment] ?? ref, context, inProgress);
           }
 
           case "https://json-schema.org/keyword/allOf":
             return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
-              return valueSet.intersect(this.buildCompletions(subSchemaLocation, context));
+              return valueSet.intersect(this.buildCompletions(subSchemaLocation, context, inProgress));
             }, JsonValueSet.any());
 
           case "https://json-schema.org/keyword/anyOf":
             return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
-              return valueSet.union(this.buildCompletions(subSchemaLocation, context));
+              return valueSet.union(this.buildCompletions(subSchemaLocation, context, inProgress));
             }, new JsonValueSet());
 
           case "https://json-schema.org/keyword/oneOf":
             return JsonValueSet.exclusiveUnion(
-              (keywordValue as string[]).map((subSchemaLocation) => this.buildCompletions(subSchemaLocation, context))
+              (keywordValue as string[]).map((subSchemaLocation) => this.buildCompletions(subSchemaLocation, context, inProgress))
             );
 
           case "https://json-schema.org/keyword/not":
-            return this.buildCompletions(keywordValue as string, context).complement();
+            return this.buildCompletions(keywordValue as string, context, inProgress).complement();
 
           default:
             return JsonValueSet.any();
@@ -373,6 +360,10 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
       }),
       Pact.reduce((valueSet, keywordValueSet) => valueSet.intersect(keywordValueSet), JsonValueSet.any())
     );
+
+    inProgress.delete(schemaLocation);
+
+    return completions;
   }
 
   private intersection(a: Record<string, JsonValueSet>, b: Record<string, JsonValueSet>): Record<string, JsonValueSet> {
@@ -429,46 +420,6 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
     }
 
     return result;
-  }
-
-  private discriminate(alternatives: SubschemaResult[], instance: JsonNode) {
-    const locations: string[] = [];
-    switch (Instance.typeOf(instance)) {
-      case "object":
-        for (const propertyValueNode of Instance.values(instance)) {
-          locations.push(propertyValueNode.pointer);
-        }
-        break;
-
-      case "array":
-        for (const itemNode of Instance.iter(instance)) {
-          locations.push(itemNode.pointer);
-        }
-        break;
-
-      default:
-        locations.push(instance.pointer);
-    }
-
-    const passingLocations: Set<string> = new Set();
-    for (const alternative of alternatives) {
-      for (const pointer of locations) {
-        if (!alternative.failedLocations.has(pointer)) {
-          passingLocations.add(pointer);
-        }
-      }
-    }
-
-    const passingAlternatives: Record<string, JsonValueSet>[] = [];
-    for (const alternative of alternatives) {
-      if (locations.some((pointer) => alternative.failedLocations.has(pointer) && passingLocations.has(pointer))) {
-        continue;
-      }
-
-      passingAlternatives.push(alternative.completions);
-    }
-
-    return passingAlternatives;
   }
 }
 

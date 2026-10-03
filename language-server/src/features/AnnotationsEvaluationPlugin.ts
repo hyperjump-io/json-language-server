@@ -1,14 +1,17 @@
 import { getKeyword } from "@hyperjump/json-schema/experimental";
 import * as JsonPointer from "@hyperjump/json-pointer";
+import { SubschemaTracker } from "./SubschemaTracker.ts";
 
 import type { EvaluationPlugin, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
 import type { Node, Keyword } from "@hyperjump/json-schema/experimental";
 
 type Annotation = Record<string, unknown>;
+type Annotations = Record<string, Annotation[]>;
 
 type MatchingSchemaContext = ValidationContext & {
   pendingAnnotations?: Annotation;
+  schemaAnnotations?: Annotations;
   dynamicAnchors?: Record<string, string>;
   evaluatedProperties?: Set<string>;
   schemaEvaluatedProperties?: Set<string>;
@@ -21,8 +24,9 @@ type MatchingSchemaContext = ValidationContext & {
 export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
   static readonly id = "annotations";
 
-  private annotations: Map<string, Annotation[]> = new Map();
+  private annotations: Annotations = Object.create(null);
   private incompleteLocations: Set<string>;
+  private subschemaTracker = new SubschemaTracker<Annotations>();
 
   constructor(incompleteLocations: Set<string> = new Set()) {
     this.incompleteLocations = incompleteLocations;
@@ -30,10 +34,14 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
 
   beforeSchema(_url: string, _instance: JsonNode, context: MatchingSchemaContext): void {
     context.pendingAnnotations = {};
+    context.schemaAnnotations = Object.create(null);
+    this.subschemaTracker.beforeSchema(context);
   }
 
   beforeKeyword(keywordNode: Node<unknown>, instance: JsonNode, context: MatchingSchemaContext, schemaContext: MatchingSchemaContext): void {
     const [keywordId, , keywordValue] = keywordNode;
+
+    this.subschemaTracker.beforeKeyword(context);
 
     switch (keywordId) {
       case "https://json-schema.org/keyword/properties": {
@@ -156,7 +164,7 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
     }
   }
 
-  afterKeyword(node: Node<unknown>, instance: JsonNode, context: MatchingSchemaContext, _valid: boolean, schemaContext: MatchingSchemaContext, keyword: Keyword<unknown>): void {
+  afterKeyword(node: Node<unknown>, instance: JsonNode, context: MatchingSchemaContext, valid: boolean, schemaContext: MatchingSchemaContext, keyword: Keyword<unknown>): void {
     const [keywordId, , keywordValue] = node;
 
     // Unevaluated keywords mark incomplete locations as evaluated only after every plugin's beforeKeyword has run.
@@ -168,73 +176,99 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
       context.evaluatedItems?.add(itemIndex);
     }
 
+    this.subschemaTracker.afterKeyword(instance, context, valid, schemaContext);
+
     if (keyword.annotation) {
       schemaContext.pendingAnnotations ??= {};
       schemaContext.pendingAnnotations[keywordId] = keyword.annotation(keywordValue, instance, context);
+    }
+
+    // Annotations are retained for failing subschemas because the instance is
+    // usually invalid while it's being edited. Only anyOf/oneOf alternatives
+    // that are ruled out by a discriminating location are dropped.
+    const subschemaResults = this.subschemaTracker.getSubschemaResults(context);
+    let subschemaAnnotations: Annotations[];
+    switch (keywordId) {
+      case "https://json-schema.org/keyword/anyOf":
+      case "https://json-schema.org/keyword/oneOf":
+        subschemaAnnotations = this.subschemaTracker.discriminate(subschemaResults, instance);
+        break;
+
+      default:
+        subschemaAnnotations = subschemaResults.map((result) => result.value);
+    }
+
+    for (const annotations of subschemaAnnotations) {
+      appendAnnotations(schemaContext.schemaAnnotations!, annotations);
     }
   }
 
   afterSchema(_schemaUri: string, instance: JsonNode, context: MatchingSchemaContext, valid: boolean): void {
     if (valid && context.pendingAnnotations) {
-      if (!this.annotations.has(instance.pointer)) {
-        this.annotations.set(instance.pointer, []);
-      }
-
-      const existing = this.annotations.get(instance.pointer)!;
-      existing.push(context.pendingAnnotations);
+      appendAnnotations(context.schemaAnnotations!, { [instance.pointer]: [context.pendingAnnotations] });
     }
+
+    this.subschemaTracker.afterSchema(instance, context, valid, context.schemaAnnotations!);
+
+    this.annotations = context.schemaAnnotations!;
   }
 
   getAnnotations(instanceLocation: string): Annotation[] {
-    return this.annotations.get(instanceLocation) ?? [];
+    return this.annotations[instanceLocation] ?? [];
   }
 
-  private buildAnnotations(schemaLocation: string, context: MatchingSchemaContext): Annotation[] {
+  // Produces one annotation object per schema, in the same shape as annotations
+  // collected for complete locations, so annotations for the same keyword from
+  // different schemas don't overwrite each other. `inProgress` holds the
+  // schemas currently being expanded so a schema that references itself
+  // in-place doesn't recurse forever.
+  private buildAnnotations(schemaLocation: string, context: MatchingSchemaContext, inProgress: Set<string> = new Set()): Annotation[] {
+    if (inProgress.has(schemaLocation)) {
+      return [];
+    }
+
     const nodes = context.ast[schemaLocation];
 
     if (nodes === true || nodes === false) {
       return [{}];
     }
 
-    let branches: Annotation[] = [{}];
+    inProgress.add(schemaLocation);
+
+    const subschemaAnnotations: Annotation[] = [];
+    const schemaAnnotation: Annotation = {};
 
     for (const node of nodes) {
       const [keywordId, , keywordValue] = node;
 
       switch (keywordId) {
         case "https://json-schema.org/keyword/ref":
-          branches = crossMerge(branches, this.buildAnnotations(keywordValue as string, context));
+          subschemaAnnotations.push(...this.buildAnnotations(keywordValue as string, context, inProgress));
           break;
 
         case "https://json-schema.org/keyword/dynamicRef":
-          branches = crossMerge(branches, this.buildAnnotations(context.dynamicAnchors![keywordValue as string], context));
+          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![keywordValue as string], context, inProgress));
           break;
 
         case "https://json-schema.org/keyword/draft-2020-12/dynamicRef": {
           const [, fragment, ref] = keywordValue as [string, string, string];
-          branches = crossMerge(branches, this.buildAnnotations(context.dynamicAnchors![fragment] ?? ref, context));
+          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![fragment] ?? ref, context, inProgress));
           break;
         }
 
         case "https://json-schema.org/keyword/allOf":
+        case "https://json-schema.org/keyword/anyOf":
+        case "https://json-schema.org/keyword/oneOf":
           for (const subSchemaLocation of keywordValue as string[]) {
-            branches = crossMerge(branches, this.buildAnnotations(subSchemaLocation, context));
+            subschemaAnnotations.push(...this.buildAnnotations(subSchemaLocation, context, inProgress));
           }
           break;
-
-        case "https://json-schema.org/keyword/anyOf":
-        case "https://json-schema.org/keyword/oneOf": {
-          const alternatives = (keywordValue as string[]).flatMap((sub) => this.buildAnnotations(sub, context));
-          branches = crossMerge(branches, alternatives);
-          break;
-        }
 
         default: {
           const keyword = getKeyword(keywordId);
           if (keyword?.annotation) {
             try {
-              const value = keyword.annotation(keywordValue, undefined as unknown as JsonNode, context);
-              branches = branches.map((branch) => ({ ...branch, [keywordId]: value }));
+              schemaAnnotation[keywordId] = keyword.annotation(keywordValue, undefined as unknown as JsonNode, context);
             } catch {
               // Some annotation functions expect a real instance node; skip rather than crash.
             }
@@ -243,14 +277,20 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
       }
     }
 
-    return branches;
+    inProgress.delete(schemaLocation);
+
+    return [...subschemaAnnotations, schemaAnnotation];
   }
 
   private recordBuiltAnnotation(pointer: string, schemaLocation: string, context: MatchingSchemaContext) {
-    const built = this.buildAnnotations(schemaLocation, context);
-    const existing = this.annotations.get(pointer) ?? [];
-    existing.push(...built);
-    this.annotations.set(pointer, existing);
+    appendAnnotations(context.schemaAnnotations!, { [pointer]: this.buildAnnotations(schemaLocation, context) });
+  }
+}
+
+function appendAnnotations(target: Annotations, source: Annotations) {
+  for (const pointer in source) {
+    target[pointer] ??= [];
+    target[pointer].push(...source[pointer]);
   }
 }
 
@@ -260,14 +300,4 @@ function splitPointer(pointer: string): [string, string] {
     .replace(/~1/g, "/")
     .replace(/~0/g, "~");
   return [pointer.slice(0, lastSlash), propertyName];
-}
-
-function crossMerge(a: Annotation[], b: Annotation[]): Annotation[] {
-  const result: Annotation[] = [];
-  for (const x of a) {
-    for (const y of b) {
-      result.push({ ...x, ...y });
-    }
-  }
-  return result;
 }
