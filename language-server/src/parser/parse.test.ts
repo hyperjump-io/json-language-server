@@ -427,6 +427,103 @@ describe("recovery", () => {
     expect(root?.children?.length).toBe(3);
     expect(root?.children?.map((property) => property.children?.[0].value)).toEqual(["a", "b", "c"]);
   });
+
+  test("a comma-only array reports trailing-comma on the comma", () => {
+    const { errors } = parse(`[,]`);
+
+    expect(errors).toEqual([
+      { code: "trailing-comma", offset: 1, length: 1 }
+    ]);
+  });
+
+  test("a deleted closing line produces minimal errors", () => {
+    const { errors } = parse(`{
+      "a": 1,
+      "b": [
+        2
+      "c": 3
+    }`);
+
+    expect(errors).toEqual([
+      { code: "comma-expected", offset: 37, length: 1 },
+      { code: "bracket-not-closed", offset: 37, length: 1 }
+    ]);
+  });
+
+  test("an unclosed array followed by a property produces minimal errors", () => {
+    const { errors } = parse(`{
+      "a": 1,
+      "b": [ 2
+      "c": 3
+    }`);
+
+    expect(errors).toEqual([
+      { code: "comma-expected", offset: 29, length: 1 },
+      { code: "bracket-not-closed", offset: 29, length: 1 }
+    ]);
+  });
+
+  test("a comma-only object reports trailing-comma on the comma", () => {
+    const { errors } = parse(`{,}`);
+
+    expect(errors).toEqual([
+      { code: "trailing-comma", offset: 1, length: 1 }
+    ]);
+  });
+
+  test("a leading comma in an array points at the bracket the value should follow", () => {
+    const { errors } = parse(`[, 1]`);
+
+    expect(errors).toEqual([
+      { code: "value-expected", offset: 0, length: 1 }
+    ]);
+  });
+
+  test("an empty unclosed array followed by a property is reported once", () => {
+    const { errors } = parse(`{
+      "a": [
+      "b": 1
+    }`);
+
+    expect(errors).toEqual([
+      { code: "bracket-not-closed", offset: 13, length: 1 }
+    ]);
+  });
+
+  test("nested unclosed arrays followed by a property report the missing comma once", () => {
+    const { errors } = parse(`{
+      "a": [
+        [ 1
+      "b": 2
+    }`);
+
+    expect(errors).toEqual([
+      { code: "comma-expected", offset: 25, length: 1 },
+      { code: "bracket-not-closed", offset: 25, length: 1 },
+      { code: "bracket-not-closed", offset: 23, length: 3 }
+    ]);
+  });
+
+  test("an unclosed array does not hide a later missing comma", () => {
+    const { errors } = parse(`{ "x": { "a": [1 }, "b": 1 "c": 2 }`);
+
+    expect(errors).toEqual([
+      { code: "bracket-not-closed", offset: 15, length: 1 },
+      { code: "comma-expected", offset: 25, length: 1 }
+    ]);
+  });
+
+  test("a comment between a property name and its colon does not hide the property", () => {
+    const { errors } = parse(`{
+      "a": [ 1
+      "b" /* x */: 2
+    }`, { allowComments: true });
+
+    expect(errors).toEqual([
+      { code: "comma-expected", offset: 15, length: 1 },
+      { code: "bracket-not-closed", offset: 15, length: 1 }
+    ]);
+  });
 });
 
 describe("comments", () => {
