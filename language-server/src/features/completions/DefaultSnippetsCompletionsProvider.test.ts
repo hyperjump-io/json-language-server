@@ -225,6 +225,84 @@ describe("Value Completions", () => {
     expect(completions).toContainEqual(expect.objectContaining({ label: "FromBranchTwo" }));
   });
 
+  test("defaultSnippets from a oneOf branch ruled out by a discriminating property are not offered", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "oneOf": [
+        {
+          "properties": {
+            "kind": { "const": "a" },
+            "value": {
+              "defaultSnippets": [{ "label": "FromA", "bodyText": "\\"a\\"" }]
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "b" },
+            "value": {
+              "defaultSnippets": [{ "label": "FromB", "bodyText": "\\"b\\"" }]
+            }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "kind": "a",
+      "value": ""
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 16 }
+    });
+
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromA" }));
+    expect(completions).not.toContainEqual(expect.objectContaining({ label: "FromB" }));
+  });
+
+  test("defaultSnippets from a oneOf branch ruled out by a discriminating property are not offered for an incomplete location", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "oneOf": [
+        {
+          "properties": {
+            "kind": { "const": "a" },
+            "value": {
+              "defaultSnippets": [{ "label": "FromA", "bodyText": "\\"a\\"" }]
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "b" },
+            "value": {
+              "defaultSnippets": [{ "label": "FromB", "bodyText": "\\"b\\"" }]
+            }
+          }
+        }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "kind": "a",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 14 }
+    });
+
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromA" }));
+    expect(completions).not.toContainEqual(expect.objectContaining({ label: "FromB" }));
+  });
+
   test("additionalProperties defaultSnippets are not offered for a declared property whose name needs escaping", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

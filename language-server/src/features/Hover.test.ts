@@ -51,6 +51,48 @@ _hyperjump-json-language-server_`
     });
   });
 
+  test("should return the description from the matching oneOf branch when a sibling property is invalid", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "oneOf": [
+        {
+          "properties": {
+            "kind": { "const": "a" },
+            "name": { "description": "Name for kind a." },
+            "age": { "type": "number" }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "b" },
+            "name": { "description": "Name for kind b." },
+            "age": { "type": "number" }
+          }
+        }
+      ]
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "kind": "a",\n  "name": "Alice",\n  "age": "invalid"\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 10 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `Name for kind a.
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
   test("should return null on hover when no schema is associated", async () => {
     await client.writeDocument("no-schema.json", `{"key": "value"}`);
     const uri = await client.openDocument("no-schema.json");
