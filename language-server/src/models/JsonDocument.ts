@@ -2,18 +2,20 @@ import { TextDocumentContentChangeEvent } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import * as jsonc from "jsonc-parser";
 import * as JsonPointer from "@hyperjump/json-pointer";
-import { resolveIri } from "@hyperjump/uri";
+import { normalizeIri, resolveIri } from "@hyperjump/uri";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";
 
 export class JsonDocument implements TextDocument {
   private textDocument: TextDocument;
+  private normalizedUri: string;
   private documentSchemaUri: string | undefined;
   private ast: jsonc.Node | undefined;
   private parseErrors: jsonc.ParseError[] = [];
 
   constructor(textDocument: TextDocument) {
     this.textDocument = textDocument;
+    this.normalizedUri = normalizeIri(textDocument.uri);
 
     this.parse();
   }
@@ -34,7 +36,7 @@ export class JsonDocument implements TextDocument {
   }
 
   get uri() {
-    return this.textDocument.uri;
+    return this.normalizedUri;
   }
 
   get languageId() {

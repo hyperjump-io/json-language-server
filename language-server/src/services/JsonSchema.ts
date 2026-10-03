@@ -96,7 +96,7 @@ export class JsonSchema {
       this.fileSchemaUris.delete(params.document.uri);
     });
 
-    registry.onDidChangeSchema(async ({ schemaUri }) => {
+    registry.onDidChangeSchema(async ({ schemaUri, fileUri }) => {
       const changedSchemaUris = new Set<string>();
       for (const [cachedSchemaUri, compiledSchema] of this.compiledSchemaCache) {
         if (cachedSchemaUri === schemaUri || await this.dependsOn(compiledSchema, schemaUri)) {
@@ -108,7 +108,10 @@ export class JsonSchema {
 
       for (const jsonDocument of jsonDocuments.all()) {
         const documentSchemaUri = await this.getSchemaUri(jsonDocument);
-        if (!documentSchemaUri || !changedSchemaUris.has(documentSchemaUri)) {
+        if (jsonDocument.uri !== fileUri
+          && await this.registry.getSchemaUri(jsonDocument.uri) !== schemaUri
+          && (!documentSchemaUri || !changedSchemaUris.has(documentSchemaUri))
+        ) {
           continue;
         }
 
@@ -152,17 +155,7 @@ export class JsonSchema {
         // The schema might be a workspace schema that hasn't been registered yet
         await this.registry.ready;
 
-        if (!this.compiledSchemaCache.has(schemaUri)) {
-          this.compiledSchemaCache.set(schemaUri, (async () => {
-            const startTime = performance.now();
-            const schema = await getSchema(schemaUri);
-            const compiledSchema = await compile(schema);
-            this.server.console.log(`compile schema for ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
-            return compiledSchema;
-          })());
-        }
-
-        compiledSchemaPromise = this.compiledSchemaCache.get(schemaUri);
+        compiledSchemaPromise = this.getCompiledSchema(schemaUri);
         compiledSchema = await compiledSchemaPromise;
       }
 
@@ -191,15 +184,50 @@ export class JsonSchema {
     return this.validationCache.get(jsonDocument.uri)!;
   }
 
+  // The identifiers of the schema and every schema it references, directly or indirectly
+  async getDependencies(schemaUri: string) {
+    // The schema might be a workspace schema that hasn't been registered yet
+    await this.registry.ready;
+
+    try {
+      return schemaDependencies(await this.getCompiledSchema(schemaUri));
+    } catch {
+      // Compilation errors are reported by validation
+      return new Set<string>();
+    }
+  }
+
+  // Returns the cached promise so callers can tell if the cache entry was replaced
+  private getCompiledSchema(schemaUri: string) {
+    if (!this.compiledSchemaCache.has(schemaUri)) {
+      this.compiledSchemaCache.set(schemaUri, (async () => {
+        const startTime = performance.now();
+        const schema = await getSchema(schemaUri);
+        const compiledSchema = await compile(schema);
+        this.server.console.log(`compile schema for ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
+        return compiledSchema;
+      })());
+    }
+
+    return this.compiledSchemaCache.get(schemaUri)!;
+  }
+
   private async dependsOn(compiledSchema: Promise<CompiledSchema>, schemaUri: string) {
     try {
-      const { ast } = await compiledSchema;
-      return Object.keys(ast).some((key) => {
-        return key !== "metaData" && key !== "plugins" && toAbsoluteIri(key) === schemaUri;
-      });
+      return schemaDependencies(await compiledSchema).has(schemaUri);
     } catch {
       // A schema that failed to compile might be fixed by this change
       return true;
     }
   }
 }
+
+const schemaDependencies = ({ ast }: CompiledSchema) => {
+  const dependencies = new Set<string>();
+  for (const key in ast) {
+    if (key !== "metaData" && key !== "plugins") {
+      dependencies.add(toAbsoluteIri(key));
+    }
+  }
+  return dependencies;
+};

@@ -6,6 +6,7 @@ import { Workspace } from "./services/Workspace.ts";
 import { Diagnostics } from "./features/diagnostics/Diagnostics.ts";
 import { SyntaxValidationDiagnosticsProvider } from "./features/diagnostics/SyntaxValidationDiagnosticsProvider.ts";
 import { SchemaValidationDiagnosticsProvider } from "./features/diagnostics/SchemaValidationDiagnosticsProvider.ts";
+import { SchemaRegistrationDiagnosticsProvider } from "./features/diagnostics/SchemaRegistrationDiagnosticsProvider.ts";
 import { Formatting } from "./features/Formatting.ts";
 import { Hover } from "./features/Hover.ts";
 import { Completions } from "./features/completions/Completions.ts";
@@ -35,6 +36,7 @@ export const buildServer = (connection: Connection): Server => {
 
   new Diagnostics(server, jsonDocuments, jsonSchema, [
     new SyntaxValidationDiagnosticsProvider(),
+    new SchemaRegistrationDiagnosticsProvider(registry, jsonSchema),
     new SchemaValidationDiagnosticsProvider(jsonSchema)
   ]);
 

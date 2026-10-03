@@ -94,6 +94,7 @@ export class Workspace {
   }
 
   async findFiles(include: string, exclude?: string, maxResults?: number) {
-    return await this.server.sendRequest(FindFilesRequest.type, { include, exclude, maxResults });
+    const fileUris = await this.server.sendRequest(FindFilesRequest.type, { include, exclude, maxResults });
+    return fileUris.map(normalizeIri);
   }
 }
