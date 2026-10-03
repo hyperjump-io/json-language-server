@@ -55,8 +55,8 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a \u2068string\u2069" }),
-      expect.objectContaining({ message: "Expected a \u2068number\u2069" })
+      expect.objectContaining({ message: "Expected a string" }),
+      expect.objectContaining({ message: "Expected a number" })
     ]);
   });
 
@@ -80,7 +80,7 @@ describe("Schema Validation", () => {
 
     await expect(diagnostics).resolves.toEqual([
       expect.objectContaining({ message: "comma-expected" }),
-      expect.objectContaining({ message: "Expected a \u2068number\u2069" })
+      expect.objectContaining({ message: "Expected a number" })
     ]);
   });
 
@@ -108,8 +108,8 @@ describe("Schema Validation", () => {
     await expect(diagnostics).resolves.toEqual([
       expect.objectContaining({
         message: `Expected the value to match at least one alternative:
-  - Expected a \u2068string\u2069
-  - Expected a \u2068number\u2069`
+  - Expected a string
+  - Expected a number`
       })
     ]);
   });
@@ -137,9 +137,9 @@ describe("Schema Validation", () => {
 
     await expect(diagnostics).resolves.toEqual([
       expect.objectContaining({
-        message: `Expected the value to match exactly one alternative, \u2068but none\u2069 matched:
-  - Expected a \u2068string\u2069
-  - Expected a \u2068number\u2069`
+        message: `Expected the value to match exactly one alternative, but none matched:
+  - Expected a string
+  - Expected a number`
       })
     ]);
   });
@@ -161,7 +161,7 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a \u2068string\u2069" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
   });
 
@@ -182,7 +182,7 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a \u2068string\u2069" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
   });
 
@@ -203,7 +203,7 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a \u2068string\u2069" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
   });
 
@@ -227,7 +227,7 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a \u2068number\u2069" })
+      expect.objectContaining({ message: "Expected a number" })
     ]);
   });
 
@@ -343,7 +343,7 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a \u2068string\u2069" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
   });
 
@@ -604,7 +604,7 @@ describe("Schema Validation", () => {
 
     await expect(diagnostics).resolves.toEqual([
       {
-        message: "Expected a ⁨string⁩",
+        message: "Expected a string",
         range: {
           start: { line: 2, character: 13 },
           end: { line: 2, character: 15 }
@@ -638,7 +638,7 @@ describe("Schema Validation", () => {
 
     await expect(initialValidation).resolves.toEqual([
       {
-        message: "Expected a ⁨string⁩",
+        message: "Expected a string",
         range: {
           start: { line: 2, character: 13 },
           end: { line: 2, character: 15 }
@@ -685,7 +685,7 @@ describe("Schema Validation", () => {
 
     await expect(diagnostics).resolves.toEqual([
       {
-        message: "Expected a ⁨boolean⁩",
+        message: "Expected a boolean",
         range: {
           start: { line: 2, character: 13 },
           end: { line: 2, character: 19 }
@@ -790,7 +790,7 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(initialValidation).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
 
     const updatedDiagnostics = client.getDiagnostics("instance.json");
@@ -841,7 +841,7 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(diagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
   });
 
@@ -865,7 +865,7 @@ describe("Schema Validation", () => {
     await client.openDocument("instance.json");
 
     await expect(initialValidation).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
 
     const updatedDiagnostics = client.getDiagnostics("instance.json");
@@ -912,7 +912,7 @@ describe("Workspace scan", async () => {
 
     await expect(diagnostics).resolves.toEqual([
       {
-        message: "Expected a ⁨number⁩",
+        message: "Expected a number",
         range: {
           start: { line: 2, character: 13 },
           end: { line: 2, character: 27 }
@@ -957,7 +957,7 @@ describe("Workspace scan", async () => {
 
     await expect(diagnostics).resolves.toEqual([
       {
-        message: "Expected a ⁨number⁩",
+        message: "Expected a number",
         range: {
           start: { line: 2, character: 13 },
           end: { line: 2, character: 27 }

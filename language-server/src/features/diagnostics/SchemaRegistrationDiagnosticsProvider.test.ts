@@ -32,7 +32,7 @@ describe("Schema registration", () => {
     const initialDiagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
     await expect(initialDiagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
 
     const instanceDiagnostics = client.getDiagnostics("instance.json");
@@ -47,7 +47,7 @@ describe("Schema registration", () => {
         severity: DiagnosticSeverity.Warning,
         source: "hyperjump-json-language-server"
       },
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
 
     const bDiagnostics = client.getDiagnostics("b-schema.json");
@@ -202,7 +202,7 @@ describe("Schema registration", () => {
     const updatedDiagnostics = client.getDiagnostics("instance.json");
     await client.deleteDocument("b-schema.json");
     await expect(updatedDiagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
   });
 
@@ -227,7 +227,7 @@ describe("Schema registration", () => {
     await client.writeDocument("a-schema.json", schemaWithId(schemaId, "boolean"));
     await expect(updatedDiagnostics).resolves.toEqual([
       expect.objectContaining({ severity: DiagnosticSeverity.Warning }),
-      expect.objectContaining({ message: "Expected a ⁨boolean⁩" })
+      expect.objectContaining({ message: "Expected a boolean" })
     ]);
   });
 
@@ -343,7 +343,7 @@ describe("Schema registration", () => {
       "foo": 42
     }`);
     await expect(updatedInstanceDiagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
   });
 
@@ -399,7 +399,7 @@ describe("Schema registration", () => {
     const initialDiagnostics = client.getDiagnostics("instance.json");
     await client.openDocument("instance.json");
     await expect(initialDiagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
 
     const conflictDiagnostics = client.getDiagnostics("instance.json");
@@ -414,13 +414,13 @@ describe("Schema registration", () => {
         severity: DiagnosticSeverity.Warning,
         source: "hyperjump-json-language-server"
       },
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
 
     const updatedDiagnostics = client.getDiagnostics("instance.json");
     await client.deleteDocument("b-schema.json");
     await expect(updatedDiagnostics).resolves.toEqual([
-      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+      expect.objectContaining({ message: "Expected a string" })
     ]);
   });
 
