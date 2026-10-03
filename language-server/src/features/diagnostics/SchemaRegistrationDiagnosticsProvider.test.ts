@@ -379,4 +379,79 @@ describe("Schema registration", () => {
     }`);
     await expect(updatedInstanceDiagnostics).resolves.toEqual([]);
   });
+
+  test("a schema that references a schema with a duplicate identifier is a warning on documents that use it", async () => {
+    const parentId = "https://example.com/parent";
+
+    client = new TestClient();
+    await client.writeDocument("parent.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${parentId}",
+      "$ref": "${schemaId}"
+    }`);
+    await client.writeDocument("a-schema.json", schemaWithId(schemaId, "string"));
+    await client.writeDocument("instance.json", `{
+      "$schema": "${parentId}",
+      "foo": 42
+    }`);
+    await client.start();
+
+    const initialDiagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+    await expect(initialDiagnostics).resolves.toEqual([
+      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+    ]);
+
+    const conflictDiagnostics = client.getDiagnostics("instance.json");
+    const bSchemaUri = await client.writeDocument("b-schema.json", schemaWithId(schemaId, "number"));
+    await expect(conflictDiagnostics).resolves.toEqual([
+      {
+        message: `Ambiguous schema identifier in referenced schema. '${bSchemaUri}' also uses the identifier '${schemaId}'`,
+        range: {
+          start: { line: 1, character: 17 },
+          end: { line: 1, character: 19 + parentId.length }
+        },
+        severity: DiagnosticSeverity.Warning,
+        source: "hyperjump-json-language-server"
+      },
+      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+    ]);
+
+    const updatedDiagnostics = client.getDiagnostics("instance.json");
+    await client.deleteDocument("b-schema.json");
+    await expect(updatedDiagnostics).resolves.toEqual([
+      expect.objectContaining({ message: "Expected a ⁨string⁩" })
+    ]);
+  });
+
+  test("a schema that indirectly references a schema with a duplicate identifier is a warning on documents that use it", async () => {
+    const parentId = "https://example.com/parent";
+    const middleId = "https://example.com/middle";
+
+    client = new TestClient();
+    await client.writeDocument("parent.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${parentId}",
+      "$ref": "${middleId}"
+    }`);
+    await client.writeDocument("middle.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "${middleId}",
+      "$ref": "${schemaId}"
+    }`);
+    await client.writeDocument("a-schema.json", schemaWithId(schemaId, "string"));
+    const bSchemaUri = await client.writeDocument("b-schema.json", schemaWithId(schemaId, "number"));
+    await client.writeDocument("instance.json", `{
+      "$schema": "${parentId}"
+    }`);
+    await client.start();
+
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+    await expect(diagnostics).resolves.toEqual([
+      expect.objectContaining({
+        message: `Ambiguous schema identifier in referenced schema. '${bSchemaUri}' also uses the identifier '${schemaId}'`
+      })
+    ]);
+  });
 });

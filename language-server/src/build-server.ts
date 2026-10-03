@@ -35,7 +35,7 @@ export const buildServer = (connection: Connection): Server => {
 
   new Diagnostics(server, jsonDocuments, jsonSchema, [
     new SyntaxValidationDiagnosticsProvider(),
-    new SchemaRegistrationDiagnosticsProvider(registry),
+    new SchemaRegistrationDiagnosticsProvider(registry, jsonSchema),
     new SchemaValidationDiagnosticsProvider(jsonSchema)
   ]);
 
