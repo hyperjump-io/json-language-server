@@ -219,13 +219,21 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
 
   // Produces one annotation object per schema, in the same shape as annotations
   // collected for complete locations, so annotations for the same keyword from
-  // different schemas don't overwrite each other.
-  private buildAnnotations(schemaLocation: string, context: MatchingSchemaContext): Annotation[] {
+  // different schemas don't overwrite each other. `inProgress` holds the
+  // schemas currently being expanded so a schema that references itself
+  // in-place doesn't recurse forever.
+  private buildAnnotations(schemaLocation: string, context: MatchingSchemaContext, inProgress: Set<string> = new Set()): Annotation[] {
+    if (inProgress.has(schemaLocation)) {
+      return [];
+    }
+
     const nodes = context.ast[schemaLocation];
 
     if (nodes === true || nodes === false) {
       return [{}];
     }
+
+    inProgress.add(schemaLocation);
 
     const subschemaAnnotations: Annotation[] = [];
     const schemaAnnotation: Annotation = {};
@@ -235,16 +243,16 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
 
       switch (keywordId) {
         case "https://json-schema.org/keyword/ref":
-          subschemaAnnotations.push(...this.buildAnnotations(keywordValue as string, context));
+          subschemaAnnotations.push(...this.buildAnnotations(keywordValue as string, context, inProgress));
           break;
 
         case "https://json-schema.org/keyword/dynamicRef":
-          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![keywordValue as string], context));
+          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![keywordValue as string], context, inProgress));
           break;
 
         case "https://json-schema.org/keyword/draft-2020-12/dynamicRef": {
           const [, fragment, ref] = keywordValue as [string, string, string];
-          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![fragment] ?? ref, context));
+          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![fragment] ?? ref, context, inProgress));
           break;
         }
 
@@ -252,7 +260,7 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
         case "https://json-schema.org/keyword/anyOf":
         case "https://json-schema.org/keyword/oneOf":
           for (const subSchemaLocation of keywordValue as string[]) {
-            subschemaAnnotations.push(...this.buildAnnotations(subSchemaLocation, context));
+            subschemaAnnotations.push(...this.buildAnnotations(subSchemaLocation, context, inProgress));
           }
           break;
 
@@ -268,6 +276,8 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
         }
       }
     }
+
+    inProgress.delete(schemaLocation);
 
     return [...subschemaAnnotations, schemaAnnotation];
   }

@@ -286,6 +286,34 @@ describe("Value Completions", () => {
     expect(completions).toContainEqual(expect.objectContaining({ label: "FromSecond" }));
   });
 
+  test("defaultSnippets are offered for an incomplete location whose schema references itself", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "anyOf": [
+            { "$ref": "#/properties/value" },
+            { "defaultSnippets": [{ "label": "FromBranch", "bodyText": "\\"branch\\"" }] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromBranch" }));
+  });
+
   test("defaultSnippets from a oneOf branch ruled out by a discriminating property are not offered", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

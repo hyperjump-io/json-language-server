@@ -288,7 +288,14 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
     return propertyNames;
   }
 
-  private buildCompletions(schemaLocation: string, context: CompletionsContext): JsonValueSet {
+  // `inProgress` holds the schemas currently being expanded so a schema that
+  // references itself in-place doesn't recurse forever. A cycle adds no
+  // information, so it's treated as unconstrained.
+  private buildCompletions(schemaLocation: string, context: CompletionsContext, inProgress: Set<string> = new Set()): JsonValueSet {
+    if (inProgress.has(schemaLocation)) {
+      return JsonValueSet.any();
+    }
+
     const nodes = context.ast[schemaLocation];
 
     if (nodes === true) {
@@ -299,7 +306,9 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
       return new JsonValueSet();
     }
 
-    return Pact.pipe(
+    inProgress.add(schemaLocation);
+
+    const completions = Pact.pipe(
       nodes,
       Pact.map((node) => {
         const [keywordId, , keywordValue] = node;
@@ -317,33 +326,33 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
           }
 
           case "https://json-schema.org/keyword/ref":
-            return this.buildCompletions(keywordValue as string, context);
+            return this.buildCompletions(keywordValue as string, context, inProgress);
 
           case "https://json-schema.org/keyword/dynamicRef":
-            return this.buildCompletions(context.dynamicAnchors![keywordValue as string], context);
+            return this.buildCompletions(context.dynamicAnchors![keywordValue as string], context, inProgress);
 
           case "https://json-schema.org/keyword/draft-2020-12/dynamicRef": {
             const [, fragment, ref] = keywordValue as [string, string, string];
-            return this.buildCompletions(context.dynamicAnchors![fragment] ?? ref, context);
+            return this.buildCompletions(context.dynamicAnchors![fragment] ?? ref, context, inProgress);
           }
 
           case "https://json-schema.org/keyword/allOf":
             return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
-              return valueSet.intersect(this.buildCompletions(subSchemaLocation, context));
+              return valueSet.intersect(this.buildCompletions(subSchemaLocation, context, inProgress));
             }, JsonValueSet.any());
 
           case "https://json-schema.org/keyword/anyOf":
             return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
-              return valueSet.union(this.buildCompletions(subSchemaLocation, context));
+              return valueSet.union(this.buildCompletions(subSchemaLocation, context, inProgress));
             }, new JsonValueSet());
 
           case "https://json-schema.org/keyword/oneOf":
             return JsonValueSet.exclusiveUnion(
-              (keywordValue as string[]).map((subSchemaLocation) => this.buildCompletions(subSchemaLocation, context))
+              (keywordValue as string[]).map((subSchemaLocation) => this.buildCompletions(subSchemaLocation, context, inProgress))
             );
 
           case "https://json-schema.org/keyword/not":
-            return this.buildCompletions(keywordValue as string, context).complement();
+            return this.buildCompletions(keywordValue as string, context, inProgress).complement();
 
           default:
             return JsonValueSet.any();
@@ -351,6 +360,10 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
       }),
       Pact.reduce((valueSet, keywordValueSet) => valueSet.intersect(keywordValueSet), JsonValueSet.any())
     );
+
+    inProgress.delete(schemaLocation);
+
+    return completions;
   }
 
   private intersection(a: Record<string, JsonValueSet>, b: Record<string, JsonValueSet>): Record<string, JsonValueSet> {
