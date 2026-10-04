@@ -1,6 +1,7 @@
 import { describe, test, expect, afterEach, beforeEach } from "vitest";
 import { PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../../test/TestClient.ts";
+import { formatError } from "./SchemaValidationDiagnosticsProvider.ts";
 
 describe("Schema Validation", () => {
   let client: TestClient;
@@ -108,8 +109,8 @@ describe("Schema Validation", () => {
     await expect(diagnostics).resolves.toEqual([
       expect.objectContaining({
         message: `Expected the value to match at least one alternative:
-  - Expected a string
-  - Expected a number`
+  1. Expected a string
+  2. Expected a number`
       })
     ]);
   });
@@ -138,8 +139,8 @@ describe("Schema Validation", () => {
     await expect(diagnostics).resolves.toEqual([
       expect.objectContaining({
         message: `Expected the value to match exactly one alternative, but none matched:
-  - Expected a string
-  - Expected a number`
+  1. Expected a string
+  2. Expected a number`
       })
     ]);
   });
@@ -966,5 +967,145 @@ describe("Workspace scan", async () => {
         source: "hyperjump-json-language-server"
       }
     ]);
+  });
+});
+
+describe("formatError", () => {
+  test("an error without alternatives is just the message", () => {
+    expect(formatError({
+      message: "Expected a string",
+      instanceLocation: "#/foo",
+      schemaLocations: ["https://example.com/schema#/properties/foo/type"]
+    })).toBe("Expected a string");
+  });
+
+  test("a single alternative is a bulleted list", () => {
+    expect(formatError({
+      message: "Expected at least one of the following not to be true",
+      alternatives: [[
+        {
+          message: "The value is a string",
+          instanceLocation: "#",
+          schemaLocations: ["https://example.com/schema#/not/type"]
+        },
+        {
+          message: "The string matches the regular expression /^a/",
+          instanceLocation: "#",
+          schemaLocations: ["https://example.com/schema#/not/pattern"]
+        }
+      ]],
+      instanceLocation: "#",
+      schemaLocations: ["https://example.com/schema#/not"]
+    })).toBe(`Expected at least one of the following not to be true:
+  - The value is a string
+  - The string matches the regular expression /^a/`);
+  });
+
+  test("multiple alternatives are a numbered list", () => {
+    expect(formatError({
+      message: "Expected the value to satisfy only one of the following options",
+      alternatives: [
+        [
+          {
+            message: "The value is a string",
+            instanceLocation: "#/foo",
+            schemaLocations: ["https://example.com/schema#/oneOf/0/type"]
+          }
+        ],
+        [
+          {
+            message: "The value is a string",
+            instanceLocation: "#/foo",
+            schemaLocations: ["https://example.com/schema#/oneOf/1/type"]
+          },
+          {
+            message: "The string matches the regular expression /^a/",
+            instanceLocation: "#/foo",
+            schemaLocations: ["https://example.com/schema#/oneOf/1/pattern"]
+          }
+        ]
+      ],
+      instanceLocation: "#/foo",
+      schemaLocations: ["https://example.com/schema#/oneOf"]
+    })).toBe(`Expected the value to satisfy only one of the following options:
+  1. The value is a string
+  2. The value is a string
+     The string matches the regular expression /^a/`);
+  });
+
+  test("nested errors below the parent's location show their relative location", () => {
+    expect(formatError({
+      message: "Expected the following not to be true",
+      alternatives: [[
+        {
+          message: "The value is a string",
+          instanceLocation: "#/foo/a%20b",
+          schemaLocations: ["https://example.com/schema#/properties/foo/not/properties/a%20b/type"]
+        }
+      ]],
+      instanceLocation: "#/foo",
+      schemaLocations: ["https://example.com/schema#/properties/foo/not"]
+    })).toBe(`Expected the following not to be true:
+  - /a b: The value is a string`);
+  });
+
+  test("property name locations are shown as the property's location", () => {
+    expect(formatError({
+      message: "Expected the following not to be true",
+      alternatives: [[
+        {
+          message: "The string matches the regular expression /^a/",
+          instanceLocation: "#*/apple",
+          schemaLocations: ["https://example.com/schema#/not/propertyNames/pattern"]
+        }
+      ]],
+      instanceLocation: "#",
+      schemaLocations: ["https://example.com/schema#/not"]
+    })).toBe(`Expected the following not to be true:
+  - /apple: The string matches the regular expression /^a/`);
+  });
+
+  test("nested alternatives are indented under their parent", () => {
+    expect(formatError({
+      message: "Expected the value to match at least one alternative",
+      alternatives: [
+        [
+          {
+            message: "Expected a string",
+            instanceLocation: "#",
+            schemaLocations: ["https://example.com/schema#/anyOf/0/type"]
+          }
+        ],
+        [
+          {
+            message: "Expected the value to match at least one alternative",
+            alternatives: [
+              [
+                {
+                  message: "Expected a number",
+                  instanceLocation: "#/foo",
+                  schemaLocations: ["https://example.com/schema#/anyOf/1/properties/foo/anyOf/0/type"]
+                }
+              ],
+              [
+                {
+                  message: "Expected a boolean",
+                  instanceLocation: "#/foo",
+                  schemaLocations: ["https://example.com/schema#/anyOf/1/properties/foo/anyOf/1/type"]
+                }
+              ]
+            ],
+            instanceLocation: "#/foo",
+            schemaLocations: ["https://example.com/schema#/anyOf/1/properties/foo/anyOf"]
+          }
+        ]
+      ],
+      instanceLocation: "#",
+      schemaLocations: ["https://example.com/schema#/anyOf"]
+    })).toBe(`Expected the value to match at least one alternative:
+  1. Expected a string
+  2. /foo: Expected the value to match at least one alternative:
+       1. Expected a number
+       2. Expected a boolean`);
   });
 });
