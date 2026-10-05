@@ -108,7 +108,7 @@ describe("Schema Validation", () => {
 
     await expect(diagnostics).resolves.toEqual([
       expect.objectContaining({
-        message: `Expected the value to match at least one alternative:
+        message: `Expected the value to satisfy at least one of the following options:
   1. Expected a string
   2. Expected a number`
       })
@@ -138,7 +138,7 @@ describe("Schema Validation", () => {
 
     await expect(diagnostics).resolves.toEqual([
       expect.objectContaining({
-        message: `Expected the value to match exactly one alternative, but none matched:
+        message: `Expected the value to satisfy exactly one of the following options:
   1. Expected a string
   2. Expected a number`
       })
@@ -1067,7 +1067,7 @@ describe("formatError", () => {
 
   test("nested alternatives are indented under their parent", () => {
     expect(formatError({
-      message: "Expected the value to match at least one alternative",
+      message: "Expected the value to satisfy at least one of the following options",
       alternatives: [
         [
           {
@@ -1078,7 +1078,7 @@ describe("formatError", () => {
         ],
         [
           {
-            message: "Expected the value to match at least one alternative",
+            message: "Expected the value to satisfy at least one of the following options",
             alternatives: [
               [
                 {
@@ -1102,9 +1102,9 @@ describe("formatError", () => {
       ],
       instanceLocation: "#",
       schemaLocations: ["https://example.com/schema#/anyOf"]
-    })).toBe(`Expected the value to match at least one alternative:
+    })).toBe(`Expected the value to satisfy at least one of the following options:
   1. Expected a string
-  2. /foo: Expected the value to match at least one alternative:
+  2. /foo: Expected the value to satisfy at least one of the following options:
        1. Expected a number
        2. Expected a boolean`);
   });

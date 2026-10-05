@@ -1,6 +1,7 @@
 import { addMediaTypePlugin, addUriSchemePlugin, getFileMediaType, httpSchemePlugin } from "@hyperjump/browser";
-import { buildSchemaDocument, compile, getSchema } from "@hyperjump/json-schema/experimental";
-import { evaluateCompiledSchema } from "@hyperjump/json-schema-errors";
+import { buildSchemaDocument, compile, getSchema, interpret } from "@hyperjump/json-schema/experimental";
+import * as Instance from "@hyperjump/json-schema/instance/experimental";
+import { JSE } from "@hyperjump/json-schema-errors";
 import { parseIri, toAbsoluteIri } from "@hyperjump/uri";
 import { abbreviateUri } from "../util/utils.ts";
 
@@ -13,7 +14,7 @@ import "../vscode-vocabulary.ts";
 
 import type { CompiledSchema, EvaluationPlugin } from "@hyperjump/json-schema/experimental";
 import type { UriSchemePlugin } from "@hyperjump/browser";
-import type { ValidationResult } from "@hyperjump/json-schema-errors";
+import type { JSEOutput } from "@hyperjump/json-schema-errors";
 import type { JsonDocuments } from "./JsonDocuments.ts";
 import type { JsonDocument } from "../models/JsonDocument.ts";
 import type { JsonSchemaRegistry } from "./JsonSchemaRegistry.ts";
@@ -22,7 +23,7 @@ import type { Workspace } from "./Workspace.ts";
 
 type EvaluationPluginFactory = (jsonDocument: JsonDocument) => EvaluationPlugin;
 
-type SchemaEvaluation = ValidationResult & {
+type SchemaEvaluation = JSEOutput & {
   plugins: Map<string, EvaluationPlugin>;
 };
 
@@ -165,7 +166,7 @@ export class JsonSchema {
         return this.validate(jsonDocument);
       }
 
-      let result: ValidationResult | undefined;
+      let result: JSEOutput | undefined;
       const plugins = new Map<string, EvaluationPlugin>();
       if (schemaUri && compiledSchema) {
         for (const [id, factory] of this.pluginFactories) {
@@ -175,7 +176,7 @@ export class JsonSchema {
         const node = jsonDocument.findNodeAtPointer("")!;
         const instance = jsonDocument.getNodeValue(node);
         const startTime = performance.now();
-        result = evaluateCompiledSchema(compiledSchema, instance, { plugins: [...plugins.values()] });
+        result = interpret(compiledSchema, Instance.fromJs(instance), { outputFormat: JSE, plugins: [...plugins.values()] });
         this.server.console.log(`validate ${abbreviateUri(jsonDocument.uri)} against schema ${abbreviateUri(schemaUri)} (${(performance.now() - startTime).toFixed(2)}ms)`);
         this.validationCache.set(jsonDocument.uri, { ...result, plugins });
       }
