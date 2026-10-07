@@ -623,6 +623,81 @@ describe("Value Completions", () => {
     expect(completions).not.toContainEqual(expect.objectContaining({ label: "FromUnevaluatedItems" }));
   });
 
+  test("unevaluatedProperties defaultSnippets are not offered for an incomplete location evaluated by a nested unevaluatedProperties", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "allOf": [
+        {
+          "unevaluatedProperties": {
+            "defaultSnippets": [
+              { "label": "FromInner", "bodyText": "\\"inner\\"" }
+            ]
+          }
+        }
+      ],
+      "unevaluatedProperties": {
+        "defaultSnippets": [
+          { "label": "FromOuter", "bodyText": "\\"outer\\"" }
+        ]
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 12 }
+    });
+
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromInner" }));
+    expect(completions).not.toContainEqual(expect.objectContaining({ label: "FromOuter" }));
+  });
+
+  test("unevaluatedItems defaultSnippets are not offered for an incomplete array item evaluated by a nested unevaluatedItems", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "list": {
+          "type": "array",
+          "allOf": [
+            {
+              "unevaluatedItems": {
+                "defaultSnippets": [
+                  { "label": "FromInner", "bodyText": "\\"inner\\"" }
+                ]
+              }
+            }
+          ],
+          "unevaluatedItems": {
+            "defaultSnippets": [
+              { "label": "FromOuter", "bodyText": "\\"outer\\"" }
+            ]
+          }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "list": []
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromInner" }));
+    expect(completions).not.toContainEqual(expect.objectContaining({ label: "FromOuter" }));
+  });
+
   test("defaultSnippets with a number body gets stringified without quotes", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

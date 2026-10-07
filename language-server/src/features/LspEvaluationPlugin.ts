@@ -34,8 +34,6 @@ type LspContext = ValidationContext & {
   schemaEvaluatedProperties?: Set<string>;
   evaluatedItems?: Set<number>;
   schemaEvaluatedItems?: Set<number>;
-  lspUnevaluatedProperties?: string[];
-  lspUnevaluatedItems?: number[];
 };
 
 // Collects what the language server needs to know about each instance
@@ -140,8 +138,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
           const [parentPointer, propertyName] = splitPointer(pointer);
           if (parentPointer === instance.pointer && !context.schemaEvaluatedProperties!.has(propertyName)) {
             schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
-            context.lspUnevaluatedProperties ??= [];
-            context.lspUnevaluatedProperties.push(propertyName);
+            context.evaluatedProperties?.add(propertyName);
           }
         }
         break;
@@ -211,8 +208,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
             schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
 
             if (this.incompleteLocations.has(pointer)) {
-              context.lspUnevaluatedItems ??= [];
-              context.lspUnevaluatedItems.push(itemIndex);
+              context.evaluatedItems?.add(itemIndex);
             }
           }
         }
@@ -223,15 +219,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
   afterKeyword(node: Node<unknown>, instance: JsonNode, context: LspContext, valid: boolean, schemaContext: LspContext, keyword: Keyword<unknown>): void {
     const [keywordId, , keywordValue] = node;
-
-    // Unevaluated keywords mark incomplete locations as evaluated only after every plugin's beforeKeyword has run.
-    // Otherwise, other plugins would see them as already evaluated.
-    for (const propertyName of context.lspUnevaluatedProperties ?? []) {
-      context.evaluatedProperties?.add(propertyName);
-    }
-    for (const itemIndex of context.lspUnevaluatedItems ?? []) {
-      context.evaluatedItems?.add(itemIndex);
-    }
 
     this.subschemaTracker.afterKeyword(instance, context, valid, schemaContext);
 
