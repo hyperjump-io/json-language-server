@@ -1,6 +1,8 @@
 import { MarkupKind } from "vscode-languageserver";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
 import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
+import { getTitle } from "./annotations.ts";
+import { getDescription } from "../vocabularies/vscode.ts";
 
 import type { Server } from "../services/Server.ts";
 import type { ServerCapabilities } from "vscode-languageserver";
@@ -8,10 +10,6 @@ import type { JsonSchema } from "../services/JsonSchema.ts";
 
 export class Hover {
   constructor(server: Server, jsonDocuments: JsonDocuments, jsonSchema: JsonSchema) {
-    jsonSchema.registerPlugin(LspEvaluationPlugin.id, (jsonDocument) => {
-      return new LspEvaluationPlugin(jsonDocument.collectIncompleteLocations());
-    });
-
     server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
         hoverProvider: true
@@ -32,17 +30,16 @@ export class Hover {
           return;
         }
 
-        const plugin = result.plugins.get(LspEvaluationPlugin.id) as LspEvaluationPlugin;
+        const plugin = LspEvaluationPlugin.from(result);
         const annotations = plugin.getAnnotations(jsonDocument.getPointerForNode(node));
 
         const lines: string[] = [];
         for (const annotation of annotations) {
-          if (annotation["https://json-schema.org/keyword/title"]) {
-            lines.push(`**${annotation["https://json-schema.org/keyword/title"] as string}**`);
+          const title = getTitle(annotation);
+          if (title) {
+            lines.push(`**${title}**`);
           }
-          const description = (annotation["https://microsoft.com/keyword/markdownDescription"]
-            ?? annotation["https://json-schema.org/keyword/unknown#markdownDescription"]
-            ?? annotation["https://json-schema.org/keyword/description"]) as string | undefined;
+          const description = getDescription(annotation);
           if (description) {
             lines.push(description);
           }

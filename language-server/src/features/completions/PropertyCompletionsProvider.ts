@@ -36,7 +36,7 @@ export class PropertyCompletionsProvider implements CompletionsProvider {
         return [];
       }
 
-      const plugin = result.plugins.get(LspEvaluationPlugin.id) as LspEvaluationPlugin;
+      const plugin = LspEvaluationPlugin.from(result);
 
       for (const propertyName of plugin.getPropertyCompletions(instanceLocation)) {
         if (existingPropertyNames.has(propertyName)) {

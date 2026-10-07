@@ -1,18 +1,12 @@
 import { CompletionItemKind, InsertTextFormat } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
 import { LspEvaluationPlugin } from "../LspEvaluationPlugin.ts";
+import { getDefaultSnippets } from "../../vocabularies/vscode.ts";
 
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";
 import type { CompletionItem } from "vscode-languageserver";
 import type { JsonSchema } from "../../services/JsonSchema.ts";
-
-type DefaultSnippet = {
-  label?: string;
-  description?: string;
-  markdownDescription?: string;
-  body?: unknown;
-  bodyText?: string;
-};
+import type { DefaultSnippet } from "../../vocabularies/vscode.ts";
 
 export class DefaultSnippetsCompletionsProvider implements CompletionsProvider {
   private jsonSchema: JsonSchema;
@@ -33,14 +27,10 @@ export class DefaultSnippetsCompletionsProvider implements CompletionsProvider {
         return [];
       }
 
-      const plugin = result.plugins.get(LspEvaluationPlugin.id) as LspEvaluationPlugin;
+      const plugin = LspEvaluationPlugin.from(result);
 
       for (const annotation of plugin.getAnnotations(context.instanceLocation)) {
-        const defaultSnippets = (annotation["https://microsoft.com/keyword/defaultSnippets"]
-          ?? annotation["https://json-schema.org/keyword/unknown#defaultSnippets"]
-          ?? []) as DefaultSnippet[];
-
-        for (const snippet of defaultSnippets) {
+        for (const snippet of getDefaultSnippets(annotation)) {
           completions.push({
             label: snippet.label ?? "snippet",
             kind: CompletionItemKind.Snippet,

@@ -18,6 +18,7 @@ import { DocumentSymbols } from "./features/DocumentSymbols.ts";
 import { SelectionRanges } from "./features/SelectionRanges.ts";
 import { DocumentLinks } from "./features/DocumentLinks.ts";
 import { DocumentColors } from "./features/DocumentColors.ts";
+import { LspEvaluationPlugin } from "./features/LspEvaluationPlugin.ts";
 
 import type { Connection } from "vscode-languageserver";
 
@@ -33,6 +34,9 @@ export const buildServer = (connection: Connection): Server => {
 
   const registry = new JsonSchemaRegistry(server, workspace);
   const jsonSchema = new JsonSchema(server, workspace, jsonDocuments, registry);
+  jsonSchema.registerPlugin(LspEvaluationPlugin.id, (jsonDocument) => {
+    return new LspEvaluationPlugin(jsonDocument.collectIncompleteLocations());
+  });
 
   new Diagnostics(server, jsonDocuments, jsonSchema, [
     new SyntaxValidationDiagnosticsProvider(server),

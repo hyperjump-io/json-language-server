@@ -2,12 +2,13 @@ import { getKeyword } from "@hyperjump/json-schema/experimental";
 import * as Instance from "@hyperjump/json-schema/instance/experimental";
 import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
-import { JsonValueSet } from "./completions/JsonValueSet.ts";
+import { JsonValueSet } from "./JsonValueSet.ts";
 import { SubschemaTracker } from "./SubschemaTracker.ts";
 
 import type { EvaluationPlugin, Keyword, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
-import type { JsonSchemaType, ValueEntry } from "./completions/JsonValueSet.ts";
+import type { JsonSchemaType, ValueEntry } from "./JsonValueSet.ts";
+import type { SchemaEvaluation } from "../services/JsonSchema.ts";
 
 export type Annotation = Record<string, unknown>;
 
@@ -49,6 +50,15 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
   constructor(incompleteLocations: Set<string> = new Set()) {
     this.incompleteLocations = incompleteLocations;
+  }
+
+  // The plugin is registered once, in build-server.ts
+  static from(result: SchemaEvaluation): LspEvaluationPlugin {
+    const plugin = result.plugins.get(LspEvaluationPlugin.id);
+    if (!plugin) {
+      throw Error(`The ${LspEvaluationPlugin.id} evaluation plugin isn't registered`);
+    }
+    return plugin as LspEvaluationPlugin;
   }
 
   beforeSchema(_url: string, _instance: JsonNode, context: LspContext): void {
@@ -340,9 +350,12 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   }
 
   private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): Annotation[] {
-    return this.annotations[instanceLocation]
-      .filter((recorded) => recorded.kind === kind)
-      .map(({ annotation }) => annotation);
+    return Pact.pipe(
+      this.annotations[instanceLocation],
+      Pact.filter((recorded) => recorded.kind === kind),
+      Pact.map(({ annotation }) => annotation),
+      Pact.collectArray
+    );
   }
 
   * getCompletions(pointer: string) {

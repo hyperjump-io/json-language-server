@@ -27,7 +27,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
         return [];
       }
 
-      const plugin = result.plugins.get(LspEvaluationPlugin.id) as LspEvaluationPlugin;
+      const plugin = LspEvaluationPlugin.from(result);
 
       for (const completion of plugin.getCompletions(context.instanceLocation)) {
         const label = completion.kind === "value" ? completion.value : typeSnippets[completion.type].label;

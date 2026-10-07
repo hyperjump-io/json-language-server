@@ -43,3 +43,29 @@ registerSchema({
     }
   }
 });
+
+// The description to show anywhere a description is shown. Prefers
+// markdownDescription over the standard description keyword. Schemas that don't
+// use the vocabulary still produce an annotation for markdownDescription as an
+// unknown keyword.
+export const getDescription = (annotation: Record<string, unknown>): string | undefined => {
+  return (annotation["https://microsoft.com/keyword/markdownDescription"]
+    ?? annotation["https://json-schema.org/keyword/unknown#markdownDescription"]
+    ?? annotation["https://json-schema.org/keyword/description"]) as string | undefined;
+};
+
+export type DefaultSnippet = {
+  label?: string;
+  description?: string;
+  markdownDescription?: string;
+  body?: unknown;
+  bodyText?: string;
+};
+
+// Schemas that don't use the vocabulary still produce an annotation for
+// defaultSnippets as an unknown keyword
+export const getDefaultSnippets = (annotation: Record<string, unknown>): DefaultSnippet[] => {
+  return (annotation["https://microsoft.com/keyword/defaultSnippets"]
+    ?? annotation["https://json-schema.org/keyword/unknown#defaultSnippets"]
+    ?? []) as DefaultSnippet[];
+};

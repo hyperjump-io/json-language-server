@@ -10,7 +10,7 @@ import "@hyperjump/json-schema/draft-2019-09";
 import "@hyperjump/json-schema/draft-07";
 import "@hyperjump/json-schema/draft-06";
 import "@hyperjump/json-schema/draft-04";
-import "../vscode-vocabulary.ts";
+import "../vocabularies/vscode.ts";
 
 import type { CompiledSchema, EvaluationPlugin } from "@hyperjump/json-schema/experimental";
 import type { UriSchemePlugin } from "@hyperjump/browser";
@@ -23,7 +23,7 @@ import type { Workspace } from "./Workspace.ts";
 
 type EvaluationPluginFactory = (jsonDocument: JsonDocument) => EvaluationPlugin;
 
-type SchemaEvaluation = JSEOutput & {
+export type SchemaEvaluation = JSEOutput & {
   plugins: Map<string, EvaluationPlugin>;
 };
 

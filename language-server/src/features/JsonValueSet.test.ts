@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { JsonValueSet } from "./JsonValueSet.ts";
 
-import type { Annotation } from "../LspEvaluationPlugin.ts";
+import type { Annotation } from "./LspEvaluationPlugin.ts";
 
 const a: Annotation = { a: true };
 const b: Annotation = { b: true };

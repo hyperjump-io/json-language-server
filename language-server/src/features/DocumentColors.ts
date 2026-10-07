@@ -1,30 +1,18 @@
 import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
+import { getFormats } from "./annotations.ts";
 
 import type { Color, ColorInformation, ColorPresentation, ServerCapabilities } from "vscode-languageserver";
 import type { Node } from "jsonc-parser";
+import type { Annotation } from "./LspEvaluationPlugin.ts";
 import type { Server } from "../services/Server.ts";
 import type { JsonDocuments } from "../services/JsonDocuments.ts";
 import type { JsonSchema } from "../services/JsonSchema.ts";
-
-const FORMAT_KEYWORDS = new Set([
-  "https://json-schema.org/keyword/draft-2020-12/format",
-  "https://json-schema.org/keyword/draft-2020-12/format-assertion",
-  "https://json-schema.org/keyword/draft-2019-09/format",
-  "https://json-schema.org/keyword/draft-2019-09/format-assertion",
-  "https://json-schema.org/keyword/draft-07/format",
-  "https://json-schema.org/keyword/draft-06/format",
-  "https://json-schema.org/keyword/draft-04/format"
-]);
 
 export class DocumentColors {
   private jsonDocuments: JsonDocuments;
 
   constructor(server: Server, jsonDocuments: JsonDocuments, jsonSchema: JsonSchema) {
     this.jsonDocuments = jsonDocuments;
-
-    jsonSchema.registerPlugin(LspEvaluationPlugin.id, (jsonDocument) => {
-      return new LspEvaluationPlugin(jsonDocument.collectIncompleteLocations());
-    });
 
     server.onInitialize(() => {
       const serverCapabilities: ServerCapabilities = {
@@ -49,7 +37,7 @@ export class DocumentColors {
           return [];
         }
 
-        const plugin = result.plugins.get(LspEvaluationPlugin.id) as LspEvaluationPlugin;
+        const plugin = LspEvaluationPlugin.from(result);
 
         const stringNodes: Node[] = [];
         jsonDocument.walkNodes(ast, (node) => {
@@ -84,11 +72,7 @@ export class DocumentColors {
   }
 }
 
-const isColorHex = (annotation: Record<string, unknown>): boolean => {
-  return Object.entries(annotation).some(([keywordId, format]) => {
-    return format === "color-hex" && FORMAT_KEYWORDS.has(keywordId);
-  });
-};
+const isColorHex = (annotation: Annotation): boolean => getFormats(annotation).includes("color-hex");
 
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 

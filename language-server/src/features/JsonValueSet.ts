@@ -1,4 +1,4 @@
-import type { Annotation } from "../LspEvaluationPlugin.ts";
+import type { Annotation } from "./LspEvaluationPlugin.ts";
 
 export type JsonSchemaType = "string" | "number" | "integer" | "boolean" | "null" | "array" | "object";
 
