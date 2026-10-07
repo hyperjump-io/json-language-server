@@ -28,8 +28,14 @@ export class Hover {
           return;
         }
 
+        // A property key is described by the annotations that apply no matter
+        // what its value is. A value is also described by the annotations that
+        // apply because of what it is, after the more general ones.
         const plugin = LspEvaluationPlugin.from(result);
-        const annotations = plugin.getAnnotations(jsonDocument.getPointerForNode(node));
+        const pointer = jsonDocument.getPointerForNode(node);
+        const annotations = jsonDocument.isPropertyKey(node)
+          ? plugin.getLocationAnnotations(pointer)
+          : [...plugin.getLocationAnnotations(pointer), ...plugin.getValueAnnotations(pointer)];
 
         const lines: string[] = [];
         for (const annotation of annotations) {

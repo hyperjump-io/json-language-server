@@ -270,7 +270,7 @@ _hyperjump-json-language-server_`
 
     const result = await client.sendRequest(HoverRequest.type, {
       textDocument: { uri },
-      position: { line: 2, character: 10 }
+      position: { line: 2, character: 15 }
     });
 
     expect(result).toEqual({
@@ -568,6 +568,90 @@ _hyperjump-json-language-server_`
 
 _hyperjump-json-language-server_`
       }
+    });
+  });
+
+  describe("location and value annotations", () => {
+    const schema = `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "color": {
+          "description": "The color",
+          "anyOf": [
+            { "const": "red", "description": "Legacy red" },
+            { "const": "green" }
+          ]
+        }
+      }
+    }`;
+
+    test("hovering a property key shows only the annotations that apply no matter what the value is", async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", schema);
+      await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "color": "red"\n}`);
+      const uri = await client.openDocument("instance.json");
+
+      const result = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 4 }
+      });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `The color
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+
+    test("hovering a value shows the annotations of the property and then of the value", async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", schema);
+      await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "color": "red"\n}`);
+      const uri = await client.openDocument("instance.json");
+
+      const result = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 12 }
+      });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `The color
+
+Legacy red
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+
+    test("hovering an incomplete property key shows only the annotations that apply no matter what the value is", async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", schema);
+      await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "color":\n}`);
+      const uri = await client.openDocument("instance.json");
+
+      const result = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 4 }
+      });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `The color
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
     });
   });
 
