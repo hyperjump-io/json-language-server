@@ -6,8 +6,18 @@ import type { EvaluationPlugin, ValidationContext } from "@hyperjump/json-schema
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
 import type { Node, Keyword } from "@hyperjump/json-schema/experimental";
 
-type Annotation = Record<string, unknown>;
-type Annotations = Record<string, Annotation[]>;
+export type Annotation = Record<string, unknown>;
+
+// A location annotation applies no matter what the value at the location is.
+// A value annotation applies only because of what the value is, such as an
+// annotation from an anyOf alternative.
+type RecordedAnnotation = { kind: "location" | "value"; annotation: Annotation };
+type Annotations = Record<string, RecordedAnnotation[]>;
+
+type SchemaResult = {
+  pointer: string;
+  annotations: Annotations;
+};
 
 type MatchingSchemaContext = ValidationContext & {
   pendingAnnotations?: Annotation;
@@ -26,7 +36,7 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
 
   private annotations: Annotations = Object.create(null);
   private incompleteLocations: Set<string>;
-  private subschemaTracker = new SubschemaTracker<Annotations>();
+  private subschemaTracker = new SubschemaTracker<SchemaResult>();
 
   constructor(incompleteLocations: Set<string> = new Set()) {
     this.incompleteLocations = incompleteLocations;
@@ -187,42 +197,77 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
     // usually invalid while it's being edited. Only anyOf/oneOf alternatives
     // that are ruled out by a discriminating location are dropped.
     const subschemaResults = this.subschemaTracker.getSubschemaResults(context);
-    let subschemaAnnotations: Annotations[];
+    let subschemaValues: SchemaResult[];
     switch (keywordId) {
       case "https://json-schema.org/keyword/anyOf":
       case "https://json-schema.org/keyword/oneOf":
-        subschemaAnnotations = this.subschemaTracker.discriminate(subschemaResults, instance);
+        subschemaValues = this.subschemaTracker.discriminate(subschemaResults, instance);
+        break;
+
+      case "https://json-schema.org/keyword/not":
+        // Annotations describe the instances a schema matches, so none of
+        // them apply when it's negated
+        subschemaValues = [];
         break;
 
       default:
-        subschemaAnnotations = subschemaResults.map((result) => result.value);
+        subschemaValues = subschemaResults.map((result) => result.value);
     }
 
-    for (const annotations of subschemaAnnotations) {
-      appendAnnotations(schemaContext.schemaAnnotations!, annotations);
+    const isConditional = conditionalKeywords.has(keywordId);
+    for (const { pointer, annotations } of subschemaValues) {
+      appendAnnotations(schemaContext.schemaAnnotations!, isConditional ? asValueAnnotations(annotations, pointer) : annotations);
     }
   }
 
   afterSchema(_schemaUri: string, instance: JsonNode, context: MatchingSchemaContext, valid: boolean): void {
-    if (valid && context.pendingAnnotations) {
-      appendAnnotations(context.schemaAnnotations!, { [instance.pointer]: [context.pendingAnnotations] });
+    // A schema's own annotations are kept even if it fails so they're still
+    // available while the value is being edited
+    if (context.pendingAnnotations) {
+      appendAnnotations(context.schemaAnnotations!, {
+        [instance.pointer]: [{ kind: "location", annotation: context.pendingAnnotations }]
+      });
     }
 
-    this.subschemaTracker.afterSchema(instance, context, valid, context.schemaAnnotations!);
+    this.subschemaTracker.afterSchema(instance, context, valid, {
+      pointer: instance.pointer,
+      annotations: context.schemaAnnotations!
+    });
 
     this.annotations = context.schemaAnnotations!;
   }
 
+  // All annotations at a location, both location and value annotations
   getAnnotations(instanceLocation: string): Annotation[] {
-    return this.annotations[instanceLocation] ?? [];
+    return (this.annotations[instanceLocation] ?? []).map(({ annotation }) => annotation);
+  }
+
+  // The annotations that apply no matter what the value at the location is.
+  // These describe the property or item rather than its value.
+  getLocationAnnotations(instanceLocation: string): Annotation[] {
+    return this.getAnnotationsOfKind(instanceLocation, "location");
+  }
+
+  // The annotations that apply because of what the value at the location is.
+  // For example, the annotations of an anyOf alternative.
+  getValueAnnotations(instanceLocation: string): Annotation[] {
+    return this.getAnnotationsOfKind(instanceLocation, "value");
+  }
+
+  private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): Annotation[] {
+    return (this.annotations[instanceLocation] ?? [])
+      .filter((recorded) => recorded.kind === kind)
+      .map(({ annotation }) => annotation);
   }
 
   // Produces one annotation object per schema, in the same shape as annotations
   // collected for complete locations, so annotations for the same keyword from
   // different schemas don't overwrite each other. `inProgress` holds the
   // schemas currently being expanded so a schema that references itself
-  // in-place doesn't recurse forever.
-  private buildAnnotations(schemaLocation: string, context: MatchingSchemaContext, inProgress: Set<string> = new Set()): Annotation[] {
+  // in-place doesn't recurse forever. Annotations from anyOf/oneOf
+  // alternatives are value annotations. $dynamicRef is resolved using the
+  // dynamic scope of the parent, so it's an approximation.
+  private buildAnnotations(schemaLocation: string, context: MatchingSchemaContext, inProgress: Set<string> = new Set()): RecordedAnnotation[] {
     if (inProgress.has(schemaLocation)) {
       return [];
     }
@@ -230,12 +275,12 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
     const nodes = context.ast[schemaLocation];
 
     if (nodes === true || nodes === false) {
-      return [{}];
+      return [{ kind: "location", annotation: {} }];
     }
 
     inProgress.add(schemaLocation);
 
-    const subschemaAnnotations: Annotation[] = [];
+    const subschemaAnnotations: RecordedAnnotation[] = [];
     const schemaAnnotation: Annotation = {};
 
     for (const node of nodes) {
@@ -257,34 +302,73 @@ export class AnnotationsEvaluationPlugin implements EvaluationPlugin {
         }
 
         case "https://json-schema.org/keyword/allOf":
-        case "https://json-schema.org/keyword/anyOf":
-        case "https://json-schema.org/keyword/oneOf":
           for (const subSchemaLocation of keywordValue as string[]) {
             subschemaAnnotations.push(...this.buildAnnotations(subSchemaLocation, context, inProgress));
           }
           break;
 
-        default: {
-          const keyword = getKeyword(keywordId);
-          if (keyword?.annotation) {
-            try {
-              schemaAnnotation[keywordId] = keyword.annotation(keywordValue, undefined as unknown as JsonNode, context);
-            } catch {
-              // Some annotation functions expect a real instance node; skip rather than crash.
+        case "https://json-schema.org/keyword/anyOf":
+        case "https://json-schema.org/keyword/oneOf":
+          for (const subSchemaLocation of keywordValue as string[]) {
+            for (const { annotation } of this.buildAnnotations(subSchemaLocation, context, inProgress)) {
+              subschemaAnnotations.push({ kind: "value", annotation });
             }
           }
-        }
+          break;
+
+        default:
+          addKeywordAnnotation(schemaAnnotation, node, context);
       }
     }
 
     inProgress.delete(schemaLocation);
 
-    return [...subschemaAnnotations, schemaAnnotation];
+    return [...subschemaAnnotations, { kind: "location", annotation: schemaAnnotation }];
   }
 
   private recordBuiltAnnotation(pointer: string, schemaLocation: string, context: MatchingSchemaContext) {
     appendAnnotations(context.schemaAnnotations!, { [pointer]: this.buildAnnotations(schemaLocation, context) });
   }
+}
+
+export function addKeywordAnnotation(annotation: Annotation, [keywordId, , keywordValue]: Node<unknown>, context: ValidationContext) {
+  const keyword = getKeyword(keywordId);
+  if (keyword?.annotation) {
+    try {
+      annotation[keywordId] = keyword.annotation(keywordValue, undefined as unknown as JsonNode, context);
+    } catch {
+      // Some annotation functions expect a real instance node; skip rather than crash.
+    }
+  }
+}
+
+// Keywords whose subschemas apply to the instance location only because of
+// what the value is. Annotations at that location from these subschemas are
+// value annotations. Annotations at other locations, such as properties, aren't
+// affected because a condition on an object doesn't depend on the values of its
+// properties.
+const conditionalKeywords = new Set([
+  "https://json-schema.org/keyword/anyOf",
+  "https://json-schema.org/keyword/oneOf",
+  "https://json-schema.org/keyword/if",
+  "https://json-schema.org/keyword/then",
+  "https://json-schema.org/keyword/else",
+  "https://json-schema.org/keyword/dependentSchemas",
+  "https://json-schema.org/keyword/draft-04/dependencies",
+  "https://json-schema.org/keyword/propertyDependencies",
+  "https://json-schema.org/keyword/contains",
+  "https://json-schema.org/keyword/draft-06/contains"
+]);
+
+function asValueAnnotations(annotations: Annotations, pointer: string): Annotations {
+  if (!(pointer in annotations)) {
+    return annotations;
+  }
+
+  return {
+    ...annotations,
+    [pointer]: annotations[pointer].map(({ annotation }) => ({ kind: "value", annotation }))
+  };
 }
 
 function appendAnnotations(target: Annotations, source: Annotations) {
