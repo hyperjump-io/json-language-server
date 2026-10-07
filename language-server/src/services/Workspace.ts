@@ -26,7 +26,7 @@ export class Workspace {
     server.onInitialize(({ capabilities, workspaceFolders }) => {
       if (workspaceFolders) {
         for (const workspaceFolder of workspaceFolders) {
-          this.workspaceFolders.add(normalizeIri(workspaceFolder.uri));
+          this.workspaceFolders.add(workspaceFolder.uri);
         }
       }
 

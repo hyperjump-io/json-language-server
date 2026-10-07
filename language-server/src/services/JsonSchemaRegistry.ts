@@ -1,5 +1,5 @@
 import * as Pact from "@hyperjump/pact";
-import { normalizeIri, resolveIri, toAbsoluteIri, toRelativeIri } from "@hyperjump/uri";
+import { resolveIri, toAbsoluteIri, toRelativeIri } from "@hyperjump/uri";
 import ignore from "ignore";
 import * as jsonc from "jsonc-parser";
 
@@ -69,7 +69,7 @@ export class JsonSchemaRegistry {
     workspace.onDidChangeWatchedFiles(async (params) => {
       // Changes are applied in the order they're received. Otherwise, which of two schemas with the
       // same id gets registered would depend on which file read finishes first.
-      const applied = this.pending.then(() => this.applyChanges(params.changes.map((change) => normalizeIri(change.uri))));
+      const applied = this.pending.then(() => this.applyChanges(params.changes.map((change) => change.uri)));
       this.pending = applied.then(() => undefined, () => undefined);
 
       // Handlers aren't part of the queue because they can wait on `ready`

@@ -20,6 +20,7 @@ import {
 } from "vscode-languageserver";
 import { createConnection } from "vscode-languageserver/node";
 import { normalizeIri, resolveIri } from "@hyperjump/uri";
+import { URI } from "vscode-uri";
 import { merge } from "merge-anything";
 import { MockAgent, setGlobalDispatcher } from "undici";
 import ignore from "ignore";
@@ -36,6 +37,10 @@ import type {
   ServerCapabilities
 } from "vscode-languageserver";
 import type { LanguageServerSettings } from "../build-server.js";
+
+// Encodes a URI the way VS Code does, e.g. "file:///c:/a@b" becomes "file:///c%3A/a%40b". Every URI sent to
+// the server goes through this so tests cover URIs that aren't normalized.
+const toClientUri = (uri: string) => URI.parse(uri).toString();
 
 export class TestClient {
   private client: Connection;
@@ -61,8 +66,10 @@ export class TestClient {
     this.serverName = serverName;
     this.watchEnabled = false;
     this.openDocuments = new Set();
-    this.workspaceFolder = mkdtemp(join(tmpdir(), "test-workspace-"))
-      .then((path) => normalizeIri(pathToFileURL(path).toString()));
+    // The "@" is percent-encoded by toClientUri, so URIs from the client never match normalized URIs as-is.
+    // URIs are kept in the form the server sees them, which includes VS Code's lowercase drive letter on Windows.
+    this.workspaceFolder = mkdtemp(join(tmpdir(), "test-workspace@"))
+      .then((path) => normalizeIri(toClientUri(pathToFileURL(path).toString())));
     this.gitignore = this.workspaceFolder.then(async (rootPath) => {
       const gitignorePath = join(rootPath, ".gitignore");
       try {
@@ -134,7 +141,7 @@ export class TestClient {
         glob(params.include, { cwd: workspacePath }),
         Pact.asyncFilter((file) => !ig.ignores(file)),
         Pact.asyncMap((relativePath: string) => join(workspacePath, relativePath)),
-        Pact.asyncMap((fullPath: string) => pathToFileURL(fullPath).toString()),
+        Pact.asyncMap((fullPath: string) => URI.file(fullPath).toString()),
         Pact.asyncTake(params.maxResults ?? Number.MAX_SAFE_INTEGER),
         Pact.asyncCollectArray
       );
@@ -222,7 +229,7 @@ export class TestClient {
       workspaceFolders: [
         {
           name: "root",
-          uri: await this.workspaceFolder
+          uri: toClientUri(await this.workspaceFolder)
         }
       ]
     };
@@ -273,7 +280,7 @@ export class TestClient {
       await this.client.sendNotification(DidChangeWatchedFilesNotification.type, {
         changes: [{
           type: exists ? FileChangeType.Changed : FileChangeType.Created,
-          uri: fullUri.toString()
+          uri: toClientUri(fullUri)
         }]
       });
     }
@@ -289,7 +296,7 @@ export class TestClient {
       await this.client.sendNotification(DidChangeWatchedFilesNotification.type, {
         changes: [{
           type: FileChangeType.Deleted,
-          uri: fullUri
+          uri: toClientUri(fullUri)
         }]
       });
     }
@@ -303,7 +310,7 @@ export class TestClient {
 
     await this.client.sendNotification(DidOpenTextDocumentNotification.type, {
       textDocument: {
-        uri: fullUri,
+        uri: toClientUri(fullUri),
         languageId: fullPath.endsWith(".jsonc") ? "jsonc" : "json",
         version: 0,
         text: await readFile(fullPath, "utf-8")
@@ -320,7 +327,7 @@ export class TestClient {
 
     await this.client.sendNotification(DidChangeTextDocumentNotification.type, {
       textDocument: {
-        uri: fullUri,
+        uri: toClientUri(fullUri),
         version: 1
       },
       contentChanges: [{ text }]
@@ -335,7 +342,7 @@ export class TestClient {
 
     await this.client.sendNotification(DidCloseTextDocumentNotification.type, {
       textDocument: {
-        uri: fullUri
+        uri: toClientUri(fullUri)
       }
     });
   }

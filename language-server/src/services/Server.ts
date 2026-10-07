@@ -1,4 +1,5 @@
 import { merge } from "merge-anything";
+import { normalizeIri } from "@hyperjump/uri";
 
 import type {
   Connection,
@@ -12,6 +13,13 @@ import type {
   RequestHandler0,
   ServerRequestHandler
 } from "vscode-languageserver";
+
+type UriParams = {
+  textDocument?: { uri: string };
+  changes?: unknown[];
+};
+
+type RegisterHandler = (handler: never) => Disposable;
 
 export class Server implements Connection {
   private connection: Connection;
@@ -79,8 +87,15 @@ export class Server implements Connection {
       let initializeResult: InitializeResult = {
         capabilities: {}
       };
+      const normalizedParams: InitializeParams = {
+        ...params,
+        workspaceFolders: params.workspaceFolders?.map((workspaceFolder) => {
+          return { ...workspaceFolder, uri: normalizeIri(workspaceFolder.uri) };
+        })
+      };
+
       for (const handler of this.initializeHandlers) {
-        const handlerResult = handler(params, token, workDoneProgress);
+        const handlerResult = handler(normalizedParams, token, workDoneProgress);
         initializeResult = merge(initializeResult, handlerResult as InitializeResult);
       }
 
@@ -125,43 +140,43 @@ export class Server implements Connection {
     this.onProgress = this.connection.onProgress.bind(this.connection);
     this.sendProgress = this.connection.sendProgress.bind(this.connection);
     this.onDidChangeConfiguration = this.connection.onDidChangeConfiguration.bind(this.connection);
-    this.onDidChangeWatchedFiles = this.connection.onDidChangeWatchedFiles.bind(this.connection);
-    this.onDidOpenTextDocument = this.connection.onDidOpenTextDocument.bind(this.connection);
-    this.onDidChangeTextDocument = this.connection.onDidChangeTextDocument.bind(this.connection);
-    this.onDidCloseTextDocument = this.connection.onDidCloseTextDocument.bind(this.connection);
-    this.onWillSaveTextDocument = this.connection.onWillSaveTextDocument.bind(this.connection);
-    this.onWillSaveTextDocumentWaitUntil = this.connection.onWillSaveTextDocumentWaitUntil.bind(this.connection);
-    this.onDidSaveTextDocument = this.connection.onDidSaveTextDocument.bind(this.connection);
+    this.onDidChangeWatchedFiles = withNormalizedUris(this.connection.onDidChangeWatchedFiles.bind(this.connection));
+    this.onDidOpenTextDocument = withNormalizedUris(this.connection.onDidOpenTextDocument.bind(this.connection));
+    this.onDidChangeTextDocument = withNormalizedUris(this.connection.onDidChangeTextDocument.bind(this.connection));
+    this.onDidCloseTextDocument = withNormalizedUris(this.connection.onDidCloseTextDocument.bind(this.connection));
+    this.onWillSaveTextDocument = withNormalizedUris(this.connection.onWillSaveTextDocument.bind(this.connection));
+    this.onWillSaveTextDocumentWaitUntil = withNormalizedUris(this.connection.onWillSaveTextDocumentWaitUntil.bind(this.connection));
+    this.onDidSaveTextDocument = withNormalizedUris(this.connection.onDidSaveTextDocument.bind(this.connection));
     this.sendDiagnostics = this.connection.sendDiagnostics.bind(this.connection);
-    this.onHover = this.connection.onHover.bind(this.connection);
-    this.onCompletion = this.connection.onCompletion.bind(this.connection);
+    this.onHover = withNormalizedUris(this.connection.onHover.bind(this.connection));
+    this.onCompletion = withNormalizedUris(this.connection.onCompletion.bind(this.connection));
     this.onCompletionResolve = this.connection.onCompletionResolve.bind(this.connection);
-    this.onSignatureHelp = this.connection.onSignatureHelp.bind(this.connection);
-    this.onDeclaration = this.connection.onDeclaration.bind(this.connection);
-    this.onDefinition = this.connection.onDefinition.bind(this.connection);
-    this.onTypeDefinition = this.connection.onTypeDefinition.bind(this.connection);
-    this.onImplementation = this.connection.onImplementation.bind(this.connection);
-    this.onReferences = this.connection.onReferences.bind(this.connection);
-    this.onDocumentHighlight = this.connection.onDocumentHighlight.bind(this.connection);
-    this.onDocumentSymbol = this.connection.onDocumentSymbol.bind(this.connection);
+    this.onSignatureHelp = withNormalizedUris(this.connection.onSignatureHelp.bind(this.connection));
+    this.onDeclaration = withNormalizedUris(this.connection.onDeclaration.bind(this.connection));
+    this.onDefinition = withNormalizedUris(this.connection.onDefinition.bind(this.connection));
+    this.onTypeDefinition = withNormalizedUris(this.connection.onTypeDefinition.bind(this.connection));
+    this.onImplementation = withNormalizedUris(this.connection.onImplementation.bind(this.connection));
+    this.onReferences = withNormalizedUris(this.connection.onReferences.bind(this.connection));
+    this.onDocumentHighlight = withNormalizedUris(this.connection.onDocumentHighlight.bind(this.connection));
+    this.onDocumentSymbol = withNormalizedUris(this.connection.onDocumentSymbol.bind(this.connection));
     this.onWorkspaceSymbol = this.connection.onWorkspaceSymbol.bind(this.connection);
     this.onWorkspaceSymbolResolve = this.connection.onWorkspaceSymbolResolve.bind(this.connection);
-    this.onCodeAction = this.connection.onCodeAction.bind(this.connection);
+    this.onCodeAction = withNormalizedUris(this.connection.onCodeAction.bind(this.connection));
     this.onCodeActionResolve = this.connection.onCodeActionResolve.bind(this.connection);
-    this.onCodeLens = this.connection.onCodeLens.bind(this.connection);
+    this.onCodeLens = withNormalizedUris(this.connection.onCodeLens.bind(this.connection));
     this.onCodeLensResolve = this.connection.onCodeLensResolve.bind(this.connection);
-    this.onDocumentFormatting = this.connection.onDocumentFormatting.bind(this.connection);
-    this.onDocumentRangeFormatting = this.connection.onDocumentRangeFormatting.bind(this.connection);
-    this.onDocumentRangesFormatting = this.connection.onDocumentRangesFormatting.bind(this.connection);
-    this.onDocumentOnTypeFormatting = this.connection.onDocumentOnTypeFormatting.bind(this.connection);
-    this.onRenameRequest = this.connection.onRenameRequest.bind(this.connection);
-    this.onPrepareRename = this.connection.onPrepareRename.bind(this.connection);
-    this.onDocumentLinks = this.connection.onDocumentLinks.bind(this.connection);
+    this.onDocumentFormatting = withNormalizedUris(this.connection.onDocumentFormatting.bind(this.connection));
+    this.onDocumentRangeFormatting = withNormalizedUris(this.connection.onDocumentRangeFormatting.bind(this.connection));
+    this.onDocumentRangesFormatting = withNormalizedUris(this.connection.onDocumentRangesFormatting.bind(this.connection));
+    this.onDocumentOnTypeFormatting = withNormalizedUris(this.connection.onDocumentOnTypeFormatting.bind(this.connection));
+    this.onRenameRequest = withNormalizedUris(this.connection.onRenameRequest.bind(this.connection));
+    this.onPrepareRename = withNormalizedUris(this.connection.onPrepareRename.bind(this.connection));
+    this.onDocumentLinks = withNormalizedUris(this.connection.onDocumentLinks.bind(this.connection));
     this.onDocumentLinkResolve = this.connection.onDocumentLinkResolve.bind(this.connection);
-    this.onDocumentColor = this.connection.onDocumentColor.bind(this.connection);
-    this.onColorPresentation = this.connection.onColorPresentation.bind(this.connection);
-    this.onFoldingRanges = this.connection.onFoldingRanges.bind(this.connection);
-    this.onSelectionRanges = this.connection.onSelectionRanges.bind(this.connection);
+    this.onDocumentColor = withNormalizedUris(this.connection.onDocumentColor.bind(this.connection));
+    this.onColorPresentation = withNormalizedUris(this.connection.onColorPresentation.bind(this.connection));
+    this.onFoldingRanges = withNormalizedUris(this.connection.onFoldingRanges.bind(this.connection));
+    this.onSelectionRanges = withNormalizedUris(this.connection.onSelectionRanges.bind(this.connection));
     this.onExecuteCommand = this.connection.onExecuteCommand.bind(this.connection);
     this.dispose = this.connection.dispose.bind(this.connection);
   }
@@ -238,3 +253,26 @@ export class Server implements Connection {
     return this.connection.notebooks;
   }
 }
+
+// URIs from the client are normalized here so they match URIs the server produces with @hyperjump/uri.
+// Everything past this point can compare URIs without normalizing them again.
+const normalizeUris = <P extends UriParams>(params: P): P => {
+  if (params.textDocument) {
+    return { ...params, textDocument: { ...params.textDocument, uri: normalizeIri(params.textDocument.uri) } };
+  } else if (params.changes) {
+    // Watched file changes. Text document changes have a textDocument, so they're handled above.
+    const changes = params.changes as { uri: string }[];
+    return { ...params, changes: changes.map((change) => ({ ...change, uri: normalizeIri(change.uri) })) };
+  } else {
+    return params;
+  }
+};
+
+// The handler types vary too much between methods to express, but every wrapped method takes a handler whose
+// first argument is the params
+const withNormalizedUris = <R extends RegisterHandler>(register: R): R => {
+  const wrapped = (handler: (params: UriParams, ...args: unknown[]) => unknown) => {
+    return register(((params: UriParams, ...args: unknown[]) => handler(normalizeUris(params), ...args)) as never);
+  };
+  return wrapped as unknown as R;
+};
