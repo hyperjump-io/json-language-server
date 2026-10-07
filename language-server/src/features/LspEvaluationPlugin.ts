@@ -70,14 +70,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
         const properties = keywordValue as Record<string, string>;
         for (const propertyName in properties) {
           const pointer = JsonPointer.append(propertyName, instance.pointer);
-          if (this.incompleteLocations.has(pointer)) {
-            this.recordBuiltAnnotation(pointer, properties[propertyName], schemaContext);
-            context.evaluatedProperties?.add(propertyName);
-          }
-        }
-
-        for (const propertyName in properties) {
-          const pointer = JsonPointer.append(propertyName, instance.pointer);
           const schemaUri = properties[propertyName];
           const completions = this.buildCompletions(schemaUri, schemaContext);
           schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
@@ -91,20 +83,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/patternProperties": {
         const patternProperties = keywordValue as [RegExp, string][];
-        for (const pointer of this.incompleteLocations) {
-          const [parentPointer, propertyName] = splitPointer(pointer);
-          if (parentPointer !== instance.pointer) {
-            continue;
-          }
-
-          for (const [pattern, schemaUri] of patternProperties) {
-            if (pattern.test(propertyName)) {
-              this.recordBuiltAnnotation(pointer, schemaUri, schemaContext);
-              context.evaluatedProperties?.add(propertyName);
-            }
-          }
-        }
-
         for (const [pattern, schemaUri] of patternProperties) {
           const completions = this.buildCompletions(schemaUri, schemaContext);
           for (const propertyNameNode of Instance.keys(instance)) {
@@ -128,14 +106,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/additionalProperties": {
         const [isDeclaredProperty, schemaUri] = keywordValue as [RegExp, string];
-        for (const pointer of this.incompleteLocations) {
-          const [parentPointer, propertyName] = splitPointer(pointer);
-          if (parentPointer === instance.pointer && !isDeclaredProperty.test(propertyName)) {
-            this.recordBuiltAnnotation(pointer, schemaUri, schemaContext);
-            context.evaluatedProperties?.add(propertyName);
-          }
-        }
-
         const completions = this.buildCompletions(schemaUri, schemaContext);
         for (const propertyNameNode of Instance.keys(instance)) {
           const propertyName = Instance.value(propertyNameNode) as string;
@@ -157,15 +127,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/unevaluatedProperties": {
         const schemaUri = keywordValue as string;
-        for (const pointer of this.incompleteLocations) {
-          const [parentPointer, propertyName] = splitPointer(pointer);
-          if (parentPointer === instance.pointer && !context.schemaEvaluatedProperties!.has(propertyName)) {
-            this.recordBuiltAnnotation(pointer, schemaUri, schemaContext);
-            context.lspUnevaluatedProperties ??= [];
-            context.lspUnevaluatedProperties.push(propertyName);
-          }
-        }
-
         const completions = this.buildCompletions(schemaUri, schemaContext);
         for (const propertyNameNode of Instance.keys(instance)) {
           const propertyName = Instance.value(propertyNameNode) as string;
@@ -179,6 +140,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
           const [parentPointer, propertyName] = splitPointer(pointer);
           if (parentPointer === instance.pointer && !context.schemaEvaluatedProperties!.has(propertyName)) {
             schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+            context.lspUnevaluatedProperties ??= [];
+            context.lspUnevaluatedProperties.push(propertyName);
           }
         }
         break;
@@ -186,14 +149,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/prefixItems": {
         const prefixItems = keywordValue as string[];
-        for (let itemIndex = 0; itemIndex < prefixItems.length; itemIndex++) {
-          const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
-          if (this.incompleteLocations.has(pointer)) {
-            this.recordBuiltAnnotation(pointer, prefixItems[itemIndex], schemaContext);
-            context.evaluatedItems?.add(itemIndex);
-          }
-        }
-
         for (let itemIndex = 0; itemIndex < prefixItems.length; itemIndex++) {
           const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
           const completions = this.buildCompletions(prefixItems[itemIndex], schemaContext);
@@ -209,15 +164,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       case "https://json-schema.org/keyword/draft-04/additionalItems":
       case "https://json-schema.org/keyword/items": {
         const [numberOfPrefixItems, schemaUri] = keywordValue as [number, string];
-        for (const pointer of this.incompleteLocations) {
-          const [parentPointer, indexStr] = splitPointer(pointer);
-          const itemIndex = Number(indexStr);
-          if (parentPointer === instance.pointer && itemIndex >= numberOfPrefixItems) {
-            this.recordBuiltAnnotation(pointer, schemaUri, schemaContext);
-            context.evaluatedItems?.add(itemIndex);
-          }
-        }
-
         const completions = this.buildCompletions(schemaUri, schemaContext);
         for (let itemIndex = numberOfPrefixItems; itemIndex <= Instance.length(instance); itemIndex++) {
           const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
@@ -232,15 +178,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/draft-04/items": {
         if (typeof keywordValue === "string") {
-          for (const pointer of this.incompleteLocations) {
-            const [parentPointer, indexStr] = splitPointer(pointer);
-            const itemIndex = Number(indexStr);
-            if (parentPointer === instance.pointer && Number.isInteger(itemIndex)) {
-              this.recordBuiltAnnotation(pointer, keywordValue, schemaContext);
-              context.evaluatedItems?.add(itemIndex);
-            }
-          }
-
           const completions = this.buildCompletions(keywordValue, schemaContext);
           for (let itemIndex = 0; itemIndex <= Instance.length(instance); itemIndex++) {
             const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
@@ -252,14 +189,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
           }
         } else {
           const items = keywordValue as string[];
-          for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
-            const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
-            if (this.incompleteLocations.has(pointer)) {
-              this.recordBuiltAnnotation(pointer, items[itemIndex], schemaContext);
-              context.evaluatedItems?.add(itemIndex);
-            }
-          }
-
           for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
             const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
             const completions = this.buildCompletions(items[itemIndex], schemaContext);
@@ -275,21 +204,16 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/unevaluatedItems": {
         const schemaUri = keywordValue as string;
-        for (const pointer of this.incompleteLocations) {
-          const [parentPointer, indexStr] = splitPointer(pointer);
-          const itemIndex = Number(indexStr);
-          if (parentPointer === instance.pointer && Number.isInteger(itemIndex) && !context.schemaEvaluatedItems!.has(itemIndex)) {
-            this.recordBuiltAnnotation(pointer, schemaUri, schemaContext);
-            context.lspUnevaluatedItems ??= [];
-            context.lspUnevaluatedItems.push(itemIndex);
-          }
-        }
-
         const completions = this.buildCompletions(schemaUri, schemaContext);
         for (let itemIndex = 0; itemIndex <= Instance.length(instance); itemIndex++) {
           if (!context.schemaEvaluatedItems!.has(itemIndex)) {
             const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
             schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+
+            if (this.incompleteLocations.has(pointer)) {
+              context.lspUnevaluatedItems ??= [];
+              context.lspUnevaluatedItems.push(itemIndex);
+            }
           }
         }
         break;
@@ -394,25 +318,42 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
     this.completions = context.completions!;
   }
 
+  // Locations that evaluation reached have the annotations collected while
+  // evaluating their value. Locations without a value, such as incomplete
+  // properties or properties declared by the schema that aren't in the
+  // instance, have the annotations of the values that could be there.
+
   // All annotations at a location, both location and value annotations
   getAnnotations(instanceLocation: string): Annotation[] {
-    return (this.annotations[instanceLocation] ?? []).map(({ annotation }) => annotation);
+    if (instanceLocation in this.annotations) {
+      return this.annotations[instanceLocation].map(({ annotation }) => annotation);
+    }
+
+    return [...this.getLocationAnnotations(instanceLocation), ...this.getValueAnnotations(instanceLocation)];
   }
 
   // The annotations that apply no matter what the value at the location is.
   // These describe the property or item rather than its value.
   getLocationAnnotations(instanceLocation: string): Annotation[] {
-    return this.getAnnotationsOfKind(instanceLocation, "location");
+    if (instanceLocation in this.annotations) {
+      return this.getAnnotationsOfKind(instanceLocation, "location");
+    }
+
+    return this.completions[instanceLocation]?.getLocationAnnotations() ?? [];
   }
 
   // The annotations that apply because of what the value at the location is.
   // For example, the annotations of an anyOf alternative.
   getValueAnnotations(instanceLocation: string): Annotation[] {
-    return this.getAnnotationsOfKind(instanceLocation, "value");
+    if (instanceLocation in this.annotations) {
+      return this.getAnnotationsOfKind(instanceLocation, "value");
+    }
+
+    return this.completions[instanceLocation]?.getMemberAnnotations() ?? [];
   }
 
   private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): Annotation[] {
-    return (this.annotations[instanceLocation] ?? [])
+    return this.annotations[instanceLocation]
       .filter((recorded) => recorded.kind === kind)
       .map(({ annotation }) => annotation);
   }
@@ -449,79 +390,12 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
     return propertyNames;
   }
 
-  // Produces one annotation object per schema, in the same shape as annotations
-  // collected for complete locations, so annotations for the same keyword from
-  // different schemas don't overwrite each other. `inProgress` holds the
-  // schemas currently being expanded so a schema that references itself
-  // in-place doesn't recurse forever. Annotations from anyOf/oneOf
-  // alternatives are value annotations. $dynamicRef is resolved using the
-  // dynamic scope of the parent, so it's an approximation.
-  private buildAnnotations(schemaLocation: string, context: LspContext, inProgress: Set<string> = new Set()): RecordedAnnotation[] {
-    if (inProgress.has(schemaLocation)) {
-      return [];
-    }
-
-    const nodes = context.ast[schemaLocation];
-
-    if (nodes === true || nodes === false) {
-      return [{ kind: "location", annotation: {} }];
-    }
-
-    inProgress.add(schemaLocation);
-
-    const subschemaAnnotations: RecordedAnnotation[] = [];
-    const schemaAnnotation: Annotation = {};
-
-    for (const node of nodes) {
-      const [keywordId, , keywordValue] = node;
-
-      switch (keywordId) {
-        case "https://json-schema.org/keyword/ref":
-          subschemaAnnotations.push(...this.buildAnnotations(keywordValue as string, context, inProgress));
-          break;
-
-        case "https://json-schema.org/keyword/dynamicRef":
-          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![keywordValue as string], context, inProgress));
-          break;
-
-        case "https://json-schema.org/keyword/draft-2020-12/dynamicRef": {
-          const [, fragment, ref] = keywordValue as [string, string, string];
-          subschemaAnnotations.push(...this.buildAnnotations(context.dynamicAnchors![fragment] ?? ref, context, inProgress));
-          break;
-        }
-
-        case "https://json-schema.org/keyword/allOf":
-          for (const subSchemaLocation of keywordValue as string[]) {
-            subschemaAnnotations.push(...this.buildAnnotations(subSchemaLocation, context, inProgress));
-          }
-          break;
-
-        case "https://json-schema.org/keyword/anyOf":
-        case "https://json-schema.org/keyword/oneOf":
-          for (const subSchemaLocation of keywordValue as string[]) {
-            for (const { annotation } of this.buildAnnotations(subSchemaLocation, context, inProgress)) {
-              subschemaAnnotations.push({ kind: "value", annotation });
-            }
-          }
-          break;
-
-        default:
-          addKeywordAnnotation(schemaAnnotation, node, context);
-      }
-    }
-
-    inProgress.delete(schemaLocation);
-
-    return [...subschemaAnnotations, { kind: "location", annotation: schemaAnnotation }];
-  }
-
-  private recordBuiltAnnotation(pointer: string, schemaLocation: string, context: LspContext) {
-    appendAnnotations(context.schemaAnnotations!, { [pointer]: this.buildAnnotations(schemaLocation, context) });
-  }
-
-  // `inProgress` holds the schemas currently being expanded so a schema that
-  // references itself in-place doesn't recurse forever. A cycle adds no
-  // information, so it's treated as unconstrained.
+  // The values that could be at a location and their annotations, built from
+  // the schema without an instance. `inProgress` holds the schemas currently
+  // being expanded so a schema that references itself in-place doesn't recurse
+  // forever. A cycle adds no information, so it's treated as unconstrained.
+  // $dynamicRef is resolved using the dynamic scope of the parent, so it's an
+  // approximation.
   private buildCompletions(schemaLocation: string, context: LspContext, inProgress: Set<string> = new Set()): JsonValueSet {
     if (inProgress.has(schemaLocation)) {
       return JsonValueSet.any();

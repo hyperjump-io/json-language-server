@@ -158,6 +158,29 @@ export class JsonValueSet {
     return this;
   }
 
+  // The annotations that apply no matter which member the value is
+  getLocationAnnotations(): Annotation[] {
+    return this.annotations;
+  }
+
+  // The annotations that apply to any of the members of the set
+  getMemberAnnotations(): Annotation[] {
+    let result: Annotation[] = [];
+    for (const bucket of this.buckets.values()) {
+      if (bucket.kind === "finite") {
+        for (const annotations of bucket.values.values()) {
+          result = mergeAnnotations(result, annotations);
+        }
+      } else {
+        result = mergeAnnotations(result, bucket.annotations);
+        for (const annotations of bucket.valueAnnotations.values()) {
+          result = mergeAnnotations(result, annotations);
+        }
+      }
+    }
+    return result;
+  }
+
   // The annotations that apply only to some members of the set. Annotations
   // that apply no matter which member the value is aren't included.
   getValueAnnotations(value: string): Annotation[] {
