@@ -140,6 +140,17 @@ export class JsonSchemaRegistry {
     return this.workspaceSchemas.get(fileUri);
   }
 
+  // The file of the registered workspace schema that uses the id
+  getFileUri(schemaUri: string) {
+    // Registered ids never have a fragment, but $schema can, e.g. "https://example.com/schema#"
+    schemaUri = toAbsoluteIri(schemaUri);
+    for (const [fileUri, workspaceSchemaUri] of this.workspaceSchemas) {
+      if (workspaceSchemaUri === schemaUri && hasSchema(schemaUri)) {
+        return fileUri;
+      }
+    }
+  }
+
   getRegistrationError(fileUri: string) {
     return this.failedSchemas.get(fileUri)?.message;
   }

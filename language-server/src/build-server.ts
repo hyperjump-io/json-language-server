@@ -54,7 +54,7 @@ export const buildServer = (connection: Connection): Server => {
   new FoldingRanges(server, jsonDocuments);
   new DocumentSymbols(server, jsonDocuments);
   new SelectionRanges(server, jsonDocuments);
-  new DocumentLinks(server, jsonDocuments, workspace);
+  new DocumentLinks(server, jsonDocuments, workspace, registry);
   new DocumentColors(server, jsonDocuments, jsonSchema);
 
   return server;

@@ -41,6 +41,34 @@ describe("DocumentLinks", () => {
     ]);
   });
 
+  test("should return a link to the file of a self-identifying schema in the workspace", async () => {
+    const schemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://example.com/my-schema",
+      "type": "object"
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "https://example.com/my-schema#"
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const result = await client.sendRequest(DocumentLinkRequest.type, {
+      textDocument: { uri }
+    });
+
+    expect(result).toEqual([
+      {
+        target: schemaUri,
+        tooltip: "Goto Schema",
+        range: {
+          start: { line: 1, character: 18 },
+          end: { line: 1, character: 48 }
+        }
+      }
+    ]);
+  });
+
   test("should not return a link for a $schema resolved from SchemaStore.org", async () => {
     await client.writeDocument("instance.json", `{
       "$schema": "https://json.schemastore.org/package.json"
