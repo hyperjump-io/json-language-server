@@ -3,10 +3,12 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { JsonValueSet } from "./JsonValueSet.ts";
 import { SubschemaTracker } from "../SubschemaTracker.ts";
+import { addKeywordAnnotation } from "../AnnotationsEvaluationPlugin.ts";
 
 import type { EvaluationPlugin, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
 import type { JsonSchemaType, ValueEntry } from "./JsonValueSet.ts";
+import type { Annotation } from "../AnnotationsEvaluationPlugin.ts";
 
 type CompletionsContext = ValidationContext & {
   completions?: Record<string, JsonValueSet>;
@@ -258,12 +260,13 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
   }
 
   * getCompletions(pointer: string) {
-    for (const completion of this.completions[pointer] ?? new JsonValueSet()) {
+    const valueSet = this.completions[pointer] ?? new JsonValueSet();
+    for (const completion of valueSet) {
       if (completion.kind === "value") {
         yield completion;
       } else {
         for (const value of completion.included) {
-          yield { kind: "value", value } as ValueEntry;
+          yield { kind: "value", value, annotations: valueSet.getValueAnnotations(value) } as ValueEntry;
         }
 
         yield completion;
@@ -343,12 +346,14 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
 
           case "https://json-schema.org/keyword/anyOf":
             return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
-              return valueSet.union(this.buildCompletions(subSchemaLocation, context, inProgress));
+              return valueSet.union(this.buildCompletions(subSchemaLocation, context, inProgress).withMemberAnnotations());
             }, new JsonValueSet());
 
           case "https://json-schema.org/keyword/oneOf":
             return JsonValueSet.exclusiveUnion(
-              (keywordValue as string[]).map((subSchemaLocation) => this.buildCompletions(subSchemaLocation, context, inProgress))
+              (keywordValue as string[]).map((subSchemaLocation) => {
+                return this.buildCompletions(subSchemaLocation, context, inProgress).withMemberAnnotations();
+              })
             );
 
           case "https://json-schema.org/keyword/not":
@@ -360,6 +365,15 @@ export class CompletionsEvaluationPlugin implements EvaluationPlugin<Completions
       }),
       Pact.reduce((valueSet, keywordValueSet) => valueSet.intersect(keywordValueSet), JsonValueSet.any())
     );
+
+    const annotation: Annotation = {};
+    for (const node of nodes) {
+      addKeywordAnnotation(annotation, node, context);
+    }
+
+    if (Object.keys(annotation).length > 0) {
+      completions.annotate(annotation);
+    }
 
     inProgress.delete(schemaLocation);
 
