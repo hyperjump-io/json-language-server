@@ -2,6 +2,8 @@ import { registerSchema } from "@hyperjump/json-schema/draft-2020-12";
 import { addKeyword, defineVocabulary } from "@hyperjump/json-schema/experimental";
 import * as Browser from "@hyperjump/browser";
 
+import type { Constructor, JsonSchemaAnnotation } from "../annotations/JsonSchemaAnnotation.ts";
+
 // VS Code's custom keywords. Only active in dialects whose meta-schema includes this vocabulary.
 addKeyword({
   id: "https://microsoft.com/keyword/markdownDescription",
@@ -44,16 +46,6 @@ registerSchema({
   }
 });
 
-// The description to show anywhere a description is shown. Prefers
-// markdownDescription over the standard description keyword. Schemas that don't
-// use the vocabulary still produce an annotation for markdownDescription as an
-// unknown keyword.
-export const getDescription = (annotation: Record<string, unknown>): string | undefined => {
-  return (annotation["https://microsoft.com/keyword/markdownDescription"]
-    ?? annotation["https://json-schema.org/keyword/unknown#markdownDescription"]
-    ?? annotation["https://json-schema.org/keyword/description"]) as string | undefined;
-};
-
 export type DefaultSnippet = {
   label?: string;
   description?: string;
@@ -62,10 +54,19 @@ export type DefaultSnippet = {
   bodyText?: string;
 };
 
-// Schemas that don't use the vocabulary still produce an annotation for
-// defaultSnippets as an unknown keyword
-export const getDefaultSnippets = (annotation: Record<string, unknown>): DefaultSnippet[] => {
-  return (annotation["https://microsoft.com/keyword/defaultSnippets"]
-    ?? annotation["https://json-schema.org/keyword/unknown#defaultSnippets"]
-    ?? []) as DefaultSnippet[];
+// Schemas that don't use the vocabulary still produce annotations for its
+// keywords as unknown keywords.
+export const VscodeAnnotation = <T extends Constructor<JsonSchemaAnnotation>>(Base: T) => class extends Base {
+  // Prefers markdownDescription over the standard description keyword
+  override description(): string | undefined {
+    return (this.keywords["https://microsoft.com/keyword/markdownDescription"]
+      ?? this.keywords["https://json-schema.org/keyword/unknown#markdownDescription"]
+      ?? super.description()) as string | undefined;
+  }
+
+  defaultSnippets(): DefaultSnippet[] {
+    return (this.keywords["https://microsoft.com/keyword/defaultSnippets"]
+      ?? this.keywords["https://json-schema.org/keyword/unknown#defaultSnippets"]
+      ?? []) as DefaultSnippet[];
+  }
 };

@@ -7,6 +7,7 @@ import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
 
 import type { SchemaObject } from "@hyperjump/json-schema";
 import type { Json } from "@hyperjump/json-schema-errors";
+import type { Annotation } from "../annotations/Annotation.ts";
 const schemaUri = "https://example.com/annotations-test";
 
 const evaluate = async (schema: SchemaObject, instance: Json, incompleteLocations?: Set<string>) => {
@@ -17,8 +18,8 @@ const evaluate = async (schema: SchemaObject, instance: Json, incompleteLocation
   return plugin;
 };
 
-const titles = (annotations: Record<string, unknown>[]) => annotations.map((annotation) => annotation["https://json-schema.org/keyword/title"] as string | undefined).filter((title) => title !== undefined);
-const descriptions = (annotations: Record<string, unknown>[]) => annotations.map((annotation) => annotation["https://json-schema.org/keyword/description"] as string | undefined).filter((description) => description !== undefined);
+const titles = (annotations: Annotation[]) => annotations.map((annotation) => annotation.title()).filter((title) => title !== undefined);
+const descriptions = (annotations: Annotation[]) => annotations.map((annotation) => annotation.description()).filter((description) => description !== undefined);
 
 describe("LspEvaluationPlugin location and value annotations", () => {
   afterEach(() => {

@@ -4,31 +4,34 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { JsonValueSet } from "./JsonValueSet.ts";
 import { SubschemaTracker } from "./SubschemaTracker.ts";
+import { Annotation } from "../annotations/Annotation.ts";
 
 import type { EvaluationPlugin, Keyword, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
-import type { JsonSchemaType, ValueEntry } from "./JsonValueSet.ts";
+import type { JsonSchemaType, TypeEntry, ValueEntry } from "./JsonValueSet.ts";
+import type { AnnotationRecord } from "../annotations/JsonSchemaAnnotation.ts";
 import type { SchemaEvaluation } from "../services/JsonSchema.ts";
-
-export type Annotation = Record<string, unknown>;
 
 // A location annotation applies no matter what the value at the location is.
 // A value annotation applies only because of what the value is, such as an
 // annotation from an anyOf alternative.
-type RecordedAnnotation = { kind: "location" | "value"; annotation: Annotation };
-type Annotations = Record<string, RecordedAnnotation[]>;
+type RecordedAnnotation = { kind: "location" | "value"; annotation: AnnotationRecord };
+type RecordedAnnotations = Record<string, RecordedAnnotation[]>;
 
 type Completions = Record<string, JsonValueSet>;
 
+export type Completion = WithAnnotations<ValueEntry> | WithAnnotations<TypeEntry>;
+type WithAnnotations<T extends { annotations: AnnotationRecord[] }> = Omit<T, "annotations"> & { annotations: Annotation[] };
+
 type SchemaResult = {
   pointer: string;
-  annotations: Annotations;
+  annotations: RecordedAnnotations;
   completions: Completions;
 };
 
 type LspContext = ValidationContext & {
-  pendingAnnotations?: Annotation;
-  schemaAnnotations?: Annotations;
+  pendingAnnotations?: AnnotationRecord;
+  schemaAnnotations?: RecordedAnnotations;
   completions?: Completions;
   dynamicAnchors?: Record<string, string>;
   evaluatedProperties?: Set<string>;
@@ -43,7 +46,7 @@ type LspContext = ValidationContext & {
 export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   static readonly id = "lsp";
 
-  private annotations: Annotations = Object.create(null);
+  private annotations: RecordedAnnotations = Object.create(null);
   private completions: Completions = Object.create(null);
   private incompleteLocations: Set<string>;
   private subschemaTracker = new SubschemaTracker<SchemaResult>();
@@ -323,7 +326,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   // All annotations at a location, both location and value annotations
   getAnnotations(instanceLocation: string): Annotation[] {
     if (instanceLocation in this.annotations) {
-      return this.annotations[instanceLocation].map(({ annotation }) => annotation);
+      return toAnnotations(this.annotations[instanceLocation].map(({ annotation }) => annotation));
     }
 
     return [...this.getLocationAnnotations(instanceLocation), ...this.getValueAnnotations(instanceLocation)];
@@ -333,23 +336,23 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   // These describe the property or item rather than its value.
   getLocationAnnotations(instanceLocation: string): Annotation[] {
     if (instanceLocation in this.annotations) {
-      return this.getAnnotationsOfKind(instanceLocation, "location");
+      return toAnnotations(this.getAnnotationsOfKind(instanceLocation, "location"));
     }
 
-    return this.completions[instanceLocation]?.getLocationAnnotations() ?? [];
+    return toAnnotations(this.completions[instanceLocation]?.getLocationAnnotations() ?? []);
   }
 
   // The annotations that apply because of what the value at the location is.
   // For example, the annotations of an anyOf alternative.
   getValueAnnotations(instanceLocation: string): Annotation[] {
     if (instanceLocation in this.annotations) {
-      return this.getAnnotationsOfKind(instanceLocation, "value");
+      return toAnnotations(this.getAnnotationsOfKind(instanceLocation, "value"));
     }
 
-    return this.completions[instanceLocation]?.getMemberAnnotations() ?? [];
+    return toAnnotations(this.completions[instanceLocation]?.getMemberAnnotations() ?? []);
   }
 
-  private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): Annotation[] {
+  private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): AnnotationRecord[] {
     return Pact.pipe(
       this.annotations[instanceLocation],
       Pact.filter((recorded) => recorded.kind === kind),
@@ -358,17 +361,17 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
     );
   }
 
-  * getCompletions(pointer: string) {
+  * getCompletions(pointer: string): Generator<Completion> {
     const valueSet = this.completions[pointer] ?? new JsonValueSet();
     for (const completion of valueSet) {
       if (completion.kind === "value") {
-        yield completion;
+        yield { ...completion, annotations: toAnnotations(completion.annotations) };
       } else {
         for (const value of completion.included) {
-          yield { kind: "value", value, annotations: valueSet.getValueAnnotations(value) } as ValueEntry;
+          yield { kind: "value", value, annotations: toAnnotations(valueSet.getValueAnnotations(value)) };
         }
 
-        yield completion;
+        yield { ...completion, annotations: toAnnotations(completion.annotations) };
       }
     }
   }
@@ -468,7 +471,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       Pact.reduce((valueSet, keywordValueSet) => valueSet.intersect(keywordValueSet), JsonValueSet.any())
     );
 
-    const annotation: Annotation = {};
+    const annotation: AnnotationRecord = {};
     for (const node of nodes) {
       addKeywordAnnotation(annotation, node, context);
     }
@@ -557,7 +560,7 @@ const conditionalKeywords = new Set([
   "https://json-schema.org/keyword/draft-06/contains"
 ]);
 
-function asValueAnnotations(annotations: Annotations, pointer: string): Annotations {
+function asValueAnnotations(annotations: RecordedAnnotations, pointer: string): RecordedAnnotations {
   if (!(pointer in annotations)) {
     return annotations;
   }
@@ -570,7 +573,7 @@ function asValueAnnotations(annotations: Annotations, pointer: string): Annotati
 
 // Adds a keyword's annotation without an instance, for locations that
 // evaluation doesn't reach.
-function addKeywordAnnotation(annotation: Annotation, [keywordId, , keywordValue]: Node<unknown>, context: ValidationContext) {
+function addKeywordAnnotation(annotation: AnnotationRecord, [keywordId, , keywordValue]: Node<unknown>, context: ValidationContext) {
   const keyword = getKeyword(keywordId);
   if (keyword?.annotation) {
     try {
@@ -581,7 +584,11 @@ function addKeywordAnnotation(annotation: Annotation, [keywordId, , keywordValue
   }
 }
 
-function appendAnnotations(target: Annotations, source: Annotations) {
+function toAnnotations(records: AnnotationRecord[]): Annotation[] {
+  return records.map((record) => new Annotation(record));
+}
+
+function appendAnnotations(target: RecordedAnnotations, source: RecordedAnnotations) {
   for (const pointer in source) {
     target[pointer] ??= [];
     target[pointer].push(...source[pointer]);

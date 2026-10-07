@@ -1,10 +1,10 @@
 import { describe, test, expect } from "vitest";
 import { JsonValueSet } from "./JsonValueSet.ts";
 
-import type { Annotation } from "./LspEvaluationPlugin.ts";
+import type { AnnotationRecord } from "../annotations/JsonSchemaAnnotation.ts";
 
-const a: Annotation = { a: true };
-const b: Annotation = { b: true };
+const a: AnnotationRecord = { a: true };
+const b: AnnotationRecord = { b: true };
 
 const strings = () => new JsonValueSet().addType("string");
 const values = (...values: string[]) => values.reduce((set, value) => set.addValue(JSON.stringify(value)), new JsonValueSet());
@@ -12,7 +12,7 @@ const annotationsOf = (set: JsonValueSet, value: string) => set.getValueAnnotati
 const typeAnnotations = (set: JsonValueSet) => Object.fromEntries([...set].flatMap((entry) => entry.kind === "type" ? [[entry.type, entry.annotations]] : []));
 
 // An annotated set that is one alternative for the value
-const alternative = (set: JsonValueSet, annotation: Annotation) => set.annotate(annotation).withMemberAnnotations();
+const alternative = (set: JsonValueSet, annotation: AnnotationRecord) => set.annotate(annotation).withMemberAnnotations();
 
 describe("JsonValueSet annotations", () => {
   test("location annotations aren't member annotations", () => {

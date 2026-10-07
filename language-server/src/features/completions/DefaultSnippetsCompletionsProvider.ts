@@ -1,7 +1,6 @@
 import { CompletionItemKind, InsertTextFormat } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
 import { LspEvaluationPlugin } from "../LspEvaluationPlugin.ts";
-import { getDefaultSnippets } from "../../vocabularies/vscode.ts";
 
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";
 import type { CompletionItem } from "vscode-languageserver";
@@ -30,7 +29,7 @@ export class DefaultSnippetsCompletionsProvider implements CompletionsProvider {
       const plugin = LspEvaluationPlugin.from(result);
 
       for (const annotation of plugin.getAnnotations(context.instanceLocation)) {
-        for (const snippet of getDefaultSnippets(annotation)) {
+        for (const snippet of annotation.defaultSnippets()) {
           completions.push({
             label: snippet.label ?? "snippet",
             kind: CompletionItemKind.Snippet,

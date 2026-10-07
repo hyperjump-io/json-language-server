@@ -1,9 +1,8 @@
 import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
-import { getFormats } from "./annotations.ts";
 
 import type { Color, ColorInformation, ColorPresentation, ServerCapabilities } from "vscode-languageserver";
 import type { Node } from "jsonc-parser";
-import type { Annotation } from "./LspEvaluationPlugin.ts";
+import type { Annotation } from "../annotations/Annotation.ts";
 import type { Server } from "../services/Server.ts";
 import type { JsonDocuments } from "../services/JsonDocuments.ts";
 import type { JsonSchema } from "../services/JsonSchema.ts";
@@ -72,7 +71,7 @@ export class DocumentColors {
   }
 }
 
-const isColorHex = (annotation: Annotation): boolean => getFormats(annotation).includes("color-hex");
+const isColorHex = (annotation: Annotation): boolean => annotation.formats().includes("color-hex");
 
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 

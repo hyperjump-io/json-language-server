@@ -1,15 +1,15 @@
-import type { Annotation } from "./LspEvaluationPlugin.ts";
+import type { AnnotationRecord } from "../annotations/JsonSchemaAnnotation.ts";
 
 export type JsonSchemaType = "string" | "number" | "integer" | "boolean" | "null" | "array" | "object";
 
-export type ValueEntry = { kind: "value"; value: string; annotations: Annotation[] };
+export type ValueEntry = { kind: "value"; value: string; annotations: AnnotationRecord[] };
 
 export type TypeEntry = {
   kind: "type";
   type: JsonSchemaType;
   excluded: string[];
   included: string[];
-  annotations: Annotation[];
+  annotations: AnnotationRecord[];
 };
 
 export type SetEntry = ValueEntry | TypeEntry;
@@ -17,13 +17,13 @@ export type SetEntry = ValueEntry | TypeEntry;
 // Each bucket tracks the annotations of the members it admits. A finite bucket
 // has annotations per value. A cofinite bucket has annotations for every value
 // it admits, which can be overridden for specific values.
-type FiniteBucket = { kind: "finite"; values: Map<string, Annotation[]> };
+type FiniteBucket = { kind: "finite"; values: Map<string, AnnotationRecord[]> };
 type CofiniteBucket = {
   kind: "cofinite";
   excluded: Set<string>;
   included: Set<string>;
-  annotations: Annotation[];
-  valueAnnotations: Map<string, Annotation[]>;
+  annotations: AnnotationRecord[];
+  valueAnnotations: Map<string, AnnotationRecord[]>;
 };
 type Bucket = FiniteBucket | CofiniteBucket;
 
@@ -39,7 +39,7 @@ export class JsonValueSet {
   // Annotations that apply to the location no matter which member the value
   // is. They only become member annotations when the set is made conditional
   // with withMemberAnnotations.
-  private annotations: Annotation[] = [];
+  private annotations: AnnotationRecord[] = [];
 
   static any(): JsonValueSet {
     return new JsonValueSet()
@@ -153,19 +153,19 @@ export class JsonValueSet {
 
   // Adds an annotation that applies to the location no matter which member
   // the value is
-  annotate(annotation: Annotation): this {
+  annotate(annotation: AnnotationRecord): this {
     this.annotations = mergeAnnotations(this.annotations, [annotation]);
     return this;
   }
 
   // The annotations that apply no matter which member the value is
-  getLocationAnnotations(): Annotation[] {
+  getLocationAnnotations(): AnnotationRecord[] {
     return this.annotations;
   }
 
   // The annotations that apply to any of the members of the set
-  getMemberAnnotations(): Annotation[] {
-    let result: Annotation[] = [];
+  getMemberAnnotations(): AnnotationRecord[] {
+    let result: AnnotationRecord[] = [];
     for (const bucket of this.buckets.values()) {
       if (bucket.kind === "finite") {
         for (const annotations of bucket.values.values()) {
@@ -183,7 +183,7 @@ export class JsonValueSet {
 
   // The annotations that apply only to some members of the set. Annotations
   // that apply no matter which member the value is aren't included.
-  getValueAnnotations(value: string): Annotation[] {
+  getValueAnnotations(value: string): AnnotationRecord[] {
     const bucket = this.buckets.get(jsonTypeOf(value));
     return bucket && admits(bucket, value) ? annotationsOf(bucket, value) : [];
   }
@@ -263,7 +263,7 @@ export class JsonValueSet {
         const [background] = cofiniteBuckets;
         const excluded = new Set<string>();
         const included = new Set<string>();
-        const valueAnnotations = new Map<string, Annotation[]>();
+        const valueAnnotations = new Map<string, AnnotationRecord[]>();
         for (const v of named) {
           const admitting = admittingBuckets(v);
           if (admitting.length !== 1) {
@@ -280,7 +280,7 @@ export class JsonValueSet {
         }
         result.buckets.set(type, { kind: "cofinite", excluded, included, annotations: background.annotations, valueAnnotations });
       } else {
-        const values = new Map<string, Annotation[]>();
+        const values = new Map<string, AnnotationRecord[]>();
         for (const v of named) {
           const admitting = admittingBuckets(v);
           if (admitting.length === 1) {
@@ -317,7 +317,7 @@ export class JsonValueSet {
             included.add(v);
           }
         }
-        const valueAnnotations = new Map<string, Annotation[]>();
+        const valueAnnotations = new Map<string, AnnotationRecord[]>();
         for (const v of [...a.valueAnnotations.keys(), ...b.valueAnnotations.keys()]) {
           if (!excluded.has(v)) {
             valueAnnotations.set(v, mergeAnnotations(annotationsOf(a, v), annotationsOf(b, v)));
@@ -333,7 +333,7 @@ export class JsonValueSet {
       } else {
         const finite = a.kind === "finite" ? a : (b as FiniteBucket);
         const other = a.kind === "finite" ? b : a;
-        const values = new Map<string, Annotation[]>();
+        const values = new Map<string, AnnotationRecord[]>();
         for (const v of finite.values.keys()) {
           if (admits(other, v)) {
             values.set(v, mergeAnnotations(annotationsOf(a, v), annotationsOf(b, v)));
@@ -378,7 +378,7 @@ export class JsonValueSet {
       );
 
       if (a.kind === "finite" && b.kind === "finite") {
-        const values = new Map<string, Annotation[]>();
+        const values = new Map<string, AnnotationRecord[]>();
         for (const v of [...a.values.keys(), ...b.values.keys()]) {
           values.set(v, annotationsOfUnion(v));
         }
@@ -398,7 +398,7 @@ export class JsonValueSet {
           }
         }
         // Values excluded from only one side are admitted by only the other
-        const valueAnnotations = new Map<string, Annotation[]>();
+        const valueAnnotations = new Map<string, AnnotationRecord[]>();
         for (const v of [...a.excluded, ...b.excluded, ...a.valueAnnotations.keys(), ...b.valueAnnotations.keys()]) {
           if (!excluded.has(v)) {
             valueAnnotations.set(v, annotationsOfUnion(v));
@@ -424,7 +424,7 @@ export class JsonValueSet {
         for (const v of finite.values.keys()) {
           included.add(v);
         }
-        const valueAnnotations = new Map<string, Annotation[]>();
+        const valueAnnotations = new Map<string, AnnotationRecord[]>();
         for (const v of [...finite.values.keys(), ...co.valueAnnotations.keys()]) {
           if (!excluded.has(v)) {
             valueAnnotations.set(v, annotationsOfUnion(v));
@@ -447,7 +447,7 @@ export class JsonValueSet {
       const domain = CLOSED_DOMAINS[type];
 
       if (domain) {
-        const complementValues = new Map<string, Annotation[]>();
+        const complementValues = new Map<string, AnnotationRecord[]>();
         for (const value of domain) {
           if (!bucket || !admits(bucket, value)) {
             complementValues.set(value, []);
@@ -515,7 +515,7 @@ function admits(bucket: Bucket, value: string): boolean {
   return bucket.kind === "finite" ? bucket.values.has(value) : !bucket.excluded.has(value);
 }
 
-function annotationsOf(bucket: Bucket, value: string): Annotation[] {
+function annotationsOf(bucket: Bucket, value: string): AnnotationRecord[] {
   return bucket.kind === "finite"
     ? bucket.values.get(value) ?? []
     : bucket.valueAnnotations.get(value) ?? bucket.annotations;
@@ -523,7 +523,7 @@ function annotationsOf(bucket: Bucket, value: string): Annotation[] {
 
 // Sets built from the same schema share annotation objects, so they're
 // deduplicated by identity.
-function mergeAnnotations(a: Annotation[], b: Annotation[]): Annotation[] {
+function mergeAnnotations(a: AnnotationRecord[], b: AnnotationRecord[]): AnnotationRecord[] {
   const result = [...a];
   for (const annotation of b) {
     if (!result.includes(annotation)) {
