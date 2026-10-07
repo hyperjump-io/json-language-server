@@ -1,4 +1,4 @@
-import { AnnotationsEvaluationPlugin } from "./AnnotationsEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
 
 import type { Color, ColorInformation, ColorPresentation, ServerCapabilities } from "vscode-languageserver";
 import type { Node } from "jsonc-parser";
@@ -22,8 +22,8 @@ export class DocumentColors {
   constructor(server: Server, jsonDocuments: JsonDocuments, jsonSchema: JsonSchema) {
     this.jsonDocuments = jsonDocuments;
 
-    jsonSchema.registerPlugin(AnnotationsEvaluationPlugin.id, (jsonDocument) => {
-      return new AnnotationsEvaluationPlugin(jsonDocument.collectIncompleteLocations());
+    jsonSchema.registerPlugin(LspEvaluationPlugin.id, (jsonDocument) => {
+      return new LspEvaluationPlugin(jsonDocument.collectIncompleteLocations());
     });
 
     server.onInitialize(() => {
@@ -49,7 +49,7 @@ export class DocumentColors {
           return [];
         }
 
-        const annotationsEvaluationPlugin = result.plugins.get(AnnotationsEvaluationPlugin.id) as AnnotationsEvaluationPlugin;
+        const plugin = result.plugins.get(LspEvaluationPlugin.id) as LspEvaluationPlugin;
 
         const stringNodes: Node[] = [];
         jsonDocument.walkNodes(ast, (node) => {
@@ -65,7 +65,7 @@ export class DocumentColors {
             continue;
           }
 
-          const annotations = annotationsEvaluationPlugin!.getAnnotations(jsonDocument.getPointerForNode(node));
+          const annotations = plugin.getAnnotations(jsonDocument.getPointerForNode(node));
           if (annotations.some(isColorHex)) {
             colors.push({ color, range: jsonDocument.rangeAt(node.offset, node.offset + node.length) });
           }

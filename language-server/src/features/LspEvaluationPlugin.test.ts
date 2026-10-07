@@ -3,7 +3,7 @@ import { registerSchema, unregisterSchema } from "@hyperjump/json-schema/draft-2
 import { compile, getSchema, interpret } from "@hyperjump/json-schema/experimental";
 import * as Instance from "@hyperjump/json-schema/instance/experimental";
 import { JSE } from "@hyperjump/json-schema-errors";
-import { AnnotationsEvaluationPlugin } from "./AnnotationsEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
 
 import type { SchemaObject } from "@hyperjump/json-schema";
 import type { Json } from "@hyperjump/json-schema-errors";
@@ -12,7 +12,7 @@ const schemaUri = "https://example.com/annotations-test";
 const evaluate = async (schema: SchemaObject, instance: Json, incompleteLocations?: Set<string>) => {
   registerSchema(schema, schemaUri, "https://json-schema.org/draft/2020-12/schema");
   const compiledSchema = await compile(await getSchema(schemaUri));
-  const plugin = new AnnotationsEvaluationPlugin(incompleteLocations);
+  const plugin = new LspEvaluationPlugin(incompleteLocations);
   interpret(compiledSchema, Instance.fromJs(instance), { outputFormat: JSE, plugins: [plugin] });
   return plugin;
 };
@@ -20,7 +20,7 @@ const evaluate = async (schema: SchemaObject, instance: Json, incompleteLocation
 const titles = (annotations: Record<string, unknown>[]) => annotations.map((annotation) => annotation["https://json-schema.org/keyword/title"] as string | undefined).filter((title) => title !== undefined);
 const descriptions = (annotations: Record<string, unknown>[]) => annotations.map((annotation) => annotation["https://json-schema.org/keyword/description"] as string | undefined).filter((description) => description !== undefined);
 
-describe("AnnotationsEvaluationPlugin location and value annotations", () => {
+describe("LspEvaluationPlugin location and value annotations", () => {
   afterEach(() => {
     unregisterSchema(schemaUri);
   });

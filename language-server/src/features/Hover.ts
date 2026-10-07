@@ -1,6 +1,6 @@
 import { MarkupKind } from "vscode-languageserver";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
-import { AnnotationsEvaluationPlugin } from "./AnnotationsEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
 
 import type { Server } from "../services/Server.ts";
 import type { ServerCapabilities } from "vscode-languageserver";
@@ -8,8 +8,8 @@ import type { JsonSchema } from "../services/JsonSchema.ts";
 
 export class Hover {
   constructor(server: Server, jsonDocuments: JsonDocuments, jsonSchema: JsonSchema) {
-    jsonSchema.registerPlugin(AnnotationsEvaluationPlugin.id, (jsonDocument) => {
-      return new AnnotationsEvaluationPlugin(jsonDocument.collectIncompleteLocations());
+    jsonSchema.registerPlugin(LspEvaluationPlugin.id, (jsonDocument) => {
+      return new LspEvaluationPlugin(jsonDocument.collectIncompleteLocations());
     });
 
     server.onInitialize(() => {
@@ -32,8 +32,8 @@ export class Hover {
           return;
         }
 
-        const annotationsEvaluationPlugin = result.plugins.get(AnnotationsEvaluationPlugin.id) as AnnotationsEvaluationPlugin;
-        const annotations = annotationsEvaluationPlugin.getAnnotations(jsonDocument.getPointerForNode(node));
+        const plugin = result.plugins.get(LspEvaluationPlugin.id) as LspEvaluationPlugin;
+        const annotations = plugin.getAnnotations(jsonDocument.getPointerForNode(node));
 
         const lines: string[] = [];
         for (const annotation of annotations) {

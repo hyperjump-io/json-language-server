@@ -1,6 +1,6 @@
 import { CompletionItemKind, InsertTextFormat } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
-import { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "../LspEvaluationPlugin.ts";
 
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";
 import type { CompletionItem } from "vscode-languageserver";
@@ -27,7 +27,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
         return [];
       }
 
-      const plugin = result.plugins.get(CompletionsEvaluationPlugin.id) as CompletionsEvaluationPlugin;
+      const plugin = result.plugins.get(LspEvaluationPlugin.id) as LspEvaluationPlugin;
 
       for (const completion of plugin.getCompletions(context.instanceLocation)) {
         const label = completion.kind === "value" ? completion.value : typeSnippets[completion.type].label;

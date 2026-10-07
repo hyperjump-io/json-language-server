@@ -2,8 +2,7 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { JsonDocuments } from "../../services/JsonDocuments.ts";
 import { JsonDocument } from "../../models/JsonDocument.ts";
-import { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.ts";
-import { AnnotationsEvaluationPlugin } from "../AnnotationsEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "../LspEvaluationPlugin.ts";
 
 import type { CompletionItem, Position, ServerCapabilities, Range } from "vscode-languageserver";
 import type { Node } from "jsonc-parser";
@@ -29,12 +28,8 @@ export class Completions {
     this.jsonDocuments = jsonDocuments;
     this.providers = providers;
 
-    jsonSchema.registerPlugin(CompletionsEvaluationPlugin.id, (jsonDocument) => {
-      return new CompletionsEvaluationPlugin(jsonDocument.collectIncompleteLocations());
-    });
-
-    jsonSchema.registerPlugin(AnnotationsEvaluationPlugin.id, (jsonDocument) => {
-      return new AnnotationsEvaluationPlugin(jsonDocument.collectIncompleteLocations());
+    jsonSchema.registerPlugin(LspEvaluationPlugin.id, (jsonDocument) => {
+      return new LspEvaluationPlugin(jsonDocument.collectIncompleteLocations());
     });
 
     server.onInitialize(() => {

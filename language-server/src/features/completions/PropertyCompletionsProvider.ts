@@ -1,6 +1,6 @@
 import { CompletionItemKind } from "vscode-languageserver";
 import * as Pact from "@hyperjump/pact";
-import { CompletionsEvaluationPlugin } from "./CompletionsEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "../LspEvaluationPlugin.ts";
 
 import type { CompletionItem } from "vscode-languageserver";
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";
@@ -36,7 +36,7 @@ export class PropertyCompletionsProvider implements CompletionsProvider {
         return [];
       }
 
-      const plugin = result.plugins.get(CompletionsEvaluationPlugin.id) as CompletionsEvaluationPlugin;
+      const plugin = result.plugins.get(LspEvaluationPlugin.id) as LspEvaluationPlugin;
 
       for (const propertyName of plugin.getPropertyCompletions(instanceLocation)) {
         if (existingPropertyNames.has(propertyName)) {
