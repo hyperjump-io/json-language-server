@@ -33,6 +33,9 @@ type DidChangeSchemaParams = {
 
 const readChunkSize = 100;
 
+// How long typing in an open document has to pause before documents that depend on it are revalidated
+const editDebounceMs = 200;
+
 export class JsonSchemaRegistry {
   private server: Server;
   private workspace: Workspace;
@@ -43,6 +46,8 @@ export class JsonSchemaRegistry {
   private failedSchemas: Map<string, { id: string; message: string }> = new Map();
   private didChangeSchemaHandlers: Set<DidChangeSchemaHandler> = new Set();
   private pending: Promise<void>;
+  private pendingEditChanges: Map<string, DidChangeSchemaParams> = new Map();
+  private editDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(server: Server, workspace: Workspace, jsonDocuments: JsonDocuments) {
     this.server = server;
@@ -90,6 +95,7 @@ export class JsonSchemaRegistry {
     });
 
     server.onShutdown(() => {
+      clearTimeout(this.editDebounceTimer);
       for (const schemaUri of this.workspaceSchemas.values()) {
         unregisterSchema(schemaUri);
       }
@@ -203,12 +209,39 @@ export class JsonSchemaRegistry {
     const applied = this.pending.then(() => this.applyChanges(fileUris));
     this.pending = applied.then(() => undefined, () => undefined);
 
-    // Handlers aren't part of the queue because they can wait on `ready`
+    const changes: DidChangeSchemaParams[] = [];
     for (const [fileUri, schemaUris] of await applied) {
       for (const schemaUri of schemaUris) {
-        for (const handler of this.didChangeSchemaHandlers) {
-          await handler({ schemaUri, fileUri, editedDocumentUri });
-        }
+        changes.push({ schemaUri, fileUri, editedDocumentUri });
+      }
+    }
+
+    if (editedDocumentUri) {
+      // Typing in a schema changes it on every keystroke, and revalidating its dependents means
+      // recompiling them. The registry is already up to date, so only the notification waits.
+      for (const change of changes) {
+        this.pendingEditChanges.set(`${change.fileUri} ${change.schemaUri}`, change);
+      }
+
+      clearTimeout(this.editDebounceTimer);
+      this.editDebounceTimer = setTimeout(() => {
+        const pendingChanges = [...this.pendingEditChanges.values()];
+        this.pendingEditChanges.clear();
+        this.notify(pendingChanges).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.server.console.error(`Failed to process schema changes: ${message}`);
+        });
+      }, editDebounceMs);
+    } else {
+      await this.notify(changes);
+    }
+  }
+
+  // Handlers aren't part of the queue because they can wait on `ready`
+  private async notify(changes: DidChangeSchemaParams[]) {
+    for (const change of changes) {
+      for (const handler of this.didChangeSchemaHandlers) {
+        await handler(change);
       }
     }
   }

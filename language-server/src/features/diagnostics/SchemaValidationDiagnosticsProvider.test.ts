@@ -943,6 +943,41 @@ describe("Schema Validation", () => {
     await expect(secondValidation).resolves.toHaveLength(0);
   });
 
+  test("editing an open schema revalidates dependents once when typing pauses", async () => {
+    const schemaWithFooType = (type: string) => `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "foo": { "type": "${type}" }
+      }
+    }`;
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", schemaWithFooType("string"));
+    await client.openDocument("schema.json");
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo": 42
+    }`);
+    const initialValidation = client.getDiagnostics("instance.json");
+    const instanceUri = await client.openDocument("instance.json");
+    await expect(initialValidation).resolves.toHaveLength(1);
+
+    const instanceValidations: number[] = [];
+    client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+      if (params.uri === instanceUri) {
+        instanceValidations.push(params.diagnostics.length);
+      }
+    });
+
+    await client.changeDocument("schema.json", schemaWithFooType("boolean"));
+    await client.changeDocument("schema.json", schemaWithFooType("null"));
+    await client.changeDocument("schema.json", schemaWithFooType("number"));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    expect(instanceValidations).toEqual([0]);
+  });
+
   test("editing an open referenced schema revalidates dependents", async () => {
     const referencedSchema = await client.writeDocument("B.schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
