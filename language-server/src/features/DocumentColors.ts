@@ -1,8 +1,8 @@
-import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "../evaluation/LspEvaluationPlugin.ts";
 
 import type { Color, ColorInformation, ColorPresentation, ServerCapabilities } from "vscode-languageserver";
 import type { Node } from "jsonc-parser";
-import type { Annotation } from "../annotations/Annotation.ts";
+import type { Annotation } from "../evaluation/Annotation.ts";
 import type { Server } from "../services/Server.ts";
 import type { JsonDocuments } from "../services/JsonDocuments.ts";
 import type { JsonSchema } from "../services/JsonSchema.ts";

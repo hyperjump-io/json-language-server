@@ -4,12 +4,12 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { JsonValueSet } from "./JsonValueSet.ts";
 import { SubschemaTracker } from "./SubschemaTracker.ts";
-import { Annotation } from "../annotations/Annotation.ts";
+import { Annotation } from "./Annotation.ts";
 
 import type { EvaluationPlugin, Keyword, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
 import type { JsonSchemaType, TypeEntry, ValueEntry } from "./JsonValueSet.ts";
-import type { AnnotationRecord } from "../annotations/JsonSchemaAnnotation.ts";
+import type { AnnotationRecord } from "./JsonSchemaAnnotation.ts";
 import type { SchemaEvaluation } from "../services/JsonSchema.ts";
 
 // A location annotation applies no matter what the value at the location is.

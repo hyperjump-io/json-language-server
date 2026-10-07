@@ -1,6 +1,6 @@
 import { CompletionItemKind, InsertTextFormat } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
-import { LspEvaluationPlugin } from "../LspEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "../../evaluation/LspEvaluationPlugin.ts";
 
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";
 import type { CompletionItem } from "vscode-languageserver";

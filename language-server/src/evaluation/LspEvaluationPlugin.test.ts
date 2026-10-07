@@ -7,7 +7,7 @@ import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
 
 import type { SchemaObject } from "@hyperjump/json-schema";
 import type { Json } from "@hyperjump/json-schema-errors";
-import type { Annotation } from "../annotations/Annotation.ts";
+import type { Annotation } from "./Annotation.ts";
 const schemaUri = "https://example.com/annotations-test";
 
 const evaluate = async (schema: SchemaObject, instance: Json, incompleteLocations?: Set<string>) => {

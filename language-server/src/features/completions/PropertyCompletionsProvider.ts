@@ -1,6 +1,6 @@
 import { CompletionItemKind } from "vscode-languageserver";
 import * as Pact from "@hyperjump/pact";
-import { LspEvaluationPlugin } from "../LspEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "../../evaluation/LspEvaluationPlugin.ts";
 
 import type { CompletionItem } from "vscode-languageserver";
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";

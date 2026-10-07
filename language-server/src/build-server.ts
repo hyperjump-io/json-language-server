@@ -18,7 +18,7 @@ import { DocumentSymbols } from "./features/DocumentSymbols.ts";
 import { SelectionRanges } from "./features/SelectionRanges.ts";
 import { DocumentLinks } from "./features/DocumentLinks.ts";
 import { DocumentColors } from "./features/DocumentColors.ts";
-import { LspEvaluationPlugin } from "./features/LspEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "./evaluation/LspEvaluationPlugin.ts";
 
 import type { Connection } from "vscode-languageserver";
 

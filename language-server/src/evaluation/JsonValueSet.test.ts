@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { JsonValueSet } from "./JsonValueSet.ts";
 
-import type { AnnotationRecord } from "../annotations/JsonSchemaAnnotation.ts";
+import type { AnnotationRecord } from "./JsonSchemaAnnotation.ts";
 
 const a: AnnotationRecord = { a: true };
 const b: AnnotationRecord = { b: true };

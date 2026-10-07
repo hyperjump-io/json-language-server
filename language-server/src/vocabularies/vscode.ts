@@ -2,7 +2,7 @@ import { registerSchema } from "@hyperjump/json-schema/draft-2020-12";
 import { addKeyword, defineVocabulary } from "@hyperjump/json-schema/experimental";
 import * as Browser from "@hyperjump/browser";
 
-import type { Constructor, JsonSchemaAnnotation } from "../annotations/JsonSchemaAnnotation.ts";
+import type { Constructor, JsonSchemaAnnotation } from "../evaluation/JsonSchemaAnnotation.ts";
 
 // VS Code's custom keywords. Only active in dialects whose meta-schema includes this vocabulary.
 addKeyword({

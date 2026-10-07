@@ -1,6 +1,6 @@
 import { MarkupKind } from "vscode-languageserver";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
-import { LspEvaluationPlugin } from "./LspEvaluationPlugin.ts";
+import { LspEvaluationPlugin } from "../evaluation/LspEvaluationPlugin.ts";
 
 import type { Server } from "../services/Server.ts";
 import type { ServerCapabilities } from "vscode-languageserver";
