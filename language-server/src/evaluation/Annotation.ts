@@ -1,5 +1,5 @@
 import { JsonSchemaAnnotation } from "./JsonSchemaAnnotation.ts";
-import { VscodeAnnotation } from "../vocabularies/vscode.ts";
+import { VscodeAnnotation } from "./VscodeAnnotation.ts";
 
 // The annotations one schema contributed to an instance location, with the
 // accessors of every vocabulary. A vocabulary's mixin overrides the accessors of

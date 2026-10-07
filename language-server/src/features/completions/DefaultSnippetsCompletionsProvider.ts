@@ -5,7 +5,7 @@ import { LspEvaluationPlugin } from "../../evaluation/LspEvaluationPlugin.ts";
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";
 import type { CompletionItem } from "vscode-languageserver";
 import type { JsonSchema } from "../../services/JsonSchema.ts";
-import type { DefaultSnippet } from "../../vocabularies/vscode.ts";
+import type { DefaultSnippet } from "../../evaluation/VscodeAnnotation.ts";
 
 export class DefaultSnippetsCompletionsProvider implements CompletionsProvider {
   private jsonSchema: JsonSchema;

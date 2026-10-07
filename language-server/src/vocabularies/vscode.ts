@@ -2,9 +2,8 @@ import { registerSchema } from "@hyperjump/json-schema/draft-2020-12";
 import { addKeyword, defineVocabulary } from "@hyperjump/json-schema/experimental";
 import * as Browser from "@hyperjump/browser";
 
-import type { Constructor, JsonSchemaAnnotation } from "../evaluation/JsonSchemaAnnotation.ts";
-
 // VS Code's custom keywords. Only active in dialects whose meta-schema includes this vocabulary.
+// Accessors for their annotations are in evaluation/VscodeAnnotation.ts.
 addKeyword({
   id: "https://microsoft.com/keyword/markdownDescription",
   compile: (schema) => Browser.value(schema),
@@ -45,28 +44,3 @@ registerSchema({
     }
   }
 });
-
-export type DefaultSnippet = {
-  label?: string;
-  description?: string;
-  markdownDescription?: string;
-  body?: unknown;
-  bodyText?: string;
-};
-
-// Schemas that don't use the vocabulary still produce annotations for its
-// keywords as unknown keywords.
-export const VscodeAnnotation = <T extends Constructor<JsonSchemaAnnotation>>(Base: T) => class extends Base {
-  // Prefers markdownDescription over the standard description keyword
-  override description(): string | undefined {
-    return (this.keywords["https://microsoft.com/keyword/markdownDescription"]
-      ?? this.keywords["https://json-schema.org/keyword/unknown#markdownDescription"]
-      ?? super.description()) as string | undefined;
-  }
-
-  defaultSnippets(): DefaultSnippet[] {
-    return (this.keywords["https://microsoft.com/keyword/defaultSnippets"]
-      ?? this.keywords["https://json-schema.org/keyword/unknown#defaultSnippets"]
-      ?? []) as DefaultSnippet[];
-  }
-};
