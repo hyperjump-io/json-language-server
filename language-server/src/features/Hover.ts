@@ -28,6 +28,10 @@ export class Hover {
       try {
         const node = jsonDocument.findNodeAtPosition(params.position)!;
         const result = await jsonSchema.validate(jsonDocument);
+        if (!result) {
+          return;
+        }
+
         const annotationsEvaluationPlugin = result.plugins.get(AnnotationsEvaluationPlugin.id) as AnnotationsEvaluationPlugin;
         const annotations = annotationsEvaluationPlugin.getAnnotations(jsonDocument.getPointerForNode(node));
 

@@ -32,6 +32,10 @@ export class PropertyCompletionsProvider implements CompletionsProvider {
 
     try {
       const result = await this.jsonSchema.validate(jsonDocument);
+      if (!result) {
+        return [];
+      }
+
       const plugin = result.plugins.get(CompletionsEvaluationPlugin.id) as CompletionsEvaluationPlugin;
 
       for (const propertyName of plugin.getPropertyCompletions(instanceLocation)) {

@@ -23,6 +23,10 @@ export class ValueCompletionsProvider implements CompletionsProvider {
 
     try {
       const result = await this.jsonSchema.validate(jsonDocument);
+      if (!result) {
+        return [];
+      }
+
       const plugin = result.plugins.get(CompletionsEvaluationPlugin.id) as CompletionsEvaluationPlugin;
 
       for (const completion of plugin.getCompletions(context.instanceLocation)) {

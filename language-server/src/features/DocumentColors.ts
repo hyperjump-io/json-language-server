@@ -45,6 +45,10 @@ export class DocumentColors {
 
       try {
         const result = await jsonSchema.validate(jsonDocument);
+        if (!result) {
+          return [];
+        }
+
         const annotationsEvaluationPlugin = result.plugins.get(AnnotationsEvaluationPlugin.id) as AnnotationsEvaluationPlugin;
 
         const stringNodes: Node[] = [];

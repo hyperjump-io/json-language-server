@@ -145,7 +145,8 @@ export class JsonSchema {
     return this.fileSchemaUris.get(jsonDocument.uri);
   }
 
-  async validate(jsonDocument: JsonDocument): Promise<SchemaEvaluation> {
+  // Returns undefined if the document doesn't have a schema
+  async validate(jsonDocument: JsonDocument): Promise<SchemaEvaluation | undefined> {
     if (!this.validationCache.has(jsonDocument.uri)) {
       const version = jsonDocument.version;
       const schemaUri = await this.getSchemaUri(jsonDocument);
@@ -182,7 +183,7 @@ export class JsonSchema {
       }
     }
 
-    return this.validationCache.get(jsonDocument.uri)!;
+    return this.validationCache.get(jsonDocument.uri);
   }
 
   // The identifiers of the schema and every schema it references, directly or indirectly

@@ -29,9 +29,13 @@ export class DefaultSnippetsCompletionsProvider implements CompletionsProvider {
 
     try {
       const result = await this.jsonSchema.validate(jsonDocument);
+      if (!result) {
+        return [];
+      }
+
       const annotationsPlugin = result.plugins.get(AnnotationsEvaluationPlugin.id) as AnnotationsEvaluationPlugin;
 
-      for (const annotation of annotationsPlugin?.getAnnotations(context.instanceLocation) ?? []) {
+      for (const annotation of annotationsPlugin.getAnnotations(context.instanceLocation)) {
         const defaultSnippets = (annotation["https://microsoft.com/keyword/defaultSnippets"]
           ?? annotation["https://json-schema.org/keyword/unknown#defaultSnippets"]
           ?? []) as DefaultSnippet[];
