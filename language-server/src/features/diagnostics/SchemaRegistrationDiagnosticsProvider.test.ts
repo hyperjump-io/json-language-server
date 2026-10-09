@@ -334,7 +334,7 @@ describe("Schema registration", () => {
     await expect(bDiagnostics).resolves.toHaveLength(1);
 
     const updatedBDiagnostics = client.getDiagnostics("b-schema.json");
-    await client.writeDocument("b-schema.json", schemaWithId("https://example.com/another-schema", "number"));
+    await client.changeDocument("b-schema.json", schemaWithId("https://example.com/another-schema", "number"));
     await expect(updatedBDiagnostics).resolves.toEqual([]);
 
     const updatedInstanceDiagnostics = client.getDiagnostics("instance.json");
