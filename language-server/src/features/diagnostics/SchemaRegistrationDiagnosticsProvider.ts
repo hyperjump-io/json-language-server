@@ -58,10 +58,10 @@ export class SchemaRegistrationDiagnosticsProvider implements DiagnosticsProvide
         });
       }
 
-      // Schemas referenced by the schema, directly or indirectly, are ambiguous too
-      const absoluteSchemaUri = toAbsoluteIri(schemaUri);
+      // Schemas referenced by the schema, directly or indirectly, are ambiguous too.
+      // Only a schema that compiled has dependencies, so its URI is a valid IRI.
       for (const dependencyUri of await this.jsonSchema.getDependencies(schemaUri)) {
-        if (dependencyUri === absoluteSchemaUri) {
+        if (dependencyUri === toAbsoluteIri(schemaUri)) {
           continue;
         }
 

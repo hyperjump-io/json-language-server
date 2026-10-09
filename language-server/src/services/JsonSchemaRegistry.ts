@@ -142,10 +142,9 @@ export class JsonSchemaRegistry {
 
   // The file of the registered workspace schema that uses the id
   getFileUri(schemaUri: string) {
-    // Registered ids never have a fragment, but $schema can, e.g. "https://example.com/schema#"
-    schemaUri = toAbsoluteIri(schemaUri);
+    const registeredId = toRegisteredId(schemaUri);
     for (const [fileUri, workspaceSchemaUri] of this.workspaceSchemas) {
-      if (workspaceSchemaUri === schemaUri && hasSchema(schemaUri)) {
+      if (workspaceSchemaUri === registeredId && hasSchema(registeredId)) {
         return fileUri;
       }
     }
@@ -157,11 +156,10 @@ export class JsonSchemaRegistry {
 
   // Files with schemas that failed to register because another schema already uses the id
   getDuplicates(schemaUri: string) {
-    // Registered ids never have a fragment, but $schema can, e.g. "https://example.com/schema#"
-    schemaUri = toAbsoluteIri(schemaUri);
+    const registeredId = toRegisteredId(schemaUri);
     return Pact.pipe(
       this.failedSchemas,
-      Pact.filter(([, { id }]) => id === schemaUri && this.isWorkspaceSchema(id)),
+      Pact.filter(([, { id }]) => id === registeredId && this.isWorkspaceSchema(id)),
       Pact.map(([fileUri]) => fileUri),
       Pact.collectArray
     );
@@ -284,3 +282,13 @@ export class JsonSchemaRegistry {
     }
   }
 }
+
+// Registered ids never have a fragment, but $schema can, e.g. "https://example.com/schema#".
+// $schema can also be an invalid IRI, which can't match any registered id.
+const toRegisteredId = (schemaUri: string) => {
+  try {
+    return toAbsoluteIri(schemaUri);
+  } catch {
+    return undefined;
+  }
+};

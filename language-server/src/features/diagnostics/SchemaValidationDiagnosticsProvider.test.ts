@@ -582,6 +582,26 @@ describe("Schema Validation", () => {
     ]);
   });
 
+  test("$schema is an invalid IRI", async () => {
+    await client.writeDocument("instance.json", `{
+      "$schema": "not an iri"
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Invalid IRI-reference: not an iri",
+        range: {
+          start: { line: 1, character: 17 },
+          end: { line: 1, character: 29 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
   test("should register self-identifying schema and validate document using its $id", async () => {
     const schemaId = "https://example.com/my-workspace-schema";
 
