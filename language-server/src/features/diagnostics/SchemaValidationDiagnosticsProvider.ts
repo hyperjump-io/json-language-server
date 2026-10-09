@@ -1,5 +1,7 @@
 import { Diagnostic, DiagnosticSeverity } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
+import { getSchema } from "@hyperjump/json-schema/experimental";
+import * as Browser from "@hyperjump/browser";
 
 import type { ErrorObject } from "@hyperjump/json-schema-errors";
 import type { DiagnosticsProvider } from "./Diagnostics.ts";
@@ -20,7 +22,7 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
 
       if (result?.valid === false) {
         const errors = result.errors;
-        errors.forEach((error) => {
+        for (const error of errors) {
           const pointer = decodeURIComponent(error.instanceLocation.slice(1));
           const node = jsonDocument.findNodeAtPointer(pointer);
 
@@ -28,11 +30,11 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
             schemaDiagnostics.push({
               severity: DiagnosticSeverity.Error,
               range: jsonDocument.rangeAt(node.offset, node.offset + node.length),
-              message: formatError(error),
+              message: await formatError(error),
               source: "hyperjump-json-language-server"
             });
           }
-        });
+        }
       }
     } catch (error: unknown) {
       const schemaNode = jsonDocument.findNodeAtPointer("/$schema");
@@ -49,35 +51,59 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
   }
 }
 
-export const formatError = (error: ErrorObject): string => {
-  return formatLines(error, error.instanceLocation).join("\n");
+export const formatError = async (error: ErrorObject): Promise<string> => {
+  return (await formatLines(error, error.instanceLocation)).join("\n");
 };
 
-const formatLines = (error: ErrorObject, parentLocation: string): string[] => {
+const formatLines = async (error: ErrorObject, parentLocation: string): Promise<string[]> => {
   const location = relativeLocation(parentLocation, error.instanceLocation);
   const alternatives = error.alternatives ?? [];
+  const message = await resolveMessage(error);
 
-  const lines = [`${location ? `${location}: ` : ""}${error.message}${alternatives.length > 0 ? ":" : ""}`];
+  const lines = [`${location ? `${location}: ` : ""}${message}${alternatives.length > 0 ? ":" : ""}`];
 
   if (alternatives.length === 1) {
     // A single alternative is a list of things that all apply
     for (const subError of alternatives[0]) {
-      lines.push(...indent(formatLines(subError, error.instanceLocation), "  - "));
+      lines.push(...indent(await formatLines(subError, error.instanceLocation), "  - "));
     }
   } else {
     // Multiple alternatives are options. Number them so it's clear where each
     // option starts and ends.
-    alternatives.forEach((alternative, index) => {
+    for (let index = 0; index < alternatives.length; index++) {
       const marker = `  ${index + 1}. `;
-      alternative.forEach((subError, subErrorIndex) => {
+      const alternative = alternatives[index];
+      for (let subErrorIndex = 0; subErrorIndex < alternative.length; subErrorIndex++) {
         const firstPrefix = subErrorIndex === 0 ? marker : " ".repeat(marker.length);
-        lines.push(...indent(formatLines(subError, error.instanceLocation), firstPrefix));
-      });
-    });
+        lines.push(...indent(await formatLines(alternative[subErrorIndex], error.instanceLocation), firstPrefix));
+      }
+    }
   }
 
   return lines;
 };
+
+async function getErrorMessageOverride(schemaLocation: string): Promise<string | undefined> {
+  try {
+    const lastSlash = schemaLocation.lastIndexOf("/");
+    const parentLocation = schemaLocation.slice(0, lastSlash);
+    const parentSchema = await getSchema(parentLocation);
+    const value = Browser.value(parentSchema) as Record<string, unknown>;
+    return typeof value?.errorMessage === "string" ? value.errorMessage : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function resolveMessage(error: ErrorObject): Promise<string> {
+  for (const schemaLocation of error.schemaLocations) {
+    const override = await getErrorMessageOverride(schemaLocation);
+    if (override) {
+      return override;
+    }
+  }
+  return error.message;
+}
 
 const indent = ([first, ...rest]: string[], firstPrefix: string): string[] => {
   const restPrefix = " ".repeat(firstPrefix.length);
