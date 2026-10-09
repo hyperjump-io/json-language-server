@@ -18,9 +18,25 @@ addKeyword({
   annotation: (value: unknown) => value
 });
 
+addKeyword({
+  id: "https://microsoft.com/keyword/deprecationMessage",
+  compile: (schema) => Browser.value(schema),
+  interpret: () => true,
+  annotation: (value: unknown) => value
+});
+
+addKeyword({
+  id: "https://microsoft.com/keyword/markdownDeprecationMessage",
+  compile: (schema) => Browser.value(schema),
+  interpret: () => true,
+  annotation: (value: unknown) => value
+});
+
 defineVocabulary("https://microsoft.com/vocab/vscode", {
   markdownDescription: "https://microsoft.com/keyword/markdownDescription",
-  defaultSnippets: "https://microsoft.com/keyword/defaultSnippets"
+  defaultSnippets: "https://microsoft.com/keyword/defaultSnippets",
+  deprecationMessage: "https://microsoft.com/keyword/deprecationMessage",
+  markdownDeprecationMessage: "https://microsoft.com/keyword/markdownDeprecationMessage"
 });
 
 registerSchema({
@@ -41,6 +57,8 @@ registerSchema({
           bodyText: { type: "string" }
         }
       }
-    }
+    },
+    deprecationMessage: { type: "string" },
+    markdownDeprecationMessage: { type: "string" }
   }
 });

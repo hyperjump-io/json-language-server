@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { CompletionItem, CompletionItemKind, CompletionRequest } from "vscode-languageserver";
+import { CompletionItem, CompletionItemKind, CompletionItemTag, CompletionRequest } from "vscode-languageserver";
 import { TestClient } from "../../test/TestClient.ts";
 
 describe("Property completions", () => {
@@ -1181,5 +1181,94 @@ describe("Property completions", () => {
     });
 
     expect(completions).toEqual([]);
+  });
+
+  describe("deprecated", () => {
+    beforeEach(async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "properties": {
+              "name": { "type": "string", "deprecationMessage": "Use fullName instead." },
+              "age": { "type": "integer", "deprecated": true },
+              "bar": {
+                "anyOf": [
+                  { "const": "a", "deprecated": true },
+                  { "const": "b" }
+                ]
+              },
+              "fullName": { "type": "string" }
+            }
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value": {
+          ""
+        }
+      }`);
+    });
+
+    test("deprecated properties are tagged with the message as documentation", async () => {
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 3, character: 11 }
+      }) as CompletionItem[];
+
+      expect(completions).toMatchObject([
+        { label: "name", tags: [CompletionItemTag.Deprecated], documentation: { kind: "markdown", value: "Use fullName instead." } },
+        { label: "age", tags: [CompletionItemTag.Deprecated] },
+        { label: "bar" },
+        { label: "fullName" }
+      ]);
+      expect(completions[1].documentation).toBeUndefined();
+    });
+
+    test("a property with a deprecated value isn't deprecated itself", async () => {
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 3, character: 11 }
+      }) as CompletionItem[];
+
+      expect(completions[2].tags).toBeUndefined();
+      expect(completions[3].tags).toBeUndefined();
+    });
+
+    test("a property deprecated through $ref or allOf is deprecated", async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "properties": {
+              "foo": { "$ref": "#/$defs/deprecated" },
+              "bar": { "allOf": [{ "$ref": "#/$defs/deprecated" }] }
+            }
+          }
+        },
+        "$defs": {
+          "deprecated": { "deprecated": true }
+        }
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 3, character: 11 }
+      }) as CompletionItem[];
+
+      expect(completions).toMatchObject([
+        { label: "foo", tags: [CompletionItemTag.Deprecated] },
+        { label: "bar", tags: [CompletionItemTag.Deprecated] }
+      ]);
+    });
   });
 });

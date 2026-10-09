@@ -36,6 +36,10 @@ export class JsonSchemaAnnotation {
     return this.keywords["https://json-schema.org/keyword/description"] as string | undefined;
   }
 
+  deprecated(): boolean {
+    return this.keywords["https://json-schema.org/keyword/deprecated"] === true;
+  }
+
   formats(): unknown[] {
     return Pact.pipe(
       FORMAT_KEYWORDS,

@@ -21,6 +21,23 @@ export const VscodeAnnotation = <T extends Constructor<JsonSchemaAnnotation>>(Ba
       ?? super.description()) as string | undefined;
   }
 
+  // A deprecation message deprecates on its own, without the deprecated keyword
+  override deprecated(): boolean {
+    return super.deprecated() || this.markdownDeprecationMessage() !== undefined;
+  }
+
+  deprecationMessage(): string | undefined {
+    return (this.keywords["https://microsoft.com/keyword/deprecationMessage"]
+      ?? this.keywords["https://json-schema.org/keyword/unknown#deprecationMessage"]) as string | undefined;
+  }
+
+  // Prefers markdownDeprecationMessage over deprecationMessage
+  markdownDeprecationMessage(): string | undefined {
+    return (this.keywords["https://microsoft.com/keyword/markdownDeprecationMessage"]
+      ?? this.keywords["https://json-schema.org/keyword/unknown#markdownDeprecationMessage"]
+      ?? this.deprecationMessage()) as string | undefined;
+  }
+
   defaultSnippets(): DefaultSnippet[] {
     return (this.keywords["https://microsoft.com/keyword/defaultSnippets"]
       ?? this.keywords["https://json-schema.org/keyword/unknown#defaultSnippets"]

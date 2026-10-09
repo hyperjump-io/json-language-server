@@ -1,6 +1,7 @@
 import { MarkupKind } from "vscode-languageserver";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
 import { LspEvaluationPlugin } from "../evaluation/LspEvaluationPlugin.ts";
+import { findDeprecated } from "../evaluation/Annotation.ts";
 
 import type { Server } from "../services/Server.ts";
 import type { ServerCapabilities } from "vscode-languageserver";
@@ -47,6 +48,12 @@ export class Hover {
           if (description) {
             lines.push(description);
           }
+        }
+
+        const deprecated = findDeprecated(annotations);
+        if (deprecated) {
+          const message = deprecated.markdownDeprecationMessage();
+          lines.push(message ? `⚠️ **Deprecated:** ${message}` : "⚠️ **Deprecated**");
         }
 
         if (lines.length === 0) {

@@ -706,4 +706,174 @@ _hyperjump-json-language-server_`
       }
     });
   });
+
+  describe("deprecated", () => {
+    test("shows a deprecation notice for the deprecated keyword", async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "The name.",
+            "deprecated": true,
+            "type": "string"
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "name": "Alice"
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const result = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 18 }
+      });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `The name.
+
+⚠️ **Deprecated**
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+
+    test("shows deprecationMessage as an unknown keyword", async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "deprecationMessage": "Use fullName instead.",
+            "type": "string"
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "name": "Alice"
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const result = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 10 }
+      });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `⚠️ **Deprecated:** Use fullName instead.
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+
+    test("prefers markdownDeprecationMessage from a dialect that includes the vscode vocabulary", async () => {
+      await client.writeDocument("meta-schema.json", `{
+        "$id": "https://example.com/dialect/vscode",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$vocabulary": {
+          "https://json-schema.org/draft/2020-12/vocab/core": true,
+          "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+          "https://json-schema.org/draft/2020-12/vocab/validation": true,
+          "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+          "https://microsoft.com/vocab/vscode": true
+        },
+        "$dynamicAnchor": "meta",
+        "allOf": [
+          { "$ref": "https://json-schema.org/draft/2020-12/schema" },
+          { "$ref": "https://microsoft.com/meta/vscode" }
+        ]
+      }`);
+
+      fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://example.com/dialect/vscode",
+        "type": "object",
+        "properties": {
+          "name": {
+            "deprecationMessage": "Use fullName instead.",
+            "markdownDeprecationMessage": "Use \`fullName\` instead.",
+            "type": "string"
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "name": "Alice"
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const result = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 10 }
+      });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `⚠️ **Deprecated:** Use \`fullName\` instead.
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+
+    test("a deprecated anyOf alternative deprecates the value but not the property", async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "bar": {
+            "anyOf": [
+              { "const": "a", "deprecationMessage": "Use b." },
+              { "const": "b" }
+            ]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "bar": "a"
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const keyHover = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 10 }
+      });
+      expect(keyHover).toBeNull();
+
+      const valueHover = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      });
+      expect(valueHover).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `⚠️ **Deprecated:** Use b.
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+  });
 });

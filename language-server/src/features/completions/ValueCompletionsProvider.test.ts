@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { CompletionItem, CompletionItemKind, CompletionRequest, InsertTextFormat } from "vscode-languageserver";
+import { CompletionItem, CompletionItemKind, CompletionItemTag, CompletionRequest, InsertTextFormat } from "vscode-languageserver";
 import { TestClient } from "../../test/TestClient.ts";
 
 describe("Value Completions", () => {
@@ -4332,5 +4332,176 @@ describe("Value Completions", () => {
     });
 
     expect(completions).toEqual([]);
+  });
+
+  describe("deprecated", () => {
+    test("a deprecated anyOf alternative tags its value", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "anyOf": [
+              { "const": "a", "deprecationMessage": "Use b." },
+              { "const": "b" }
+            ]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      }) as CompletionItem[];
+
+      expect(completions).toMatchObject([
+        { label: `"a"`, tags: [CompletionItemTag.Deprecated], documentation: { kind: "markdown", value: "Use b." } },
+        { label: `"b"` }
+      ]);
+      expect(completions[1].tags).toBeUndefined();
+    });
+
+    test("values of a deprecated location aren't deprecated themselves", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "enum": ["a", "b"],
+            "deprecated": true
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      }) as CompletionItem[];
+
+      expect(completions).toMatchObject([{ label: `"a"` }, { label: `"b"` }]);
+      expect(completions[0].tags).toBeUndefined();
+      expect(completions[1].tags).toBeUndefined();
+    });
+
+    describe("values reached through applicators", () => {
+      const getCompletions = async (valueSchema: string) => {
+        const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "value": ${valueSchema}
+          },
+          "$defs": {
+            "a": { "const": "a", "deprecated": true }
+          }
+        }`);
+
+        await client.writeDocument("instance.json", `{
+          "$schema": "${fixtureSchemaUri}",
+          "value":
+        }`);
+        const uri = await client.openDocument("instance.json");
+
+        return await client.sendRequest(CompletionRequest.type, {
+          textDocument: { uri },
+          position: { line: 2, character: 18 }
+        }) as CompletionItem[];
+      };
+
+      test("a deprecated oneOf alternative reached through $ref tags its value", async () => {
+        const completions = await getCompletions(`{
+          "oneOf": [
+            { "$ref": "#/$defs/a" },
+            { "const": "b" }
+          ]
+        }`);
+
+        expect(completions).toMatchObject([
+          { label: `"a"`, tags: [CompletionItemTag.Deprecated] },
+          { label: `"b"` }
+        ]);
+        expect(completions[1].tags).toBeUndefined();
+      });
+
+      test("a deprecated type alternative tags its type", async () => {
+        const completions = await getCompletions(`{
+          "anyOf": [
+            { "type": "string", "deprecated": true },
+            { "type": "boolean" }
+          ]
+        }`);
+
+        expect(completions).toMatchObject([
+          { label: "true" },
+          { label: "false" },
+          { label: `""`, tags: [CompletionItemTag.Deprecated] }
+        ]);
+        expect(completions[0].tags).toBeUndefined();
+        expect(completions[1].tags).toBeUndefined();
+      });
+
+      test("a value deprecated under not isn't deprecated", async () => {
+        const completions = await getCompletions(`{
+          "enum": ["a", "b"],
+          "not": { "const": "b", "deprecated": true }
+        }`);
+
+        expect(completions).toMatchObject([{ label: `"a"` }]);
+        expect(completions[0].tags).toBeUndefined();
+      });
+
+      test("a value deprecated in one alternative of an intersection stays deprecated", async () => {
+        const completions = await getCompletions(`{
+          "enum": ["a", "b"],
+          "anyOf": [
+            { "const": "a", "deprecated": true },
+            { "const": "b" }
+          ]
+        }`);
+
+        expect(completions).toMatchObject([
+          { label: `"a"`, tags: [CompletionItemTag.Deprecated] },
+          { label: `"b"` }
+        ]);
+        expect(completions[1].tags).toBeUndefined();
+      });
+    });
+
+    test("a property deprecated in an alternative of its parent doesn't deprecate its values", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "anyOf": [
+          { "properties": { "value": { "enum": ["a"], "deprecated": true } } },
+          { "properties": { "value": { "enum": ["b"] } } }
+        ]
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      }) as CompletionItem[];
+
+      expect(completions).toMatchObject([{ label: `"a"` }, { label: `"b"` }]);
+      expect(completions[0].tags).toBeUndefined();
+      expect(completions[1].tags).toBeUndefined();
+    });
   });
 });
