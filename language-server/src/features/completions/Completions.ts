@@ -85,8 +85,14 @@ const getCompletionContext = (jsonDocument: JsonDocument, position: Position): C
         return;
       }
 
+      // Replace any partially typed value, but leave whitespace after the colon alone
+      let startOffset = node.colonOffset + 1;
+      while (startOffset < cursorOffset && /\s/.test(jsonDocument.getText()[startOffset])) {
+        startOffset++;
+      }
+
       instanceLocation = jsonDocument.getPointerForNode(node);
-      range = { start: jsonDocument.positionAt(node.colonOffset + 1), end: position };
+      range = { start: jsonDocument.positionAt(startOffset), end: position };
       break;
 
     case "array":

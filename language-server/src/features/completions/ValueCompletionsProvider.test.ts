@@ -177,10 +177,68 @@ describe("Value Completions", () => {
 
     expect(completions[0].textEdit).toEqual({
       range: {
-        start: { line: 2, character: 14 },
+        start: { line: 2, character: 15 },
         end: { line: 2, character: 15 }
       },
       newText: `"foo"`
+    });
+  });
+
+  test("completions on a partial value after a colon with a space", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": { "type": "boolean" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": tr
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 17 }
+    }) as CompletionItem[];
+
+    expect(completions[0].textEdit).toEqual({
+      range: {
+        start: { line: 2, character: 15 },
+        end: { line: 2, character: 17 }
+      },
+      newText: `true`
+    });
+  });
+
+  test("completions on a partial value directly after a colon", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": { "type": "boolean" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":tr
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 16 }
+    }) as CompletionItem[];
+
+    expect(completions[0].textEdit).toEqual({
+      range: {
+        start: { line: 2, character: 14 },
+        end: { line: 2, character: 16 }
+      },
+      newText: ` true`
     });
   });
 
