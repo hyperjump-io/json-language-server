@@ -131,6 +131,84 @@ _hyperjump-json-language-server_`
     });
   });
 
+  test("should return annotations in the order they appear in the schema on hover over a property value", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "First description.",
+          "$ref": "#/$defs/name"
+        }
+      },
+      "$defs": {
+        "name": { "description": "Second description." }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "foo"
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 15 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `First description.
+
+Second description.
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
+  test("should return annotations in the order they appear in the schema on hover over an incomplete property", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "First description.",
+          "$ref": "#/$defs/name"
+        }
+      },
+      "$defs": {
+        "name": { "description": "Second description." }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "name":\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 4 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `First description.
+
+Second description.
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
   test("should return null on hover when no schema is associated", async () => {
     await client.writeDocument("no-schema.json", `{"key": "value"}`);
     const uri = await client.openDocument("no-schema.json");
@@ -324,13 +402,13 @@ _hyperjump-json-language-server_`
     expect(result).toEqual({
       contents: {
         kind: "markdown",
-        value: `**Big number**
-
-i am a big number
-
-**Number**
+        value: `**Number**
 
 i am a number
+
+**Big number**
+
+i am a big number
 
 ---
 
