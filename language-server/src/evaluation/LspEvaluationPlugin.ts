@@ -30,7 +30,7 @@ type SchemaResult = {
 };
 
 type LspContext = ValidationContext & {
-  pendingAnnotations?: AnnotationRecord;
+  ownAnnotations?: AnnotationRecord;
   schemaAnnotations?: RecordedAnnotations;
   completions?: Completions;
   dynamicAnchors?: Record<string, string>;
@@ -65,7 +65,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   }
 
   beforeSchema(_url: string, _instance: JsonNode, context: LspContext): void {
-    context.pendingAnnotations = {};
+    context.ownAnnotations = undefined;
     context.schemaAnnotations = Object.create(null);
     context.completions = Object.create(null);
     this.subschemaTracker.beforeSchema(context);
@@ -235,9 +235,18 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
     this.subschemaTracker.afterKeyword(instance, context, valid, schemaContext);
 
+    // A schema's own annotations are recorded where its first annotation
+    // keyword is so annotations are in the order they appear in the schema.
+    // They're kept even if the schema fails so they're still available while
+    // the value is being edited.
     if (keyword.annotation) {
-      schemaContext.pendingAnnotations ??= {};
-      schemaContext.pendingAnnotations[keywordId] = keyword.annotation(keywordValue, instance, context);
+      if (!schemaContext.ownAnnotations) {
+        schemaContext.ownAnnotations = {};
+        appendAnnotations(schemaContext.schemaAnnotations!, {
+          [instance.pointer]: [{ kind: "location", annotation: schemaContext.ownAnnotations }]
+        });
+      }
+      schemaContext.ownAnnotations[keywordId] = keyword.annotation(keywordValue, instance, context);
     }
 
     const subschemaResults = this.subschemaTracker.getSubschemaResults(context);
@@ -300,13 +309,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   }
 
   afterSchema(_url: string, instance: JsonNode, context: LspContext, valid: boolean): void {
-    // A schema's own annotations are kept even if it fails so they're still
-    // available while the value is being edited
-    if (context.pendingAnnotations) {
-      appendAnnotations(context.schemaAnnotations!, {
-        [instance.pointer]: [{ kind: "location", annotation: context.pendingAnnotations }]
-      });
-    }
+    // Marks the location as reached by evaluation even if it has no annotations
+    context.schemaAnnotations![instance.pointer] ??= [];
 
     this.subschemaTracker.afterSchema(instance, context, valid, {
       pointer: instance.pointer,
@@ -416,6 +420,16 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
     inProgress.add(schemaLocation);
 
+    // The schema's own annotations go where its first annotation keyword is so
+    // annotations are in the order they appear in the schema
+    const annotation: AnnotationRecord = {};
+    let firstAnnotationNode: Node<unknown> | undefined;
+    for (const node of nodes) {
+      if (addKeywordAnnotation(annotation, node, context)) {
+        firstAnnotationNode ??= node;
+      }
+    }
+
     const completions = Pact.pipe(
       nodes,
       Pact.map((node) => {
@@ -465,20 +479,11 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
             return this.buildCompletions(keywordValue as string, context, inProgress).complement();
 
           default:
-            return JsonValueSet.any();
+            return node === firstAnnotationNode ? JsonValueSet.any().annotate(annotation) : JsonValueSet.any();
         }
       }),
       Pact.reduce((valueSet, keywordValueSet) => valueSet.intersect(keywordValueSet), JsonValueSet.any())
     );
-
-    const annotation: AnnotationRecord = {};
-    for (const node of nodes) {
-      addKeywordAnnotation(annotation, node, context);
-    }
-
-    if (Object.keys(annotation).length > 0) {
-      completions.annotate(annotation);
-    }
 
     inProgress.delete(schemaLocation);
 
@@ -573,15 +578,18 @@ function asValueAnnotations(annotations: RecordedAnnotations, pointer: string): 
 
 // Adds a keyword's annotation without an instance, for locations that
 // evaluation doesn't reach.
-function addKeywordAnnotation(annotation: AnnotationRecord, [keywordId, , keywordValue]: Node<unknown>, context: ValidationContext) {
+// Returns whether the keyword contributed an annotation
+function addKeywordAnnotation(annotation: AnnotationRecord, [keywordId, , keywordValue]: Node<unknown>, context: ValidationContext): boolean {
   const keyword = getKeyword(keywordId);
   if (keyword?.annotation) {
     try {
       annotation[keywordId] = keyword.annotation(keywordValue, undefined as unknown as JsonNode, context);
+      return true;
     } catch {
       // Some annotation functions expect a real instance node; skip rather than crash.
     }
   }
+  return false;
 }
 
 function toAnnotations(records: AnnotationRecord[]): Annotation[] {
