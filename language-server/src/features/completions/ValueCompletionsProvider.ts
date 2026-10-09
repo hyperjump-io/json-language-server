@@ -18,7 +18,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
       return [];
     }
 
-    const cursorOffset = jsonDocument.offsetAt(context.position);
+    const startOffset = jsonDocument.offsetAt(context.range.start);
     const completions: CompletionItem[] = [];
 
     try {
@@ -42,7 +42,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
           insertTextFormat: InsertTextFormat.Snippet,
           textEdit: {
             range: context.range,
-            newText: /^[:,]$/.test(jsonDocument.getText()[cursorOffset - 1]) ? ` ${snippet}` : snippet
+            newText: /^[:,]$/.test(jsonDocument.getText()[startOffset - 1]) ? ` ${snippet}` : snippet
           }
         });
       }
