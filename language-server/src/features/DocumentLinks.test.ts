@@ -106,6 +106,17 @@ describe("DocumentLinks", () => {
     expect(result).toEqual([]);
   });
 
+  test("should not return a link when $schema is an invalid IRI", async () => {
+    await client.writeDocument("instance.json", `{"$schema": "not an iri"}`);
+    const uri = await client.openDocument("instance.json");
+
+    const result = await client.sendRequest(DocumentLinkRequest.type, {
+      textDocument: { uri }
+    });
+
+    expect(result).toEqual([]);
+  });
+
   test("should not treat a nested $schema property as the document's dialect schema", async () => {
     await client.writeDocument("instance.json", `{
       "properties": {
