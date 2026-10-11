@@ -899,6 +899,168 @@ describe("Schema Validation", () => {
     await expect(updatedDiagnostics).resolves.toEqual([]);
   });
 
+  test("a key failing propertyNames gets a diagnostic on that key and none on $schema", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z$]+$"
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "123": "value"
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Expected a string matching the regular expression /^[a-z$]+$/",
+        range: {
+          start: { line: 2, character: 6 },
+          end: { line: 2, character: 11 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
+  test("multiple failing keys each get their own diagnostic", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z$]+$"
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "123": "value1",
+      "456": "value2"
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Expected a string matching the regular expression /^[a-z$]+$/",
+        range: {
+          start: { line: 2, character: 6 },
+          end: { line: 2, character: 11 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      },
+      {
+        message: "Expected a string matching the regular expression /^[a-z$]+$/",
+        range: {
+          start: { line: 3, character: 6 },
+          end: { line: 3, character: 11 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
+  test("a nested object with a failing key is placed correctly", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "nested": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z]+$"
+          }
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "nested": {
+        "123": "value"
+      }
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Expected a string matching the regular expression /^[a-z]+$/",
+        range: {
+          start: { line: 3, character: 8 },
+          end: { line: 3, character: 13 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
+  test("a key that needs JSON Pointer escaping (contains / or ~) is placed correctly", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z$]+$"
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo/bar": "value1",
+      "foo~bar": "value2"
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "Expected a string matching the regular expression /^[a-z$]+$/",
+        range: {
+          start: { line: 2, character: 6 },
+          end: { line: 2, character: 15 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      },
+      {
+        message: "Expected a string matching the regular expression /^[a-z$]+$/",
+        range: {
+          start: { line: 3, character: 6 },
+          end: { line: 3, character: 15 }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
+  test("a document whose keys all pass propertyNames produces no diagnostics", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z$]+$"
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "foo": "value"
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toHaveLength(0);
+  });
+
   test("should validate against the unsaved content of an open schema", async () => {
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
