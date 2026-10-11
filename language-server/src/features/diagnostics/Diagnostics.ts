@@ -12,15 +12,28 @@ export type DiagnosticsProvider = {
 
 export class Diagnostics {
   private server: Server;
+  private jsonDocuments: JsonDocuments;
   private providers: DiagnosticsProvider[];
   private pendingSends: Map<string, AbortController> = new Map();
 
   constructor(server: Server, jsonDocuments: JsonDocuments, jsonSchema: JsonSchema, providers: DiagnosticsProvider[]) {
     this.server = server;
+    this.jsonDocuments = jsonDocuments;
     this.providers = providers;
 
     jsonDocuments.onDidChangeContent(async (change) => {
       await this.sendDiagnostics(change.document);
+    });
+
+    jsonDocuments.onDidClose(async ({ document }) => {
+      this.pendingSends.get(document.uri)?.abort();
+      this.pendingSends.delete(document.uri);
+
+      await this.server.sendDiagnostics({
+        uri: document.uri,
+        diagnostics: []
+      });
+      this.server.console.log(`clear diagnostics for ${abbreviateUri(document.uri)}`);
     });
 
     jsonSchema.onDidChangeDocumentSchema(async (change) => {
@@ -29,6 +42,10 @@ export class Diagnostics {
   }
 
   private async sendDiagnostics(document: JsonDocument) {
+    if (!this.jsonDocuments.get(document.uri)) {
+      return;
+    }
+
     this.pendingSends.get(document.uri)?.abort();
 
     const controller = new AbortController();
@@ -39,7 +56,7 @@ export class Diagnostics {
       diagnostics.push(...await provider.getDiagnostics(document));
     }
 
-    if (!controller.signal.aborted) {
+    if (!controller.signal.aborted && this.jsonDocuments.get(document.uri)) {
       this.pendingSends.delete(document.uri);
       await this.server.sendDiagnostics({
         uri: document.uri,
