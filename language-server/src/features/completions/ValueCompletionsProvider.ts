@@ -1,7 +1,7 @@
 import { CompletionItemKind, InsertTextFormat } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
 import { LspEvaluationPlugin } from "../../evaluation/LspEvaluationPlugin.ts";
-import { tagDeprecated } from "./Completions.ts";
+import { getDocumentation, tagDeprecated } from "./Completions.ts";
 
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";
 import type { CompletionItem } from "vscode-languageserver";
@@ -47,8 +47,10 @@ export class ValueCompletionsProvider implements CompletionsProvider {
           }
         };
 
-        // A value is deprecated only because of what it is, not because its location is
+        // A value is described and deprecated only because of what it is, not
+        // because of its location
         tagDeprecated(completionItem, completion.annotations);
+        completionItem.documentation ??= getDocumentation(completion.annotations);
 
         completions.push(completionItem);
       }

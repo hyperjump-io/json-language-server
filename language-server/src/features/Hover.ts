@@ -1,6 +1,7 @@
 import { MarkupKind } from "vscode-languageserver";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
 import { LspEvaluationPlugin } from "../evaluation/LspEvaluationPlugin.ts";
+import { describeAnnotations } from "../util/utils.ts";
 
 import type { Server } from "../services/Server.ts";
 import type { ServerCapabilities } from "vscode-languageserver";
@@ -37,18 +38,7 @@ export class Hover {
           ? plugin.getLocationAnnotations(pointer)
           : [...plugin.getLocationAnnotations(pointer), ...plugin.getValueAnnotations(pointer)];
 
-        const lines: string[] = [];
-        for (const annotation of annotations) {
-          const title = annotation.title();
-          if (title) {
-            lines.push(`**${title}**`);
-          }
-          const description = annotation.description();
-          if (description) {
-            lines.push(description);
-          }
-        }
-
+        const lines = describeAnnotations(annotations);
         if (lines.length === 0) {
           return;
         }

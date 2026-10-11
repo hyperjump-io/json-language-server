@@ -2,7 +2,7 @@ import { CompletionItemKind } from "vscode-languageserver";
 import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { LspEvaluationPlugin } from "../../evaluation/LspEvaluationPlugin.ts";
-import { tagDeprecated } from "./Completions.ts";
+import { getDocumentation, tagDeprecated } from "./Completions.ts";
 
 import type { CompletionItem } from "vscode-languageserver";
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";
@@ -59,9 +59,12 @@ export class PropertyCompletionsProvider implements CompletionsProvider {
           command: { title: "Suggest", command: "editor.action.triggerSuggest" }
         };
 
-        // A property is deprecated only if it's deprecated no matter what its value is
+        // A property is described and deprecated only by the annotations that
+        // apply no matter what its value is
         const propertyLocation = JsonPointer.append(propertyName, instanceLocation);
-        tagDeprecated(completionItem, plugin.getLocationAnnotations(propertyLocation));
+        const annotations = plugin.getLocationAnnotations(propertyLocation);
+        tagDeprecated(completionItem, annotations);
+        completionItem.documentation ??= getDocumentation(annotations);
 
         completionItems.push(completionItem);
       }
