@@ -26,8 +26,7 @@ export class Diagnostics {
     });
 
     jsonDocuments.onDidClose(async ({ document }) => {
-      this.pendingSends.get(document.uri)?.abort();
-      this.pendingSends.delete(document.uri);
+      this.cancelPendingSend(document.uri);
 
       await this.server.sendDiagnostics({
         uri: document.uri,
@@ -46,7 +45,7 @@ export class Diagnostics {
       return;
     }
 
-    this.pendingSends.get(document.uri)?.abort();
+    this.cancelPendingSend(document.uri);
 
     const controller = new AbortController();
     this.pendingSends.set(document.uri, controller);
@@ -64,5 +63,10 @@ export class Diagnostics {
       });
       this.server.console.log(`send diagnostics for ${abbreviateUri(document.uri)}`);
     }
+  }
+
+  private cancelPendingSend(uri: string) {
+    this.pendingSends.get(uri)?.abort();
+    this.pendingSends.delete(uri);
   }
 }
