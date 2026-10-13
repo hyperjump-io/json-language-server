@@ -33,7 +33,9 @@ import type {
   Connection,
   Diagnostic,
   DidChangeConfigurationRegistrationOptions,
+  Disposable,
   InitializeParams,
+  PublishDiagnosticsParams,
   ServerCapabilities
 } from "vscode-languageserver";
 import type { LanguageServerSettings } from "../build-server.js";
@@ -53,6 +55,7 @@ export class TestClient {
   private workspaceFolder: Promise<string>;
   private ready: Promise<void>;
   private gitignore: Promise<string>;
+  private diagnosticsListeners: Set<(params: PublishDiagnosticsParams) => void>;
 
   onRequest: Connection["onRequest"];
   sendRequest: Connection["sendRequest"];
@@ -66,6 +69,7 @@ export class TestClient {
     this.serverName = serverName;
     this.watchEnabled = false;
     this.openDocuments = new Set();
+    this.diagnosticsListeners = new Set();
     // The "@" is percent-encoded by toClientUri, so URIs from the client never match normalized URIs as-is.
     // URIs are kept in the form the server sees them, which includes VS Code's lowercase drive letter on Windows.
     this.workspaceFolder = mkdtemp(join(tmpdir(), "test-workspace@"))
@@ -123,6 +127,13 @@ export class TestClient {
             throw Error(`Unsupported configuration section: ${configurationItem.section}`);
         }
       });
+    });
+
+    // The connection allows only one handler per notification, so all diagnostics listeners share this one
+    this.client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+      for (const listener of this.diagnosticsListeners) {
+        listener(params);
+      }
     });
 
     this.client.onRequest(ReadFileRequest.type, async (params) => {
@@ -351,12 +362,31 @@ export class TestClient {
     const fullUri = resolveIri(uri, await this.workspaceFolder + "/");
 
     return new Promise<Diagnostic[]>((resolve) => {
-      this.client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+      const listener = (params: PublishDiagnosticsParams) => {
         if (params.uri === fullUri) {
+          this.diagnosticsListeners.delete(listener);
           resolve(params.diagnostics);
         }
-      });
+      };
+      this.diagnosticsListeners.add(listener);
     });
+  }
+
+  async onDiagnostics(uri: string, handler: (diagnostics: Diagnostic[]) => void): Promise<Disposable> {
+    const fullUri = resolveIri(uri, await this.workspaceFolder + "/");
+
+    const listener = (params: PublishDiagnosticsParams) => {
+      if (params.uri === fullUri) {
+        handler(params.diagnostics);
+      }
+    };
+    this.diagnosticsListeners.add(listener);
+
+    return {
+      dispose: () => {
+        this.diagnosticsListeners.delete(listener);
+      }
+    };
   }
 }
 

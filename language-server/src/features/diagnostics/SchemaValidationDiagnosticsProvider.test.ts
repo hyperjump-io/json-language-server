@@ -1,5 +1,4 @@
 import { describe, test, expect, afterEach, beforeEach } from "vitest";
-import { PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../../test/TestClient.ts";
 import { formatError } from "./SchemaValidationDiagnosticsProvider.ts";
 
@@ -356,26 +355,21 @@ describe("Schema Validation", () => {
 
     await client.writeDocument("plain.json", `{ "foo": "bar" }`);
     const plainValidation = client.getDiagnostics("plain.json");
-    const plainUri = await client.openDocument("plain.json");
+    await client.openDocument("plain.json");
     await plainValidation;
 
     await client.writeDocument("instance.json", `{
       "$schema": "${fixtureSchemaUri}"
     }`);
     const instanceValidation = client.getDiagnostics("instance.json");
-    const instanceUri = await client.openDocument("instance.json");
+    await client.openDocument("instance.json");
     await instanceValidation;
 
     let plainRevalidated = false;
-    const instanceRevalidated = new Promise<void>((resolve) => {
-      client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-        if (params.uri === plainUri) {
-          plainRevalidated = true;
-        } else if (params.uri === instanceUri) {
-          resolve();
-        }
-      });
+    await client.onDiagnostics("plain.json", () => {
+      plainRevalidated = true;
     });
+    const instanceRevalidated = client.getDiagnostics("instance.json");
 
     await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -980,14 +974,12 @@ describe("Schema Validation", () => {
       "foo": 42
     }`);
     const initialValidation = client.getDiagnostics("instance.json");
-    const instanceUri = await client.openDocument("instance.json");
+    await client.openDocument("instance.json");
     await expect(initialValidation).resolves.toHaveLength(1);
 
     const instanceValidations: number[] = [];
-    client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-      if (params.uri === instanceUri) {
-        instanceValidations.push(params.diagnostics.length);
-      }
+    await client.onDiagnostics("instance.json", (diagnostics) => {
+      instanceValidations.push(diagnostics.length);
     });
 
     await client.changeDocument("schema.json", schemaWithFooType("boolean"));
