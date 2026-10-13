@@ -1,4 +1,4 @@
-import type { AnnotationRecord } from "./JsonSchemaAnnotation.ts";
+import type { AnnotationRecord } from "./Annotation.ts";
 
 export type JsonSchemaType = "string" | "number" | "integer" | "boolean" | "null" | "array" | "object";
 

@@ -1,13 +1,8 @@
 import * as Pact from "@hyperjump/pact";
+import "@hyperjump/json-schema/draft-2020-12";
+import { compile, getSchema } from "@hyperjump/json-schema/experimental";
 
-// The annotations one schema contributed to an instance location, keyed by
-// keyword URI
-export type AnnotationRecord = Record<string, unknown>;
-
-// Vocabularies add accessors for the annotations of their keywords by
-// extending JsonSchemaAnnotation with a mixin. The mixins are composed into the
-// Annotation class in Annotation.ts.
-export type Constructor<T> = new (...args: any[]) => T;
+import type { BaseAnnotation, Constructor } from "./Annotation.ts";
 
 const FORMAT_KEYWORDS = [
   "https://json-schema.org/keyword/draft-2020-12/format",
@@ -19,15 +14,13 @@ const FORMAT_KEYWORDS = [
   "https://json-schema.org/keyword/draft-04/format"
 ];
 
+const metaSchemaUri = "https://json-schema.org/draft/2020-12/meta/meta-data";
+const schema = await getSchema(metaSchemaUri);
+const { ast } = await compile(schema);
+
 // Accessors for the standard JSON Schema annotations. Some keywords have more
 // than one URI depending on the dialect.
-export class JsonSchemaAnnotation {
-  protected keywords: AnnotationRecord;
-
-  constructor(keywords: AnnotationRecord) {
-    this.keywords = keywords;
-  }
-
+export const JsonSchemaAnnotation = <T extends Constructor<BaseAnnotation>>(Base: T) => class extends Base {
   title(): string | undefined {
     return this.keywords["https://json-schema.org/keyword/title"] as string | undefined;
   }
@@ -36,11 +29,11 @@ export class JsonSchemaAnnotation {
     return this.keywords["https://json-schema.org/keyword/description"] as string | undefined;
   }
 
-  // Dialects before 2019-09 don't have the deprecated keyword, but it's
-  // commonly used with them anyway
+  // The deprecated keyword was added in 2019-09, but it's commonly used with
+  // earlier dialects anyway
   deprecated(): boolean {
     return (this.keywords["https://json-schema.org/keyword/deprecated"]
-      ?? this.keywords["https://json-schema.org/keyword/unknown#deprecated"]) === true;
+      ?? this.unknownKeyword("deprecated", `${metaSchemaUri}#/properties/deprecated`, ast)) === true;
   }
 
   formats(): unknown[] {
@@ -51,4 +44,4 @@ export class JsonSchemaAnnotation {
       Pact.collectArray
     );
   }
-}
+};

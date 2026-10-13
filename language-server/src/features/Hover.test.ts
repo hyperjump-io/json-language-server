@@ -574,6 +574,42 @@ _hyperjump-json-language-server_`
     });
   });
 
+  test("should use description when markdownDescription isn't a string", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Plain text description",
+          "markdownDescription": { "en": "The **markdown** description" },
+          "type": "string"
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "name": "Alice"
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 10 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `Plain text description
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
   test("should prefer markdownDescription over description when both are present", async () => {
     fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

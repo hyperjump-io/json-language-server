@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { CompletionItemKind, CompletionRequest, InsertTextFormat } from "vscode-languageserver";
 import { TestClient } from "../../test/TestClient.ts";
 
+import type { CompletionItem } from "vscode-languageserver";
+
 describe("Value Completions", () => {
   let client: TestClient;
 
@@ -284,6 +286,36 @@ describe("Value Completions", () => {
 
     expect(completions).toContainEqual(expect.objectContaining({ label: "FromFirst" }));
     expect(completions).toContainEqual(expect.objectContaining({ label: "FromSecond" }));
+  });
+
+  test("invalid defaultSnippets are ignored without affecting valid ones", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "allOf": [
+            { "defaultSnippets": 5 },
+            { "defaultSnippets": [null, { "label": "Invalid", "bodyText": "\\"invalid\\"" }] },
+            { "defaultSnippets": [{ "label": "Valid", "bodyText": "\\"valid\\"" }] }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value":
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    const snippets = (completions as CompletionItem[]).filter((completion) => completion.kind === CompletionItemKind.Snippet);
+    expect(snippets).toEqual([expect.objectContaining({ label: "Valid" })]);
   });
 
   test("defaultSnippets are offered for an incomplete location whose schema references itself", async () => {
