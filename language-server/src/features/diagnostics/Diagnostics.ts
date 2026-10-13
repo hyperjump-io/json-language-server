@@ -51,18 +51,26 @@ export class Diagnostics {
     const controller = new AbortController();
     this.pendingSends.set(document.uri, controller);
 
-    const diagnostics = [];
-    for (const provider of this.providers) {
-      diagnostics.push(...await provider.getDiagnostics(document));
-    }
+    try {
+      const diagnostics = [];
+      for (const provider of this.providers) {
+        diagnostics.push(...await provider.getDiagnostics(document));
+      }
 
-    if (!controller.signal.aborted && this.jsonDocuments.get(document.uri) === document) {
-      this.pendingSends.delete(document.uri);
-      await this.server.sendDiagnostics({
-        uri: document.uri,
-        diagnostics: diagnostics
-      });
-      this.server.console.log(`send diagnostics for ${abbreviateUri(document.uri)}`);
+      if (!controller.signal.aborted && this.jsonDocuments.get(document.uri) === document) {
+        await this.server.sendDiagnostics({
+          uri: document.uri,
+          diagnostics: diagnostics
+        });
+        this.server.console.log(`send diagnostics for ${abbreviateUri(document.uri)}`);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.server.console.error(`Failed to get diagnostics for ${abbreviateUri(document.uri)}: ${message}`);
+    } finally {
+      if (this.pendingSends.get(document.uri) === controller) {
+        this.pendingSends.delete(document.uri);
+      }
     }
   }
 
