@@ -2,6 +2,7 @@
 .vscodeignore
 package-lock.json
 tsconfig.json
+build-server.mjs
 src/**
 dist/**
 

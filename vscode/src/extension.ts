@@ -18,7 +18,7 @@ type ReadFileRequest = {
 let client: LanguageClient | undefined;
 
 export const activate = async (context: ExtensionContext) => {
-  const serverModule = context.asAbsolutePath(path.join("out", "server.js"));
+  const serverModule = context.asAbsolutePath(path.join("out", "server.mjs"));
   const serverOptions = {
     run: {
       module: serverModule,
