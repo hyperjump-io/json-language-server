@@ -41,7 +41,8 @@ export class Diagnostics {
   }
 
   private async sendDiagnostics(document: JsonDocument) {
-    if (!this.jsonDocuments.get(document.uri)) {
+    // The document might have been closed (and possibly reopened as a new instance) since this was triggered
+    if (this.jsonDocuments.get(document.uri) !== document) {
       return;
     }
 
@@ -55,7 +56,7 @@ export class Diagnostics {
       diagnostics.push(...await provider.getDiagnostics(document));
     }
 
-    if (!controller.signal.aborted && this.jsonDocuments.get(document.uri)) {
+    if (!controller.signal.aborted && this.jsonDocuments.get(document.uri) === document) {
       this.pendingSends.delete(document.uri);
       await this.server.sendDiagnostics({
         uri: document.uri,
