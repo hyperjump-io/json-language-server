@@ -3,6 +3,7 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { JsonDocuments } from "../../services/JsonDocuments.ts";
 import { JsonDocument } from "../../models/JsonDocument.ts";
+import { describeAnnotations } from "../../util/utils.ts";
 
 import type { CompletionItem, MarkupContent, Position, ServerCapabilities, Range } from "vscode-languageserver";
 import type { Node } from "jsonc-parser";
@@ -19,6 +20,15 @@ export type CompletionContext = {
   instanceLocation: string;
   range: Range;
   position: Position;
+};
+
+export const getDocumentation = (annotations: Annotation[]): MarkupContent | undefined => {
+  const lines = describeAnnotations(annotations);
+  if (lines.length === 0) {
+    return;
+  }
+
+  return { kind: MarkupKind.Markdown, value: lines.join("\n\n") };
 };
 
 export class Completions {

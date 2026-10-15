@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { CompletionItem, CompletionItemKind, CompletionItemTag, CompletionRequest } from "vscode-languageserver";
+import { CompletionItem, CompletionItemKind, CompletionItemTag, CompletionRequest, MarkupKind } from "vscode-languageserver";
 import { TestClient } from "../../test/TestClient.ts";
 
 describe("Property completions", () => {
@@ -1201,6 +1201,191 @@ describe("Property completions", () => {
     expect(completions).toMatchObject([
       { label: "c" }
     ]);
+  });
+
+  test("completion is documented with the title and description of the property", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": { "title": "Name", "description": "The name of the thing" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      ""
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 7 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", documentation: { kind: MarkupKind.Markdown, value: "**Name**\n\nThe name of the thing" } }
+    ]);
+  });
+
+  test("completion is documented with only a title", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": { "title": "Name" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      ""
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 7 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", documentation: { kind: MarkupKind.Markdown, value: "**Name**" } }
+    ]);
+  });
+
+  test("completion is documented with only a description", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": { "description": "The name of the thing" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      ""
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 7 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", documentation: { kind: MarkupKind.Markdown, value: "The name of the thing" } }
+    ]);
+  });
+
+  test("completion is documented with every title and description that applies to the property", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "allOf": [
+            { "title": "A", "description": "The first" },
+            { "title": "B" }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      ""
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 7 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", documentation: { kind: MarkupKind.Markdown, value: "**A**\n\nThe first\n\n**B**" } }
+    ]);
+  });
+
+  test("completion documentation prefers markdownDescription over description", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": { "description": "Plain", "markdownDescription": "_Markdown_" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      ""
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 7 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", documentation: { kind: MarkupKind.Markdown, value: "_Markdown_" } }
+    ]);
+  });
+
+  test("completion is not documented with annotations that only apply to some values", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "anyOf": [
+            { "const": "a", "title": "A" },
+            { "const": "b", "title": "B" }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      ""
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 7 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", documentation: { kind: MarkupKind.Markdown, value: "**Name**" } }
+    ]);
+  });
+
+  test("completion is not documented when the property has no title or description", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      ""
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 7 }
+    });
+
+    expect(completions).toHaveLength(1);
+    expect((completions as CompletionItem[])[0]).not.toHaveProperty("documentation");
   });
 
   test("completion returns no completions when the schema can't be loaded", async () => {
