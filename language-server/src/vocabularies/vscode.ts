@@ -1,7 +1,7 @@
 import { registerSchema } from "@hyperjump/json-schema/draft-2020-12";
 import { addKeyword, defineVocabulary } from "@hyperjump/json-schema/experimental";
 import * as Browser from "@hyperjump/browser";
-import { defineKeyword } from "@hyperjump/json-schema-errors"
+import { defineKeyword } from "@hyperjump/json-schema-errors";
 
 // VS Code's custom keywords. Only active in dialects whose meta-schema includes this vocabulary.
 // Accessors for their annotations are in evaluation/VscodeAnnotation.ts.
