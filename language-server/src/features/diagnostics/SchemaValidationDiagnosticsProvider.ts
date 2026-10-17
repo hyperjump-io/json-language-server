@@ -1,7 +1,6 @@
 import { Diagnostic, DiagnosticSeverity } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
-import { getSchema } from "@hyperjump/json-schema/experimental";
-import * as Browser from "@hyperjump/browser";
+import { ErrorMessageEvaluationPlugin } from "./ErrorMessageEvaluationPlugin.ts";
 
 import type { ErrorObject } from "@hyperjump/json-schema-errors";
 import type { DiagnosticsProvider } from "./Diagnostics.ts";
@@ -19,6 +18,7 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
 
     try {
       const result = await this.jsonSchema.validate(jsonDocument);
+      const errorMessagePlugin = result?.plugins.get(ErrorMessageEvaluationPlugin.id) as ErrorMessageEvaluationPlugin | undefined;
 
       if (result?.valid === false) {
         const errors = result.errors;
@@ -30,7 +30,7 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
             schemaDiagnostics.push({
               severity: DiagnosticSeverity.Error,
               range: jsonDocument.rangeAt(node.offset, node.offset + node.length),
-              message: await formatError(error),
+              message: formatError(error, errorMessagePlugin),
               source: "hyperjump-json-language-server"
             });
           }
@@ -51,21 +51,21 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
   }
 }
 
-export const formatError = async (error: ErrorObject): Promise<string> => {
-  return (await formatLines(error, error.instanceLocation)).join("\n");
+export const formatError = (error: ErrorObject, plugin?: ErrorMessageEvaluationPlugin): string => {
+  return formatLines(error, error.instanceLocation, plugin).join("\n");
 };
 
-const formatLines = async (error: ErrorObject, parentLocation: string): Promise<string[]> => {
+const formatLines = (error: ErrorObject, parentLocation: string, plugin?: ErrorMessageEvaluationPlugin): string[] => {
   const location = relativeLocation(parentLocation, error.instanceLocation);
   const alternatives = error.alternatives ?? [];
-  const message = await resolveMessage(error);
+  const message = resolveMessage(error, plugin);
 
   const lines = [`${location ? `${location}: ` : ""}${message}${alternatives.length > 0 ? ":" : ""}`];
 
   if (alternatives.length === 1) {
     // A single alternative is a list of things that all apply
     for (const subError of alternatives[0]) {
-      lines.push(...indent(await formatLines(subError, error.instanceLocation), "  - "));
+      lines.push(...indent(formatLines(subError, error.instanceLocation, plugin), "  - "));
     }
   } else {
     // Multiple alternatives are options. Number them so it's clear where each
@@ -75,7 +75,7 @@ const formatLines = async (error: ErrorObject, parentLocation: string): Promise<
       const alternative = alternatives[index];
       for (let subErrorIndex = 0; subErrorIndex < alternative.length; subErrorIndex++) {
         const firstPrefix = subErrorIndex === 0 ? marker : " ".repeat(marker.length);
-        lines.push(...indent(await formatLines(alternative[subErrorIndex], error.instanceLocation), firstPrefix));
+        lines.push(...indent(formatLines(alternative[subErrorIndex], error.instanceLocation, plugin), firstPrefix));
       }
     }
   }
@@ -83,23 +83,13 @@ const formatLines = async (error: ErrorObject, parentLocation: string): Promise<
   return lines;
 };
 
-async function getErrorMessageOverride(schemaLocation: string): Promise<string | undefined> {
-  try {
-    const lastSlash = schemaLocation.lastIndexOf("/");
-    const parentLocation = schemaLocation.slice(0, lastSlash);
-    const parentSchema = await getSchema(parentLocation);
-    const value = Browser.value(parentSchema) as Record<string, unknown>;
-    return typeof value?.errorMessage === "string" ? value.errorMessage : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-async function resolveMessage(error: ErrorObject): Promise<string> {
-  for (const schemaLocation of error.schemaLocations) {
-    const override = await getErrorMessageOverride(schemaLocation);
-    if (override) {
-      return override;
+function resolveMessage(error: ErrorObject, plugin?: ErrorMessageEvaluationPlugin): string {
+  if (plugin) {
+    for (const schemaLocation of error.schemaLocations) {
+      const message = plugin.getMessage(schemaLocation);
+      if (message) {
+        return message;
+      }
     }
   }
   return error.message;
