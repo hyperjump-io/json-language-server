@@ -1,6 +1,7 @@
 import { registerSchema } from "@hyperjump/json-schema/draft-2020-12";
 import { addKeyword, defineVocabulary } from "@hyperjump/json-schema/experimental";
 import * as Browser from "@hyperjump/browser";
+import { defineKeyword } from "@hyperjump/json-schema-errors";
 
 // VS Code's custom keywords. Only active in dialects whose meta-schema includes this vocabulary.
 // Accessors for their annotations are in evaluation/VscodeAnnotation.ts.
@@ -32,11 +33,27 @@ addKeyword({
   annotation: (value: unknown) => value
 });
 
+addKeyword({
+  id: "https://microsoft.com/keyword/errorMessage",
+  compile: (schema) => Browser.value(schema),
+  interpret: () => true,
+  annotation: (value: unknown) => value
+});
+
+addKeyword({
+  id: "https://microsoft.com/keyword/patternErrorMessage",
+  compile: (schema) => Browser.value(schema),
+  interpret: () => true,
+  annotation: (value: unknown) => value
+});
+
 defineVocabulary("https://microsoft.com/vocab/vscode", {
   markdownDescription: "https://microsoft.com/keyword/markdownDescription",
   defaultSnippets: "https://microsoft.com/keyword/defaultSnippets",
   deprecationMessage: "https://microsoft.com/keyword/deprecationMessage",
-  markdownDeprecationMessage: "https://microsoft.com/keyword/markdownDeprecationMessage"
+  markdownDeprecationMessage: "https://microsoft.com/keyword/markdownDeprecationMessage",
+  errorMessage: "https://microsoft.com/keyword/errorMessage",
+  patternErrorMessage: "https://microsoft.com/keyword/patternErrorMessage"
 });
 
 registerSchema({
@@ -59,6 +76,15 @@ registerSchema({
       }
     },
     deprecationMessage: { type: "string" },
-    markdownDeprecationMessage: { type: "string" }
+    markdownDeprecationMessage: { type: "string" },
+    errorMessage: { type: "string" },
+    patternErrorMessage: { type: "string" }
   }
 });
+
+defineKeyword("https://microsoft.com/keyword/markdownDescription", { annotation: true });
+defineKeyword("https://microsoft.com/keyword/defaultSnippets", { annotation: true });
+defineKeyword("https://microsoft.com/keyword/deprecationMessage", { annotation: true });
+defineKeyword("https://microsoft.com/keyword/markdownDeprecationMessage", { annotation: true });
+defineKeyword("https://microsoft.com/keyword/errorMessage", { annotation: true });
+defineKeyword("https://microsoft.com/keyword/patternErrorMessage", { annotation: true });
