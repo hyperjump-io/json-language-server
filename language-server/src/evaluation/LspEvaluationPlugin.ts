@@ -18,7 +18,10 @@ import type { SchemaEvaluation } from "../services/JsonSchema.ts";
 type RecordedAnnotation = { kind: "location" | "value"; annotation: AnnotationRecord };
 type RecordedAnnotations = Record<string, RecordedAnnotation[]>;
 
-type Completions = Record<string, JsonValueSet>;
+// Value sets are built only when something asks for the completions or
+// annotations at a location, and only once
+type LazyValueSet = () => JsonValueSet;
+type Completions = Record<string, LazyValueSet>;
 
 export type Completion = WithAnnotations<ValueEntry> | WithAnnotations<TypeEntry>;
 type WithAnnotations<T extends { annotations: AnnotationRecord[] }> = Omit<T, "annotations"> & { annotations: Annotation[] };
@@ -82,8 +85,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
         for (const propertyName in properties) {
           const pointer = JsonPointer.append(propertyName, instance.pointer);
           const schemaUri = properties[propertyName];
-          const completions = this.buildCompletions(schemaUri, schemaContext);
-          schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+          const completions = this.lazyCompletions(schemaUri, schemaContext);
+          addCompletions(schemaContext.completions!, pointer, completions);
 
           if (this.incompleteLocations.has(pointer)) {
             context.evaluatedProperties?.add(propertyName);
@@ -95,19 +98,19 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       case "https://json-schema.org/keyword/patternProperties": {
         const patternProperties = keywordValue as [RegExp, string][];
         for (const [pattern, schemaUri] of patternProperties) {
-          const completions = this.buildCompletions(schemaUri, schemaContext);
+          const completions = this.lazyCompletions(schemaUri, schemaContext);
           for (const propertyNameNode of Instance.keys(instance)) {
             const propertyName = Instance.value(propertyNameNode) as string;
             if (pattern.test(propertyName)) {
               const pointer = JsonPointer.append(propertyName, instance.pointer);
-              schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+              addCompletions(schemaContext.completions!, pointer, completions);
             }
           }
 
           for (const pointer of this.incompleteLocations) {
             const [parentPointer, propertyName] = splitPointer(pointer);
             if (parentPointer === instance.pointer && pattern.test(propertyName)) {
-              schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+              addCompletions(schemaContext.completions!, pointer, completions);
               context.evaluatedProperties?.add(propertyName);
             }
           }
@@ -117,19 +120,19 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/additionalProperties": {
         const [isDeclaredProperty, schemaUri] = keywordValue as [RegExp, string];
-        const completions = this.buildCompletions(schemaUri, schemaContext);
+        const completions = this.lazyCompletions(schemaUri, schemaContext);
         for (const propertyNameNode of Instance.keys(instance)) {
           const propertyName = Instance.value(propertyNameNode) as string;
           if (!isDeclaredProperty.test(propertyName)) {
             const pointer = JsonPointer.append(propertyName, instance.pointer);
-            schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+            addCompletions(schemaContext.completions!, pointer, completions);
           }
         }
 
         for (const pointer of this.incompleteLocations) {
           const [parentPointer, propertyName] = splitPointer(pointer);
           if (parentPointer === instance.pointer && !isDeclaredProperty.test(propertyName)) {
-            schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+            addCompletions(schemaContext.completions!, pointer, completions);
             context.evaluatedProperties?.add(propertyName);
           }
         }
@@ -138,19 +141,19 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/unevaluatedProperties": {
         const schemaUri = keywordValue as string;
-        const completions = this.buildCompletions(schemaUri, schemaContext);
+        const completions = this.lazyCompletions(schemaUri, schemaContext);
         for (const propertyNameNode of Instance.keys(instance)) {
           const propertyName = Instance.value(propertyNameNode) as string;
           if (!context.schemaEvaluatedProperties!.has(propertyName)) {
             const pointer = JsonPointer.append(propertyName, instance.pointer);
-            schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+            addCompletions(schemaContext.completions!, pointer, completions);
           }
         }
 
         for (const pointer of this.incompleteLocations) {
           const [parentPointer, propertyName] = splitPointer(pointer);
           if (parentPointer === instance.pointer && !context.schemaEvaluatedProperties!.has(propertyName)) {
-            schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+            addCompletions(schemaContext.completions!, pointer, completions);
             context.evaluatedProperties?.add(propertyName);
           }
         }
@@ -161,8 +164,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
         const prefixItems = keywordValue as string[];
         for (let itemIndex = 0; itemIndex < prefixItems.length; itemIndex++) {
           const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
-          const completions = this.buildCompletions(prefixItems[itemIndex], schemaContext);
-          schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+          const completions = this.lazyCompletions(prefixItems[itemIndex], schemaContext);
+          addCompletions(schemaContext.completions!, pointer, completions);
 
           if (this.incompleteLocations.has(pointer)) {
             context.evaluatedItems?.add(Number(itemIndex));
@@ -174,10 +177,10 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       case "https://json-schema.org/keyword/draft-04/additionalItems":
       case "https://json-schema.org/keyword/items": {
         const [numberOfPrefixItems, schemaUri] = keywordValue as [number, string];
-        const completions = this.buildCompletions(schemaUri, schemaContext);
+        const completions = this.lazyCompletions(schemaUri, schemaContext);
         for (let itemIndex = numberOfPrefixItems; itemIndex <= Instance.length(instance); itemIndex++) {
           const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
-          schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+          addCompletions(schemaContext.completions!, pointer, completions);
 
           if (this.incompleteLocations.has(pointer)) {
             context.evaluatedItems?.add(Number(itemIndex));
@@ -188,10 +191,10 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/draft-04/items": {
         if (typeof keywordValue === "string") {
-          const completions = this.buildCompletions(keywordValue, schemaContext);
+          const completions = this.lazyCompletions(keywordValue, schemaContext);
           for (let itemIndex = 0; itemIndex <= Instance.length(instance); itemIndex++) {
             const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
-            schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+            addCompletions(schemaContext.completions!, pointer, completions);
 
             if (this.incompleteLocations.has(pointer)) {
               context.evaluatedItems?.add(Number(itemIndex));
@@ -201,8 +204,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
           const items = keywordValue as string[];
           for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
             const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
-            const completions = this.buildCompletions(items[itemIndex], schemaContext);
-            schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+            const completions = this.lazyCompletions(items[itemIndex], schemaContext);
+            addCompletions(schemaContext.completions!, pointer, completions);
 
             if (this.incompleteLocations.has(pointer)) {
               context.evaluatedItems?.add(Number(itemIndex));
@@ -214,11 +217,11 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
       case "https://json-schema.org/keyword/unevaluatedItems": {
         const schemaUri = keywordValue as string;
-        const completions = this.buildCompletions(schemaUri, schemaContext);
+        const completions = this.lazyCompletions(schemaUri, schemaContext);
         for (let itemIndex = 0; itemIndex <= Instance.length(instance); itemIndex++) {
           if (!context.schemaEvaluatedItems!.has(itemIndex)) {
             const pointer = JsonPointer.append(`${itemIndex}`, instance.pointer);
-            schemaContext.completions![pointer] = schemaContext.completions![pointer]?.intersect(completions) ?? completions;
+            addCompletions(schemaContext.completions!, pointer, completions);
 
             if (this.incompleteLocations.has(pointer)) {
               context.evaluatedItems?.add(itemIndex);
@@ -343,7 +346,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       return toAnnotations(this.getAnnotationsOfKind(instanceLocation, "location"));
     }
 
-    return toAnnotations(this.completions[instanceLocation]?.getLocationAnnotations() ?? []);
+    return toAnnotations(this.completions[instanceLocation]?.().getLocationAnnotations() ?? []);
   }
 
   // The annotations that apply because of what the value at the location is.
@@ -353,7 +356,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       return toAnnotations(this.getAnnotationsOfKind(instanceLocation, "value"));
     }
 
-    return toAnnotations(this.completions[instanceLocation]?.getMemberAnnotations() ?? []);
+    return toAnnotations(this.completions[instanceLocation]?.().getMemberAnnotations() ?? []);
   }
 
   private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): AnnotationRecord[] {
@@ -366,7 +369,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   }
 
   * getCompletions(pointer: string): Generator<Completion> {
-    const valueSet = this.completions[pointer] ?? new JsonValueSet();
+    const valueSet = this.completions[pointer]?.() ?? new JsonValueSet();
     for (const completion of valueSet) {
       if (completion.kind === "value") {
         yield { ...completion, annotations: toAnnotations(completion.annotations) };
@@ -389,12 +392,19 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
         continue;
       }
 
-      if (!this.completions[completionPointer].isEmpty()) {
+      if (!this.completions[completionPointer]().isEmpty()) {
         propertyNames.push(propertyName);
       }
     }
 
     return propertyNames;
+  }
+
+  // The context changes as evaluation continues, so the parts building needs
+  // are captured now
+  private lazyCompletions(schemaLocation: string, context: LspContext): LazyValueSet {
+    const buildContext = { ...context };
+    return lazy(() => this.buildCompletions(schemaLocation, buildContext));
   }
 
   // The values that could be at a location and their annotations, built from
@@ -496,7 +506,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       result[instanceLocation] = a[instanceLocation];
     }
     for (const instanceLocation in b) {
-      result[instanceLocation] = result[instanceLocation] ? result[instanceLocation].intersect(b[instanceLocation]) : b[instanceLocation];
+      result[instanceLocation] = result[instanceLocation] ? lazyIntersect(result[instanceLocation], b[instanceLocation]) : b[instanceLocation];
     }
     return result;
   }
@@ -507,7 +517,9 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       result[instanceLocation] = a[instanceLocation];
     }
     for (const instanceLocation in b) {
-      result[instanceLocation] = result[instanceLocation] ? result[instanceLocation].union(b[instanceLocation]) : b[instanceLocation];
+      const existing = result[instanceLocation];
+      const other = b[instanceLocation];
+      result[instanceLocation] = existing ? lazy(() => existing().union(other())) : other;
     }
     return result;
   }
@@ -518,8 +530,11 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       result[instanceLocation] = a[instanceLocation];
     }
     for (const instanceLocation in b) {
-      const negated = b[instanceLocation].complement();
-      result[instanceLocation] = result[instanceLocation] ? result[instanceLocation].union(negated) : negated;
+      const existing = result[instanceLocation];
+      const other = b[instanceLocation];
+      result[instanceLocation] = existing
+        ? lazy(() => existing().union(other().complement()))
+        : lazy(() => other().complement());
     }
     return result;
   }
@@ -534,13 +549,13 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
     const result: Completions = Object.create(null);
     for (const pointer of pointers) {
-      result[pointer] = Pact.pipe(
+      const sets = Pact.pipe(
         records,
         Pact.map((record) => record[pointer]),
         Pact.filter((set) => set !== undefined),
-        Pact.collectArray,
-        (sets) => JsonValueSet.exclusiveUnion(sets)
+        Pact.collectArray
       );
+      result[pointer] = lazy(() => JsonValueSet.exclusiveUnion(sets.map((set) => set())));
     }
 
     return result;
@@ -564,6 +579,17 @@ const conditionalKeywords = new Set([
   "https://json-schema.org/keyword/contains",
   "https://json-schema.org/keyword/draft-06/contains"
 ]);
+
+const lazy = (build: () => JsonValueSet): LazyValueSet => {
+  let valueSet: JsonValueSet | undefined;
+  return () => valueSet ??= build();
+};
+
+const lazyIntersect = (a: LazyValueSet, b: LazyValueSet): LazyValueSet => lazy(() => a().intersect(b()));
+
+function addCompletions(completions: Completions, pointer: string, valueSet: LazyValueSet) {
+  completions[pointer] = completions[pointer] ? lazyIntersect(completions[pointer], valueSet) : valueSet;
+}
 
 function asValueAnnotations(annotations: RecordedAnnotations, pointer: string): RecordedAnnotations {
   if (!(pointer in annotations)) {
