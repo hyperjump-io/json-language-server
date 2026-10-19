@@ -278,17 +278,20 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       appendAnnotations(schemaContext.schemaAnnotations!, isConditional ? asValueAnnotations(annotations, pointer) : annotations);
     }
 
-    let combinedCompletions: Completions = Object.create(null);
+    // The schema's completions are only shared once the schema is done, so
+    // they're combined in place rather than copied for every keyword
     switch (keywordId) {
       case "https://json-schema.org/keyword/anyOf": {
+        const combinedCompletions: Completions = Object.create(null);
         for (const { completions } of discriminatedValues) {
-          combinedCompletions = this.union(combinedCompletions, completions);
+          unionInto(combinedCompletions, completions);
         }
+        intersectInto(schemaContext.completions!, combinedCompletions);
         break;
       }
 
       case "https://json-schema.org/keyword/oneOf": {
-        combinedCompletions = this.exclusiveUnion(discriminatedValues.map(({ completions }) => completions));
+        intersectInto(schemaContext.completions!, exclusiveUnion(discriminatedValues.map(({ completions }) => completions)));
         break;
       }
 
@@ -296,19 +299,19 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
         break;
 
       case "https://json-schema.org/keyword/not": {
+        const combinedCompletions: Completions = Object.create(null);
         for (const { completions } of subschemaValues) {
-          combinedCompletions = this.negate(combinedCompletions, completions);
+          negateInto(combinedCompletions, completions);
         }
+        intersectInto(schemaContext.completions!, combinedCompletions);
         break;
       }
 
       default:
         for (const { completions } of subschemaValues) {
-          combinedCompletions = this.intersection(combinedCompletions, completions);
+          intersectInto(schemaContext.completions!, completions);
         }
     }
-
-    schemaContext.completions = this.intersection(schemaContext.completions!, combinedCompletions);
   }
 
   afterSchema(_url: string, instance: JsonNode, context: LspContext, valid: boolean): void {
@@ -505,67 +508,6 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
         return this.buildCompletions(keywordValue as string, context, inProgress).complement();
     }
   }
-
-  private intersection(a: Completions, b: Completions): Completions {
-    const result: Completions = Object.create(null);
-    for (const instanceLocation in a) {
-      result[instanceLocation] = a[instanceLocation];
-    }
-    for (const instanceLocation in b) {
-      result[instanceLocation] = result[instanceLocation] ? lazyIntersect(result[instanceLocation], b[instanceLocation]) : b[instanceLocation];
-    }
-    return result;
-  }
-
-  private union(a: Completions, b: Completions): Completions {
-    const result: Completions = Object.create(null);
-    for (const instanceLocation in a) {
-      result[instanceLocation] = a[instanceLocation];
-    }
-    for (const instanceLocation in b) {
-      const existing = result[instanceLocation];
-      const other = b[instanceLocation];
-      result[instanceLocation] = existing ? lazy(() => existing().union(other())) : other;
-    }
-    return result;
-  }
-
-  private negate(a: Completions, b: Completions): Completions {
-    const result: Completions = Object.create(null);
-    for (const instanceLocation in a) {
-      result[instanceLocation] = a[instanceLocation];
-    }
-    for (const instanceLocation in b) {
-      const existing = result[instanceLocation];
-      const other = b[instanceLocation];
-      result[instanceLocation] = existing
-        ? lazy(() => existing().union(other().complement()))
-        : lazy(() => other().complement());
-    }
-    return result;
-  }
-
-  private exclusiveUnion(records: Completions[]): Completions {
-    const pointers = new Set<string>();
-    for (const record of records) {
-      for (const pointer in record) {
-        pointers.add(pointer);
-      }
-    }
-
-    const result: Completions = Object.create(null);
-    for (const pointer of pointers) {
-      const sets = Pact.pipe(
-        records,
-        Pact.map((record) => record[pointer]),
-        Pact.filter((set) => set !== undefined),
-        Pact.collectArray
-      );
-      result[pointer] = lazy(() => JsonValueSet.exclusiveUnion(sets.map((set) => set())));
-    }
-
-    return result;
-  }
 }
 
 // Keywords whose subschemas apply to the instance location only because of
@@ -595,6 +537,52 @@ const lazyIntersect = (a: LazyValueSet, b: LazyValueSet): LazyValueSet => lazy((
 
 function addCompletions(completions: Completions, pointer: string, valueSet: LazyValueSet) {
   completions[pointer] = completions[pointer] ? lazyIntersect(completions[pointer], valueSet) : valueSet;
+}
+
+function intersectInto(target: Completions, source: Completions) {
+  for (const pointer in source) {
+    addCompletions(target, pointer, source[pointer]);
+  }
+}
+
+function unionInto(target: Completions, source: Completions) {
+  for (const pointer in source) {
+    const existing = target[pointer];
+    const other = source[pointer];
+    target[pointer] = existing ? lazy(() => existing().union(other())) : other;
+  }
+}
+
+function negateInto(target: Completions, source: Completions) {
+  for (const pointer in source) {
+    const existing = target[pointer];
+    const other = source[pointer];
+    target[pointer] = existing
+      ? lazy(() => existing().union(other().complement()))
+      : lazy(() => other().complement());
+  }
+}
+
+function exclusiveUnion(records: Completions[]): Completions {
+  const pointers = new Set<string>();
+  for (const record of records) {
+    for (const pointer in record) {
+      pointers.add(pointer);
+    }
+  }
+
+  const result: Completions = Object.create(null);
+  for (const pointer of pointers) {
+    const sets = Pact.pipe(
+      records,
+      Pact.map((record) => record[pointer]),
+      Pact.filter((set) => set !== undefined),
+      Pact.collectArray
+    );
+    result[pointer] = lazy(() => JsonValueSet.exclusiveUnion(sets.map((set) => set())));
+  }
+
+  return result;
 }
 
 function asValueAnnotations(annotations: RecordedAnnotations, pointer: string): RecordedAnnotations {
