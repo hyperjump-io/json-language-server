@@ -363,12 +363,13 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   }
 
   private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): AnnotationRecord[] {
-    return Pact.pipe(
-      this.annotations[instanceLocation],
-      Pact.filter((recorded) => recorded.kind === kind),
-      Pact.map(({ annotation }) => annotation),
-      Pact.collectArray
-    );
+    const annotations: AnnotationRecord[] = [];
+    for (const recorded of this.annotations[instanceLocation]) {
+      if (recorded.kind === kind) {
+        annotations.push(recorded.annotation);
+      }
+    }
+    return annotations;
   }
 
   * getCompletions(pointer: string): Generator<Completion> {
