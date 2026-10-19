@@ -440,64 +440,69 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       }
     }
 
-    const completions = Pact.pipe(
-      nodes,
-      Pact.map((node) => {
-        const [keywordId, , keywordValue] = node;
-
-        switch (keywordId) {
-          case "https://json-schema.org/keyword/const":
-            return new JsonValueSet().addValue(keywordValue as string);
-
-          case "https://json-schema.org/keyword/enum":
-            return (keywordValue as string[]).reduce((set, value) => set.addValue(value), new JsonValueSet());
-
-          case "https://json-schema.org/keyword/type": {
-            const types = Array.isArray(keywordValue) ? keywordValue : [keywordValue];
-            return (types as JsonSchemaType[]).reduce((set, type) => set.addType(type), new JsonValueSet());
-          }
-
-          case "https://json-schema.org/keyword/ref":
-            return this.buildCompletions(keywordValue as string, context, inProgress);
-
-          case "https://json-schema.org/keyword/dynamicRef":
-            return this.buildCompletions(context.dynamicAnchors![keywordValue as string], context, inProgress);
-
-          case "https://json-schema.org/keyword/draft-2020-12/dynamicRef": {
-            const [, fragment, ref] = keywordValue as [string, string, string];
-            return this.buildCompletions(context.dynamicAnchors![fragment] ?? ref, context, inProgress);
-          }
-
-          case "https://json-schema.org/keyword/allOf":
-            return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
-              return valueSet.intersect(this.buildCompletions(subSchemaLocation, context, inProgress));
-            }, JsonValueSet.any());
-
-          case "https://json-schema.org/keyword/anyOf":
-            return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
-              return valueSet.union(this.buildCompletions(subSchemaLocation, context, inProgress).withMemberAnnotations());
-            }, new JsonValueSet());
-
-          case "https://json-schema.org/keyword/oneOf":
-            return JsonValueSet.exclusiveUnion(
-              (keywordValue as string[]).map((subSchemaLocation) => {
-                return this.buildCompletions(subSchemaLocation, context, inProgress).withMemberAnnotations();
-              })
-            );
-
-          case "https://json-schema.org/keyword/not":
-            return this.buildCompletions(keywordValue as string, context, inProgress).complement();
-
-          default:
-            return node === firstAnnotationNode ? JsonValueSet.any().annotate(annotation) : JsonValueSet.any();
-        }
-      }),
-      Pact.reduce((valueSet, keywordValueSet) => valueSet.intersect(keywordValueSet), JsonValueSet.any())
-    );
+    // Most keywords don't constrain the value, so they're skipped rather than
+    // intersected as an unconstrained set. Every intersection creates a new set,
+    // so annotating the result in place doesn't affect any other set.
+    let completions = JsonValueSet.any();
+    for (const node of nodes) {
+      const keywordValueSet = this.buildKeywordCompletions(node, context, inProgress);
+      if (keywordValueSet) {
+        completions = completions.intersect(keywordValueSet);
+      } else if (node === firstAnnotationNode) {
+        completions.annotate(annotation);
+      }
+    }
 
     inProgress.delete(schemaLocation);
 
     return completions;
+  }
+
+  // Undefined if the keyword doesn't constrain the value
+  private buildKeywordCompletions([keywordId, , keywordValue]: Node<unknown>, context: LspContext, inProgress: Set<string>): JsonValueSet | undefined {
+    switch (keywordId) {
+      case "https://json-schema.org/keyword/const":
+        return new JsonValueSet().addValue(keywordValue as string);
+
+      case "https://json-schema.org/keyword/enum":
+        return (keywordValue as string[]).reduce((set, value) => set.addValue(value), new JsonValueSet());
+
+      case "https://json-schema.org/keyword/type": {
+        const types = Array.isArray(keywordValue) ? keywordValue : [keywordValue];
+        return (types as JsonSchemaType[]).reduce((set, type) => set.addType(type), new JsonValueSet());
+      }
+
+      case "https://json-schema.org/keyword/ref":
+        return this.buildCompletions(keywordValue as string, context, inProgress);
+
+      case "https://json-schema.org/keyword/dynamicRef":
+        return this.buildCompletions(context.dynamicAnchors![keywordValue as string], context, inProgress);
+
+      case "https://json-schema.org/keyword/draft-2020-12/dynamicRef": {
+        const [, fragment, ref] = keywordValue as [string, string, string];
+        return this.buildCompletions(context.dynamicAnchors![fragment] ?? ref, context, inProgress);
+      }
+
+      case "https://json-schema.org/keyword/allOf":
+        return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
+          return valueSet.intersect(this.buildCompletions(subSchemaLocation, context, inProgress));
+        }, JsonValueSet.any());
+
+      case "https://json-schema.org/keyword/anyOf":
+        return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
+          return valueSet.union(this.buildCompletions(subSchemaLocation, context, inProgress).withMemberAnnotations());
+        }, new JsonValueSet());
+
+      case "https://json-schema.org/keyword/oneOf":
+        return JsonValueSet.exclusiveUnion(
+          (keywordValue as string[]).map((subSchemaLocation) => {
+            return this.buildCompletions(subSchemaLocation, context, inProgress).withMemberAnnotations();
+          })
+        );
+
+      case "https://json-schema.org/keyword/not":
+        return this.buildCompletions(keywordValue as string, context, inProgress).complement();
+    }
   }
 
   private intersection(a: Completions, b: Completions): Completions {
