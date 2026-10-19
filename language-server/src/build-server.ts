@@ -26,7 +26,11 @@ import type { Connection } from "vscode-languageserver";
 export type LanguageServerSettings = {
 };
 
-export const buildServer = (connection: Connection): Server => {
+export type BuildServerOptions = {
+  diagnosticsDelay?: number;
+};
+
+export const buildServer = (connection: Connection, options: BuildServerOptions = {}): Server => {
   const server = new Server(connection);
   const workspace = new Workspace(server);
 
@@ -44,7 +48,7 @@ export const buildServer = (connection: Connection): Server => {
     new SchemaRegistrationDiagnosticsProvider(registry, jsonSchema),
     new SchemaValidationDiagnosticsProvider(jsonSchema),
     new DeprecatedDiagnosticsProvider(server, jsonSchema)
-  ]);
+  ], options.diagnosticsDelay);
 
   new Formatting(server, jsonDocuments);
   new Hover(server, jsonDocuments, jsonSchema);
