@@ -443,19 +443,19 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
     // Most keywords don't constrain the value, so they're skipped rather than
     // intersected as an unconstrained set. Every intersection creates a new set,
     // so annotating the result in place doesn't affect any other set.
-    let completions = JsonValueSet.any();
+    let completions: JsonValueSet | undefined;
     for (const node of nodes) {
       const keywordValueSet = this.buildKeywordCompletions(node, context, inProgress);
       if (keywordValueSet) {
-        completions = completions.intersect(keywordValueSet);
+        completions = completions?.intersect(keywordValueSet) ?? keywordValueSet;
       } else if (node === firstAnnotationNode) {
-        completions.annotate(annotation);
+        completions = (completions ?? JsonValueSet.any()).annotate(annotation);
       }
     }
 
     inProgress.delete(schemaLocation);
 
-    return completions;
+    return completions ?? JsonValueSet.any();
   }
 
   // Undefined if the keyword doesn't constrain the value
@@ -484,9 +484,10 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       }
 
       case "https://json-schema.org/keyword/allOf":
-        return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {
-          return valueSet.intersect(this.buildCompletions(subSchemaLocation, context, inProgress));
-        }, JsonValueSet.any());
+        // The meta-schema requires at least one subschema
+        return (keywordValue as string[])
+          .map((subSchemaLocation) => this.buildCompletions(subSchemaLocation, context, inProgress))
+          .reduce((valueSet, subSchemaValueSet) => valueSet.intersect(subSchemaValueSet));
 
       case "https://json-schema.org/keyword/anyOf":
         return (keywordValue as string[]).reduce((valueSet, subSchemaLocation) => {

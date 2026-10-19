@@ -471,11 +471,13 @@ export class JsonValueSet {
     return result;
   }
 
+  // Members are in type order no matter what order they were added in
   * [Symbol.iterator](): IterableIterator<SetEntry> {
     const mergeNumber = this.hasType("number");
 
-    for (const [type, bucket] of this.buckets) {
-      if (type === "integer" && mergeNumber) {
+    for (const type of ALL_TYPES) {
+      const bucket = this.buckets.get(type);
+      if (!bucket || (type === "integer" && mergeNumber)) {
         continue;
       }
 
