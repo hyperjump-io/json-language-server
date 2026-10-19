@@ -52,10 +52,22 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   private annotations: RecordedAnnotations = Object.create(null);
   private completions: Completions = Object.create(null);
   private incompleteLocations: Set<string>;
+  // Incomplete locations by the pointer of their parent so the keywords that
+  // apply to an object only look at its own incomplete properties
+  private incompleteChildren = new Map<string, [string, string][]>();
   private subschemaTracker = new SubschemaTracker<SchemaResult>();
 
   constructor(incompleteLocations: Set<string> = new Set()) {
     this.incompleteLocations = incompleteLocations;
+    for (const pointer of incompleteLocations) {
+      const [parentPointer, propertyName] = splitPointer(pointer);
+      let children = this.incompleteChildren.get(parentPointer);
+      if (!children) {
+        children = [];
+        this.incompleteChildren.set(parentPointer, children);
+      }
+      children.push([pointer, propertyName]);
+    }
   }
 
   // The plugin is registered once, in build-server.ts
@@ -107,9 +119,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
             }
           }
 
-          for (const pointer of this.incompleteLocations) {
-            const [parentPointer, propertyName] = splitPointer(pointer);
-            if (parentPointer === instance.pointer && pattern.test(propertyName)) {
+          for (const [pointer, propertyName] of this.incompleteChildren.get(instance.pointer) ?? []) {
+            if (pattern.test(propertyName)) {
               addCompletions(schemaContext.completions!, pointer, completions);
               context.evaluatedProperties?.add(propertyName);
             }
@@ -129,9 +140,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
           }
         }
 
-        for (const pointer of this.incompleteLocations) {
-          const [parentPointer, propertyName] = splitPointer(pointer);
-          if (parentPointer === instance.pointer && !isDeclaredProperty.test(propertyName)) {
+        for (const [pointer, propertyName] of this.incompleteChildren.get(instance.pointer) ?? []) {
+          if (!isDeclaredProperty.test(propertyName)) {
             addCompletions(schemaContext.completions!, pointer, completions);
             context.evaluatedProperties?.add(propertyName);
           }
@@ -150,9 +160,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
           }
         }
 
-        for (const pointer of this.incompleteLocations) {
-          const [parentPointer, propertyName] = splitPointer(pointer);
-          if (parentPointer === instance.pointer && !context.schemaEvaluatedProperties!.has(propertyName)) {
+        for (const [pointer, propertyName] of this.incompleteChildren.get(instance.pointer) ?? []) {
+          if (!context.schemaEvaluatedProperties!.has(propertyName)) {
             addCompletions(schemaContext.completions!, pointer, completions);
             context.evaluatedProperties?.add(propertyName);
           }
