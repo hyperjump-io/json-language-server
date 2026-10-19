@@ -94,7 +94,14 @@ export class JsonDocument implements TextDocument {
     return this.parseErrors;
   }
 
-  findNodeAtPointer(pointer: string) {
+  // Property name locations are prefixed with "*" and find the property's key
+  // rather than its value
+  findNodeAtPointer(pointer: string): jsonc.Node | undefined {
+    if (pointer.startsWith("*")) {
+      const node = this.findNodeAtPointer(pointer.slice(1));
+      return node?.parent?.type === "property" ? node.parent.children![0] : undefined;
+    }
+
     let node = this.ast;
 
     for (let segment of JsonPointer.pointerSegments(pointer)) {

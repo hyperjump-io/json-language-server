@@ -21,11 +21,8 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
       if (result?.valid === false) {
         const errors = result.errors;
         errors.forEach((error) => {
-          const pointer = toPointer(error.instanceLocation);
-          let node = jsonDocument.findNodeAtPointer(pointer);
-          if (error.instanceLocation.startsWith("#*") && node?.parent?.type === "property") {
-            node = node.parent.children?.[0] ?? node;
-          }
+          const pointer = decodeURIComponent(error.instanceLocation.slice(1));
+          const node = jsonDocument.findNodeAtPointer(pointer);
 
           if (node) {
             schemaDiagnostics.push({
