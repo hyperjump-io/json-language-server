@@ -283,7 +283,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
     const isConditional = conditionalKeywords.has(keywordId);
     for (const { pointer, annotations } of annotationValues) {
-      appendAnnotations(schemaContext.schemaAnnotations!, isConditional ? asValueAnnotations(annotations, pointer) : annotations);
+      appendAnnotations(schemaContext.schemaAnnotations!, annotations, isConditional ? pointer : undefined);
     }
 
     // The schema's completions are only shared once the schema is done, so
@@ -590,17 +590,6 @@ function exclusiveUnion(records: Completions[]): Completions {
   return result;
 }
 
-function asValueAnnotations(annotations: RecordedAnnotations, pointer: string): RecordedAnnotations {
-  if (!(pointer in annotations)) {
-    return annotations;
-  }
-
-  return {
-    ...annotations,
-    [pointer]: annotations[pointer].map(({ annotation }) => ({ kind: "value", annotation }))
-  };
-}
-
 // Adds a keyword's annotation without an instance, for locations that
 // evaluation doesn't reach.
 // Returns whether the keyword contributed an annotation
@@ -621,10 +610,17 @@ function toAnnotations(records: AnnotationRecord[]): Annotation[] {
   return records.map((record) => new Annotation(record));
 }
 
-function appendAnnotations(target: RecordedAnnotations, source: RecordedAnnotations) {
+// Annotations at `valuePointer` are appended as value annotations
+function appendAnnotations(target: RecordedAnnotations, source: RecordedAnnotations, valuePointer?: string) {
   for (const pointer in source) {
     target[pointer] ??= [];
-    target[pointer].push(...source[pointer]);
+    if (pointer === valuePointer) {
+      for (const { annotation } of source[pointer]) {
+        target[pointer].push({ kind: "value", annotation });
+      }
+    } else {
+      target[pointer].push(...source[pointer]);
+    }
   }
 }
 
