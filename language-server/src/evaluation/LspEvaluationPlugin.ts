@@ -299,7 +299,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
     const isConditional = conditionalKeywords.has(keywordId);
     for (const { pointer, annotations } of annotationValues) {
-      appendAnnotations(schemaContext.schemaAnnotations!, isConditional ? asValueAnnotations(annotations, pointer) : annotations);
+      appendAnnotations(schemaContext.schemaAnnotations!, annotations, isConditional ? pointer : undefined);
     }
 
     // The schema's completions are only shared once the schema is done, so
@@ -615,17 +615,6 @@ function exclusiveUnion(records: Completions[]): Completions {
   return result;
 }
 
-function asValueAnnotations(annotations: RecordedAnnotations, pointer: string): RecordedAnnotations {
-  if (!(pointer in annotations)) {
-    return annotations;
-  }
-
-  return {
-    ...annotations,
-    [pointer]: annotations[pointer].map(({ annotation }) => ({ kind: "value", annotation }))
-  };
-}
-
 // Adds a keyword's annotation without an instance, for locations that
 // evaluation doesn't reach.
 // Returns whether the keyword contributed an annotation
@@ -648,15 +637,17 @@ function toAnnotations(records: AnnotationRecord[]): Annotation[] {
 
 // A schema's annotations are only used once at a location. If they apply both
 // no matter what the value is and because of what the value is, they're a
-// location annotation.
-function appendAnnotations(target: RecordedAnnotations, source: RecordedAnnotations) {
+// location annotation. Annotations at `valuePointer` are appended as value
+// annotations.
+function appendAnnotations(target: RecordedAnnotations, source: RecordedAnnotations, valuePointer?: string) {
   for (const pointer in source) {
     target[pointer] ??= [];
+    const isValue = pointer === valuePointer;
     for (const recorded of source[pointer]) {
       const index = target[pointer].findIndex(({ annotation }) => annotation === recorded.annotation);
       if (index === -1) {
-        target[pointer].push(recorded);
-      } else if (recorded.kind === "location") {
+        target[pointer].push(isValue ? { kind: "value", annotation: recorded.annotation } : recorded);
+      } else if (!isValue && recorded.kind === "location") {
         target[pointer][index] = recorded;
       }
     }
