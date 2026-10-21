@@ -1,7 +1,6 @@
 import { getKeyword } from "@hyperjump/json-schema/experimental";
 import * as Instance from "@hyperjump/json-schema/instance/experimental";
 import * as JsonPointer from "@hyperjump/json-pointer";
-import * as Pact from "@hyperjump/pact";
 import { JsonValueSet } from "./JsonValueSet.ts";
 import { SubschemaTracker } from "./SubschemaTracker.ts";
 import { Annotation } from "./Annotation.ts";
@@ -574,21 +573,17 @@ function negateInto(target: Completions, source: Completions) {
 }
 
 function exclusiveUnion(records: Completions[]): Completions {
-  const pointers = new Set<string>();
+  const setsByPointer: Record<string, LazyValueSet[]> = Object.create(null);
   for (const record of records) {
     for (const pointer in record) {
-      pointers.add(pointer);
+      setsByPointer[pointer] ??= [];
+      setsByPointer[pointer].push(record[pointer]);
     }
   }
 
   const result: Completions = Object.create(null);
-  for (const pointer of pointers) {
-    const sets = Pact.pipe(
-      records,
-      Pact.map((record) => record[pointer]),
-      Pact.filter((set) => set !== undefined),
-      Pact.collectArray
-    );
+  for (const pointer in setsByPointer) {
+    const sets = setsByPointer[pointer];
     result[pointer] = lazy(() => JsonValueSet.exclusiveUnion(sets.map((set) => set())));
   }
 
