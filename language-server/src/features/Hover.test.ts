@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { HoverRequest } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
 
+import type { Position } from "vscode-languageserver";
+
 describe("Hover", () => {
   let client: TestClient;
   let fixtureSchemaUri: string;
@@ -13,6 +15,25 @@ describe("Hover", () => {
 
   afterEach(async () => {
     await client.stop();
+  });
+
+  // Hovers over an instance with the given properties, which start on line 2
+  const hover = async (schema: object, properties: string, position: Position) => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", JSON.stringify({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      ...schema
+    }));
+    await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n${properties}\n}`);
+    const uri = await client.openDocument("instance.json");
+
+    return client.sendRequest(HoverRequest.type, { textDocument: { uri }, position });
+  };
+
+  const hoverTitles = (...titles: string[]) => ({
+    contents: {
+      kind: "markdown",
+      value: `${titles.map((title) => `**${title}**\n\n`).join("")}---\n\n_hyperjump-json-language-server_`
+    }
   });
 
   test("should return title and description on hover over a property value", async () => {
@@ -766,6 +787,89 @@ _hyperjump-json-language-server_`
 _hyperjump-json-language-server_`
         }
       });
+    });
+  });
+
+  describe("anyOf/oneOf discrimination", () => {
+    const hoverValue = (schema: object, value: string) => hover(schema, `  "foo": ${value}`, { line: 2, character: 9 });
+
+    test("an alternative whose type doesn't match an object is dropped", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { type: "string", title: "String" },
+              { type: "object", title: "Object" }
+            ]
+          }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("Object"));
+    });
+
+    test("a type under an alternative's anyOf doesn't drop it", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { title: "A", anyOf: [{ type: "string" }, { required: ["x"] }] },
+              { type: "object", title: "B" }
+            ]
+          }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("A", "B"));
+    });
+
+    test("a type under an alternative's $ref or allOf doesn't drop it", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { title: "A", $ref: "#/$defs/string" },
+              { title: "B", allOf: [{ type: "string" }] },
+              { type: "object", title: "C" }
+            ]
+          }
+        },
+        $defs: {
+          string: { type: "string" }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("A", "B", "C"));
+    });
+
+    test("alternatives aren't dropped if they all fail type", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { type: "string", title: "A" },
+              { type: "number", title: "B" }
+            ]
+          }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("A", "B"));
+    });
+
+    test("an object's other failures don't drop alternatives", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { type: "object", required: ["a"], title: "A" },
+              { type: "object", required: ["b"], title: "B" }
+            ]
+          }
+        }
+      }, `{ "a": 1 }`);
+
+      expect(result).toEqual(hoverTitles("A", "B"));
     });
   });
 

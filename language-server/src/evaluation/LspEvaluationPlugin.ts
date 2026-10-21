@@ -236,7 +236,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   afterKeyword(node: Node<unknown>, instance: JsonNode, context: LspContext, valid: boolean, schemaContext: LspContext, keyword: Keyword<unknown>): void {
     const [keywordId, , keywordValue] = node;
 
-    this.subschemaTracker.afterKeyword(instance, context, valid, schemaContext);
+    this.subschemaTracker.afterKeyword(keywordId, instance, context, valid, schemaContext);
 
     // A schema's own annotations are recorded where its first annotation
     // keyword is so annotations are in the order they appear in the schema.
