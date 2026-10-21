@@ -788,6 +788,207 @@ _hyperjump-json-language-server_`
         }
       });
     });
+
+    test("hovering a property key shows its own annotations", async () => {
+      const result = await hover({
+        properties: {
+          foo: { title: "Foo" }
+        }
+      }, `  "foo": 42`, { line: 2, character: 4 });
+
+      expect(result).toEqual(hoverTitles("Foo"));
+    });
+
+    test("hovering a property key shows its own annotations even if its value is invalid", async () => {
+      const result = await hover({
+        properties: {
+          foo: { type: "string", title: "Foo" }
+        }
+      }, `  "foo": 42`, { line: 2, character: 4 });
+
+      expect(result).toEqual(hoverTitles("Foo"));
+    });
+
+    test("hovering a property key shows annotations through $ref", async () => {
+      const result = await hover({
+        properties: {
+          foo: { $ref: "#/$defs/foo" }
+        },
+        $defs: {
+          foo: { title: "Foo" }
+        }
+      }, `  "foo": 42`, { line: 2, character: 4 });
+
+      expect(result).toEqual(hoverTitles("Foo"));
+    });
+
+    test("hovering a property key shows annotations through allOf", async () => {
+      const result = await hover({
+        properties: {
+          bar: { allOf: [{ title: "Bar" }] }
+        }
+      }, `  "bar": 42`, { line: 2, character: 4 });
+
+      expect(result).toEqual(hoverTitles("Bar"));
+    });
+
+    test("hovering a property key shows annotations through $dynamicRef", async () => {
+      const result = await hover({
+        $dynamicAnchor: "foo",
+        properties: {
+          foo: { $dynamicRef: "#foo" }
+        },
+        title: "Foo"
+      }, `  "foo": {}`, { line: 2, character: 4 });
+
+      expect(result).toEqual(hoverTitles("Foo"));
+    });
+
+    test("hovering a property key doesn't show the annotations of an anyOf alternative", async () => {
+      const result = await hover({
+        properties: {
+          color: {
+            anyOf: [
+              { const: "red", title: "Red" },
+              { enum: ["green", "blue"] }
+            ]
+          }
+        }
+      }, `  "color": "red"`, { line: 2, character: 4 });
+
+      expect(result).toBeNull();
+    });
+
+    test("hovering a value shows the annotations of the anyOf alternative it matches", async () => {
+      const result = await hover({
+        properties: {
+          color: {
+            anyOf: [
+              { const: "red", title: "Red" },
+              { enum: ["green", "blue"] }
+            ]
+          }
+        }
+      }, `  "color": "red"`, { line: 2, character: 12 });
+
+      expect(result).toEqual(hoverTitles("Red"));
+    });
+
+    test("hovering a value doesn't show the annotations of an anyOf alternative that is discriminated out", async () => {
+      const result = await hover({
+        properties: {
+          color: {
+            anyOf: [
+              { const: "red", title: "Red" },
+              { enum: ["green", "blue"] }
+            ]
+          }
+        }
+      }, `  "color": "green"`, { line: 2, character: 12 });
+
+      expect(result).toBeNull();
+    });
+
+    test("hovering a property key doesn't show the annotations of a then", async () => {
+      const result = await hover({
+        properties: {
+          foo: {
+            if: { type: "string" },
+            then: { title: "String foo" }
+          }
+        }
+      }, `  "foo": "a"`, { line: 2, character: 4 });
+
+      expect(result).toBeNull();
+    });
+
+    test("hovering a value shows the annotations of a then", async () => {
+      const result = await hover({
+        properties: {
+          foo: {
+            if: { type: "string" },
+            then: { title: "String foo" }
+          }
+        }
+      }, `  "foo": "a"`, { line: 2, character: 10 });
+
+      expect(result).toEqual(hoverTitles("String foo"));
+    });
+
+    test("hovering a property key shows annotations that depend on a sibling", async () => {
+      const result = await hover({
+        if: {
+          properties: { version: { const: 1 } }
+        },
+        then: {
+          properties: { foo: { title: "Foo" } }
+        }
+      }, `  "version": 1,\n  "foo": 42`, { line: 3, character: 4 });
+
+      expect(result).toEqual(hoverTitles("Foo"));
+    });
+
+    test("hovering a property key shows annotations of the property in an alternative of its parent", async () => {
+      const result = await hover({
+        anyOf: [
+          { properties: { kind: { const: "a" }, foo: { title: "Foo" } } },
+          { properties: { kind: { const: "b" } } }
+        ]
+      }, `  "kind": "a",\n  "foo": 42`, { line: 3, character: 4 });
+
+      expect(result).toEqual(hoverTitles("Foo"));
+    });
+
+    test("hovering an item shows its annotations", async () => {
+      const schema = {
+        properties: {
+          list: {
+            prefixItems: [{ title: "First" }],
+            items: { anyOf: [{ const: 1, title: "One" }, { const: 2 }] }
+          }
+        }
+      };
+      const properties = `  "list": ["a", 1, 2]`;
+
+      expect(await hover(schema, properties, { line: 2, character: 12 })).toEqual(hoverTitles("First"));
+      expect(await hover(schema, properties, { line: 2, character: 16 })).toEqual(hoverTitles("One"));
+      expect(await hover(schema, properties, { line: 2, character: 19 })).toBeNull();
+    });
+
+    test("hovering an incomplete property key shows annotations through $ref and allOf", async () => {
+      const result = await hover({
+        properties: {
+          foo: { $ref: "#/$defs/foo" }
+        },
+        $defs: {
+          foo: { allOf: [{ title: "Foo" }] }
+        }
+      }, `  "foo":`, { line: 2, character: 4 });
+
+      expect(result).toEqual(hoverTitles("Foo"));
+    });
+
+    test("hovering an incomplete property key doesn't show the annotations of an anyOf alternative", async () => {
+      const result = await hover({
+        properties: {
+          bar: { anyOf: [{ const: "a", title: "A" }, { const: "b" }] }
+        }
+      }, `  "bar":`, { line: 2, character: 4 });
+
+      expect(result).toBeNull();
+    });
+
+    test("hovering a value doesn't show annotations under not", async () => {
+      const result = await hover({
+        properties: {
+          color: {
+            not: { const: "green", title: "Green" }
+          }
+        }
+      }, `  "color": "red"`, { line: 2, character: 12 });
+
+      expect(result).toBeNull();
+    });
   });
 
   describe("anyOf/oneOf discrimination", () => {
