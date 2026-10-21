@@ -871,6 +871,51 @@ _hyperjump-json-language-server_`
 
       expect(result).toEqual(hoverTitles("A", "B"));
     });
+
+    test("an alternative with an enum without a value of the instance's type is dropped", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { enum: ["a", "b"], title: "Preset" },
+              { type: "object", title: "Custom" }
+            ]
+          }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("Custom"));
+    });
+
+    test("an alternative with an enum with a value of the instance's type isn't dropped", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { enum: ["a", { b: 1 }], title: "A" },
+              { type: "object", title: "B" }
+            ]
+          }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("A", "B"));
+    });
+
+    test("an alternative with a const of a different type than the instance is dropped", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { const: 42, title: "A" },
+              { type: "array", title: "B" }
+            ]
+          }
+        }
+      }, "[]");
+
+      expect(result).toEqual(hoverTitles("B"));
+    });
   });
 
   test("should return markdownDescription from a dialect that includes the vscode vocabulary", async () => {

@@ -18,8 +18,9 @@ type SchemaFailures = {
  * locations where it failed. This allows anyOf/oneOf alternatives to be
  * discriminated even when the instance as a whole is invalid.
  *
- * Whether a subschema's own `type` failed is tracked separately because it
- * discriminates an object or array, which no other failure on it does.
+ * Whether a subschema failed because of the instance's type is tracked
+ * separately because an object or array is discriminated by its type, not by
+ * any other failure.
  *
  * State is keyed by context object rather than stored on the context so that
  * plugins using separate trackers don't share state.
@@ -40,7 +41,7 @@ export class SubschemaTracker<T> {
     this.subschemaResults.set(keywordContext, []);
   }
 
-  afterKeyword(keywordId: string, instance: JsonNode, keywordContext: object, valid: boolean, schemaContext: object): void {
+  afterKeyword(keywordId: string, keywordValue: unknown, instance: JsonNode, keywordContext: object, valid: boolean, schemaContext: object): void {
     if (!valid) {
       const schemaFailures = this.schemaFailures.get(schemaContext)!;
       schemaFailures.failedLocations.add(instance.pointer);
@@ -48,7 +49,7 @@ export class SubschemaTracker<T> {
         schemaFailures.failedLocations.add(location);
       }
 
-      if (keywordId === "https://json-schema.org/keyword/type") {
+      if (this.isTypeFailure(keywordId, keywordValue, instance)) {
         schemaFailures.failedType = true;
       }
     }
@@ -77,10 +78,29 @@ export class SubschemaTracker<T> {
   }
 
   /**
+   * Whether a failing keyword rules out the instance's type
+   */
+  private isTypeFailure(keywordId: string, keywordValue: unknown, instance: JsonNode): boolean {
+    switch (keywordId) {
+      case "https://json-schema.org/keyword/type":
+        return true;
+
+      case "https://json-schema.org/keyword/const":
+        return jsonTypeOf(keywordValue as string) !== Instance.typeOf(instance);
+
+      case "https://json-schema.org/keyword/enum":
+        return (keywordValue as string[]).every((value) => jsonTypeOf(value) !== Instance.typeOf(instance));
+
+      default:
+        return false;
+    }
+  }
+
+  /**
    * Drop alternatives that fail at a location where another alternative
    * passes. Locations where every alternative fails don't discriminate.
-   * Alternatives whose own `type` fails are dropped unless they all fail it.
-   * An object or array is usually incomplete while it's being edited, so
+   * Alternatives that rule out the instance's type are dropped unless they all
+   * do. An object or array is usually incomplete while it's being edited, so
    * other failures on it don't discriminate.
    */
   discriminate(alternatives: SubschemaResult<T>[], instance: JsonNode): T[] {
@@ -129,3 +149,16 @@ export class SubschemaTracker<T> {
     return passingAlternatives;
   }
 }
+
+// The type of a const or enum value, which is compiled to its JSON text
+const jsonTypeOf = (json: string): string => {
+  switch (json[0]) {
+    case "{": return "object";
+    case "[": return "array";
+    case "\"": return "string";
+    case "t":
+    case "f": return "boolean";
+    case "n": return "null";
+    default: return "number";
+  }
+};
