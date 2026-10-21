@@ -1224,6 +1224,66 @@ describe("Value Completions", () => {
     ]);
   });
 
+  test("anyOf alternatives whose type doesn't match an object don't contribute completions", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "anyOf": [
+            { "type": "string", "properties": { "a": { "const": 1 } } },
+            { "type": "object", "properties": { "a": { "const": 2 } } }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": { "a": }
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 21 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "2" }
+    ]);
+  });
+
+  test("oneOf alternatives whose type doesn't match an object don't contribute completions", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "oneOf": [
+            { "type": "string", "properties": { "a": { "const": 1 } } },
+            { "type": "object", "properties": { "a": { "const": 2 } } }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": { "a": }
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 21 }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "2" }
+    ]);
+  });
+
   test("combine values contributed in different subschemas with anyOf", async () => {
     const fixtureSchemaUri = await client.writeDocument("schema.json", `{
       "$schema": "https://json-schema.org/draft/2020-12/schema",

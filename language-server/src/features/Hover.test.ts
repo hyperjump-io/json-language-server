@@ -916,6 +916,51 @@ _hyperjump-json-language-server_`
 
       expect(result).toEqual(hoverTitles("B"));
     });
+
+    test("an alternative whose type doesn't match an array is dropped", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { type: "string", title: "String" },
+              { type: "array", title: "Array" }
+            ]
+          }
+        }
+      }, "[1]");
+
+      expect(result).toEqual(hoverTitles("Array"));
+    });
+
+    test("a oneOf alternative whose type doesn't match is dropped", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            oneOf: [
+              { type: "string", title: "String" },
+              { type: "object", title: "Object" }
+            ]
+          }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("Object"));
+    });
+
+    test("an alternative whose type doesn't match a primitive is dropped", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { type: "boolean", title: "Boolean" },
+              { enum: ["a", "b"], title: "Enum" }
+            ]
+          }
+        }
+      }, `"x"`);
+
+      expect(result).toEqual(hoverTitles("Enum"));
+    });
   });
 
   test("should return markdownDescription from a dialect that includes the vscode vocabulary", async () => {
