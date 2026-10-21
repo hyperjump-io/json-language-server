@@ -4,6 +4,7 @@ import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
 
 export type SubschemaResult<T> = {
   value: T;
+  pointer: string;
   failedLocations: Set<string>;
   failedType: boolean;
 };
@@ -49,7 +50,7 @@ export class SubschemaTracker<T> {
         schemaFailures.failedLocations.add(location);
       }
 
-      if (this.isTypeFailure(keywordId, keywordValue, instance)) {
+      if (this.isTypeFailure(keywordId, keywordValue, instance, keywordContext)) {
         schemaFailures.failedType = true;
       }
     }
@@ -58,6 +59,11 @@ export class SubschemaTracker<T> {
   afterSchema(instance: JsonNode, context: object, valid: boolean, value: T): void {
     const schemaFailures = this.schemaFailures.get(context)!;
     if (!valid) {
+      // A schema that fails without any of its keywords failing is a `false`
+      // schema, which rules out every type
+      if (schemaFailures.failedLocations.size === 0) {
+        schemaFailures.failedType = true;
+      }
       schemaFailures.failedLocations.add(instance.pointer);
     }
 
@@ -68,6 +74,7 @@ export class SubschemaTracker<T> {
 
     this.subschemaResults.get(context)?.push({
       value,
+      pointer: instance.pointer,
       failedLocations: schemaFailures.failedLocations,
       failedType: schemaFailures.failedType
     });
@@ -78,9 +85,12 @@ export class SubschemaTracker<T> {
   }
 
   /**
-   * Whether a failing keyword rules out the instance's type
+   * Whether a failing keyword rules out the instance's type. A subschema that
+   * applies to the same instance location fails type if it rules out the
+   * instance's type, but an anyOf/oneOf only does if all of its alternatives
+   * do.
    */
-  private isTypeFailure(keywordId: string, keywordValue: unknown, instance: JsonNode): boolean {
+  private isTypeFailure(keywordId: string, keywordValue: unknown, instance: JsonNode, keywordContext: object): boolean {
     switch (keywordId) {
       case "https://json-schema.org/keyword/type":
         return true;
@@ -91,8 +101,13 @@ export class SubschemaTracker<T> {
       case "https://json-schema.org/keyword/enum":
         return (keywordValue as string[]).every((value) => jsonTypeOf(value) !== Instance.typeOf(instance));
 
+      case "https://json-schema.org/keyword/anyOf":
+      case "https://json-schema.org/keyword/oneOf":
+        return this.getSubschemaResults(keywordContext).every((result) => result.failedType);
+
       default:
-        return false;
+        return this.getSubschemaResults(keywordContext)
+          .some((result) => result.pointer === instance.pointer && result.failedType);
     }
   }
 

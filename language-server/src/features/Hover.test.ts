@@ -1024,7 +1024,7 @@ _hyperjump-json-language-server_`
       expect(result).toEqual(hoverTitles("A", "B"));
     });
 
-    test("a type under an alternative's $ref or allOf doesn't drop it", async () => {
+    test("a type under an alternative's $ref or allOf drops it", async () => {
       const result = await hoverValue({
         properties: {
           foo: {
@@ -1040,7 +1040,70 @@ _hyperjump-json-language-server_`
         }
       }, "{}");
 
-      expect(result).toEqual(hoverTitles("A", "B", "C"));
+      expect(result).toEqual(hoverTitles("C"));
+    });
+
+    test("a type under every alternative of an alternative's anyOf drops it", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { title: "A", anyOf: [{ type: "string" }, { type: "number" }] },
+              { type: "object", title: "B" }
+            ]
+          }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("B"));
+    });
+
+    test("a type under an alternative's if doesn't drop it", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { title: "A", if: { type: "string" } },
+              { type: "object", title: "B" }
+            ]
+          }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("A", "B"));
+    });
+
+    test("a type under a property of an alternative doesn't drop it", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { title: "A", properties: { a: { type: "string" } } },
+              { type: "object", title: "B" }
+            ]
+          }
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("A", "B"));
+    });
+
+    test("an alternative that reaches a false schema is dropped", async () => {
+      const result = await hoverValue({
+        properties: {
+          foo: {
+            anyOf: [
+              { title: "A", $ref: "#/$defs/never" },
+              { title: "B" }
+            ]
+          }
+        },
+        $defs: {
+          never: false
+        }
+      }, "{}");
+
+      expect(result).toEqual(hoverTitles("B"));
     });
 
     test("alternatives aren't dropped if they all fail type", async () => {
