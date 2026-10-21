@@ -8,6 +8,11 @@ export type SubschemaResult<T> = {
   failedType: boolean;
 };
 
+type SchemaFailures = {
+  failedLocations: Set<string>;
+  failedType: boolean;
+};
+
 /**
  * Tracks the result of each subschema evaluated by a keyword and the instance
  * locations where it failed. This allows anyOf/oneOf alternatives to be
@@ -21,16 +26,14 @@ export type SubschemaResult<T> = {
  */
 export class SubschemaTracker<T> {
   private failedLocations = new WeakMap<object, Set<string>>();
-  private schemaFailedLocations = new WeakMap<object, Set<string>>();
-  private schemaFailedType = new WeakMap<object, boolean>();
+  private schemaFailures = new WeakMap<object, SchemaFailures>();
   private subschemaResults = new WeakMap<object, SubschemaResult<T>[]>();
 
   beforeSchema(context: object): void {
     if (!this.failedLocations.has(context)) {
       this.failedLocations.set(context, new Set());
     }
-    this.schemaFailedLocations.set(context, new Set());
-    this.schemaFailedType.set(context, false);
+    this.schemaFailures.set(context, { failedLocations: new Set(), failedType: false });
   }
 
   beforeKeyword(keywordContext: object): void {
@@ -39,33 +42,33 @@ export class SubschemaTracker<T> {
 
   afterKeyword(keywordId: string, instance: JsonNode, keywordContext: object, valid: boolean, schemaContext: object): void {
     if (!valid) {
-      const schemaFailedLocations = this.schemaFailedLocations.get(schemaContext)!;
-      schemaFailedLocations.add(instance.pointer);
+      const schemaFailures = this.schemaFailures.get(schemaContext)!;
+      schemaFailures.failedLocations.add(instance.pointer);
       for (const location of this.failedLocations.get(keywordContext) ?? []) {
-        schemaFailedLocations.add(location);
+        schemaFailures.failedLocations.add(location);
       }
 
       if (keywordId === "https://json-schema.org/keyword/type") {
-        this.schemaFailedType.set(schemaContext, true);
+        schemaFailures.failedType = true;
       }
     }
   }
 
   afterSchema(instance: JsonNode, context: object, valid: boolean, value: T): void {
-    const schemaFailedLocations = this.schemaFailedLocations.get(context)!;
+    const schemaFailures = this.schemaFailures.get(context)!;
     if (!valid) {
-      schemaFailedLocations.add(instance.pointer);
+      schemaFailures.failedLocations.add(instance.pointer);
     }
 
     const failedLocations = this.failedLocations.get(context)!;
-    for (const location of schemaFailedLocations) {
+    for (const location of schemaFailures.failedLocations) {
       failedLocations.add(location);
     }
 
     this.subschemaResults.get(context)?.push({
       value,
-      failedLocations: schemaFailedLocations,
-      failedType: this.schemaFailedType.get(context)!
+      failedLocations: schemaFailures.failedLocations,
+      failedType: schemaFailures.failedType
     });
   }
 
