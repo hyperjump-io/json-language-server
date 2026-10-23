@@ -1,7 +1,6 @@
 import { getKeyword } from "@hyperjump/json-schema/experimental";
 import * as Instance from "@hyperjump/json-schema/instance/experimental";
 import * as JsonPointer from "@hyperjump/json-pointer";
-import * as Pact from "@hyperjump/pact";
 import { JsonValueSet } from "./JsonValueSet.ts";
 import { SubschemaTracker } from "./SubschemaTracker.ts";
 import { Annotation } from "./Annotation.ts";
@@ -52,10 +51,22 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   private annotations: RecordedAnnotations = Object.create(null);
   private completions: Completions = Object.create(null);
   private incompleteLocations: Set<string>;
+  // Incomplete locations by the pointer of their parent so the keywords that
+  // apply to an object only look at its own incomplete properties
+  private incompleteChildren = new Map<string, [string, string][]>();
   private subschemaTracker = new SubschemaTracker<SchemaResult>();
 
   constructor(incompleteLocations: Set<string> = new Set()) {
     this.incompleteLocations = incompleteLocations;
+    for (const pointer of incompleteLocations) {
+      const [parentPointer, propertyName] = splitPointer(pointer);
+      let children = this.incompleteChildren.get(parentPointer);
+      if (!children) {
+        children = [];
+        this.incompleteChildren.set(parentPointer, children);
+      }
+      children.push([pointer, propertyName]);
+    }
   }
 
   // The plugin is registered once, in build-server.ts
@@ -107,9 +118,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
             }
           }
 
-          for (const pointer of this.incompleteLocations) {
-            const [parentPointer, propertyName] = splitPointer(pointer);
-            if (parentPointer === instance.pointer && pattern.test(propertyName)) {
+          for (const [pointer, propertyName] of this.incompleteChildren.get(instance.pointer) ?? []) {
+            if (pattern.test(propertyName)) {
               addCompletions(schemaContext.completions!, pointer, completions);
               context.evaluatedProperties?.add(propertyName);
             }
@@ -129,9 +139,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
           }
         }
 
-        for (const pointer of this.incompleteLocations) {
-          const [parentPointer, propertyName] = splitPointer(pointer);
-          if (parentPointer === instance.pointer && !isDeclaredProperty.test(propertyName)) {
+        for (const [pointer, propertyName] of this.incompleteChildren.get(instance.pointer) ?? []) {
+          if (!isDeclaredProperty.test(propertyName)) {
             addCompletions(schemaContext.completions!, pointer, completions);
             context.evaluatedProperties?.add(propertyName);
           }
@@ -150,9 +159,8 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
           }
         }
 
-        for (const pointer of this.incompleteLocations) {
-          const [parentPointer, propertyName] = splitPointer(pointer);
-          if (parentPointer === instance.pointer && !context.schemaEvaluatedProperties!.has(propertyName)) {
+        for (const [pointer, propertyName] of this.incompleteChildren.get(instance.pointer) ?? []) {
+          if (!context.schemaEvaluatedProperties!.has(propertyName)) {
             addCompletions(schemaContext.completions!, pointer, completions);
             context.evaluatedProperties?.add(propertyName);
           }
@@ -275,7 +283,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
 
     const isConditional = conditionalKeywords.has(keywordId);
     for (const { pointer, annotations } of annotationValues) {
-      appendAnnotations(schemaContext.schemaAnnotations!, isConditional ? asValueAnnotations(annotations, pointer) : annotations);
+      appendAnnotations(schemaContext.schemaAnnotations!, annotations, isConditional ? pointer : undefined);
     }
 
     // The schema's completions are only shared once the schema is done, so
@@ -363,12 +371,13 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
   }
 
   private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): AnnotationRecord[] {
-    return Pact.pipe(
-      this.annotations[instanceLocation],
-      Pact.filter((recorded) => recorded.kind === kind),
-      Pact.map(({ annotation }) => annotation),
-      Pact.collectArray
-    );
+    const annotations: AnnotationRecord[] = [];
+    for (const recorded of this.annotations[instanceLocation]) {
+      if (recorded.kind === kind) {
+        annotations.push(recorded.annotation);
+      }
+    }
+    return annotations;
   }
 
   * getCompletions(pointer: string): Generator<Completion> {
@@ -564,36 +573,21 @@ function negateInto(target: Completions, source: Completions) {
 }
 
 function exclusiveUnion(records: Completions[]): Completions {
-  const pointers = new Set<string>();
+  const setsByPointer: Record<string, LazyValueSet[]> = Object.create(null);
   for (const record of records) {
     for (const pointer in record) {
-      pointers.add(pointer);
+      setsByPointer[pointer] ??= [];
+      setsByPointer[pointer].push(record[pointer]);
     }
   }
 
   const result: Completions = Object.create(null);
-  for (const pointer of pointers) {
-    const sets = Pact.pipe(
-      records,
-      Pact.map((record) => record[pointer]),
-      Pact.filter((set) => set !== undefined),
-      Pact.collectArray
-    );
+  for (const pointer in setsByPointer) {
+    const sets = setsByPointer[pointer];
     result[pointer] = lazy(() => JsonValueSet.exclusiveUnion(sets.map((set) => set())));
   }
 
   return result;
-}
-
-function asValueAnnotations(annotations: RecordedAnnotations, pointer: string): RecordedAnnotations {
-  if (!(pointer in annotations)) {
-    return annotations;
-  }
-
-  return {
-    ...annotations,
-    [pointer]: annotations[pointer].map(({ annotation }) => ({ kind: "value", annotation }))
-  };
 }
 
 // Adds a keyword's annotation without an instance, for locations that
@@ -616,10 +610,17 @@ function toAnnotations(records: AnnotationRecord[]): Annotation[] {
   return records.map((record) => new Annotation(record));
 }
 
-function appendAnnotations(target: RecordedAnnotations, source: RecordedAnnotations) {
+// Annotations at `valuePointer` are appended as value annotations
+function appendAnnotations(target: RecordedAnnotations, source: RecordedAnnotations, valuePointer?: string) {
   for (const pointer in source) {
     target[pointer] ??= [];
-    target[pointer].push(...source[pointer]);
+    if (pointer === valuePointer) {
+      for (const { annotation } of source[pointer]) {
+        target[pointer].push({ kind: "value", annotation });
+      }
+    } else {
+      target[pointer].push(...source[pointer]);
+    }
   }
 }
 
