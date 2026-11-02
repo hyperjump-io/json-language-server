@@ -44,7 +44,6 @@
   },
   "allowScripts": {
     "@vscode/vsce-sign@2.1.0": true,
-    "esbuild@0.28.2": true,
-    "keytar@7.9.0": true
+    "esbuild@0.28.2": true
   }
 }
