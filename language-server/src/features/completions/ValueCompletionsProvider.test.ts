@@ -4864,4 +4864,315 @@ describe("Value Completions", () => {
       expect(completions[1].tags).toBeUndefined();
     });
   });
+
+  describe("enumDescriptions", () => {
+    test("each enum value is documented with the description at its position", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "level": {
+            "enum": ["debug", "info", "error"],
+            "enumDescriptions": ["Log everything", "Log informational messages and above", "Log errors only"]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "level":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      });
+
+      expect(completions).toMatchObject([
+        { label: `"debug"`, documentation: { kind: MarkupKind.PlainText, value: "Log everything" } },
+        { label: `"info"`, documentation: { kind: MarkupKind.PlainText, value: "Log informational messages and above" } },
+        { label: `"error"`, documentation: { kind: MarkupKind.PlainText, value: "Log errors only" } }
+      ]);
+    });
+
+    test("a value without a description at its position isn't documented and extra descriptions are ignored", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "short": {
+            "enum": ["a", "b"],
+            "enumDescriptions": ["The a"]
+          },
+          "long": {
+            "enum": ["a"],
+            "enumDescriptions": ["The a", "The b"]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "short":
+      }`);
+      const shortUri = await client.openDocument("instance.json");
+
+      const shortCompletions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri: shortUri },
+        position: { line: 2, character: 16 }
+      }) as CompletionItem[];
+
+      expect(shortCompletions).toMatchObject([
+        { label: `"a"`, documentation: { kind: MarkupKind.PlainText, value: "The a" } },
+        { label: `"b"` }
+      ]);
+      expect(shortCompletions[1]).not.toHaveProperty("documentation");
+
+      await client.writeDocument("long.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "long":
+      }`);
+      const longUri = await client.openDocument("long.json");
+
+      const longCompletions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri: longUri },
+        position: { line: 2, character: 15 }
+      });
+
+      expect(longCompletions).toMatchObject([
+        { label: `"a"`, documentation: { kind: MarkupKind.PlainText, value: "The a" } }
+      ]);
+    });
+
+    test("markdownEnumDescriptions is preferred over enumDescriptions", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "enum": ["a", "b"],
+            "enumDescriptions": ["Plain a", "Plain b"],
+            "markdownEnumDescriptions": ["_Markdown_ a"]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      });
+
+      expect(completions).toMatchObject([
+        { label: `"a"`, documentation: { kind: MarkupKind.Markdown, value: "_Markdown_ a" } },
+        { label: `"b"`, documentation: { kind: MarkupKind.PlainText, value: "Plain b" } }
+      ]);
+    });
+
+    test("an enum reached through $ref is documented", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": { "$ref": "#/$defs/value" }
+        },
+        "$defs": {
+          "value": {
+            "enum": ["a"],
+            "enumDescriptions": ["The a"]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      });
+
+      expect(completions).toMatchObject([
+        { label: `"a"`, documentation: { kind: MarkupKind.PlainText, value: "The a" } }
+      ]);
+    });
+
+    test("the description follows the title and description of an anyOf alternative", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "anyOf": [
+              { "enum": ["a"], "title": "A", "enumDescriptions": ["The a."] },
+              { "enum": ["b"] }
+            ]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      }) as CompletionItem[];
+
+      expect(completions).toMatchObject([
+        { label: `"a"`, documentation: { kind: MarkupKind.Markdown, value: "**A**\n\nThe a\\." } },
+        { label: `"b"` }
+      ]);
+      expect(completions[1]).not.toHaveProperty("documentation");
+    });
+
+    test("a partially typed value is documented", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "enum": ["a", "b"],
+            "enumDescriptions": ["The a", "The b"]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value": "a
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 19 }
+      });
+
+      expect(completions).toMatchObject([
+        { label: `"a"`, documentation: { kind: MarkupKind.PlainText, value: "The a" } },
+        { label: `"b"`, documentation: { kind: MarkupKind.PlainText, value: "The b" } }
+      ]);
+    });
+
+    test("descriptions that aren't an array of strings are ignored", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "enum": ["a"],
+            "enumDescriptions": ["The a"],
+            "markdownEnumDescriptions": "The **a**"
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      });
+
+      expect(completions).toMatchObject([
+        { label: `"a"`, documentation: { kind: MarkupKind.PlainText, value: "The a" } }
+      ]);
+    });
+
+    test("the deprecation message comes before the description", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "enum": ["a", "b"],
+            "enumDescriptions": ["The a", "The b"],
+            "anyOf": [
+              { "const": "a", "deprecationMessage": "Use b." },
+              { "const": "b" }
+            ]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      });
+
+      expect(completions).toMatchObject([
+        { label: `"a"`, tags: [CompletionItemTag.Deprecated], documentation: { kind: MarkupKind.PlainText, value: "Use b.\n\nThe a" } },
+        { label: `"b"`, documentation: { kind: MarkupKind.PlainText, value: "The b" } }
+      ]);
+    });
+
+    test("enumDescriptions from a dialect that includes the vscode vocabulary", async () => {
+      await client.writeDocument("meta-schema.json", `{
+        "$id": "https://example.com/dialect/vscode",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$vocabulary": {
+          "https://json-schema.org/draft/2020-12/vocab/core": true,
+          "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+          "https://json-schema.org/draft/2020-12/vocab/validation": true,
+          "https://microsoft.com/vocab/vscode": true
+        },
+        "$dynamicAnchor": "meta",
+        "allOf": [
+          { "$ref": "https://json-schema.org/draft/2020-12/schema" },
+          { "$ref": "https://microsoft.com/meta/vscode" }
+        ]
+      }`);
+
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://example.com/dialect/vscode",
+        "type": "object",
+        "properties": {
+          "value": {
+            "enum": ["a", "b"],
+            "enumDescriptions": ["The a"],
+            "markdownEnumDescriptions": ["", "The **b**"]
+          }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value":
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 16 }
+      });
+
+      expect(completions).toMatchObject([
+        { label: `"a"`, documentation: { kind: MarkupKind.PlainText, value: "The a" } },
+        { label: `"b"`, documentation: { kind: MarkupKind.Markdown, value: "The **b**" } }
+      ]);
+    });
+  });
 });
