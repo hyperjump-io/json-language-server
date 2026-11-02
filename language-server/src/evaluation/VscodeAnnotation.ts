@@ -63,6 +63,11 @@ export const VscodeAnnotation = <T extends Constructor<Extended>>(Base: T) => cl
       ?? this.unknownKeyword("doNotSuggest", `${metaSchemaUri}#/properties/doNotSuggest`, ast)) === true);
   }
 
+  // Whether the schema has an enum, whose values could be described
+  hasEnum(): boolean {
+    return "https://json-schema.org/keyword/enum" in this.keywords;
+  }
+
   // VS Code describes an enum value with the description at the same position
   // in enumDescriptions. The value is its canonical JSON, which is how the
   // enum values are recorded. A value that isn't in the enum or has no
