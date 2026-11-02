@@ -33,10 +33,8 @@ export type SyntaxError = {
 export type ParseResult = {
   root: Node | undefined;
   errors: SyntaxError[];
-};
-
-export type ParseOptions = {
-  allowComments?: boolean;
+  comments: Array<{ offset: number; length: number }>;
+  trailingCommas: Array<{ offset: number; length: number }>;
 };
 
 type MutableNode = {
@@ -57,9 +55,11 @@ const endsNumber = (character: string) => {
 
 const VALID_ESCAPES = new Set(["\"", "\\", "/", "b", "f", "n", "r", "t", "u"]);
 
-export const parse = (text: string, options: ParseOptions = {}): ParseResult => {
+export const parse = (text: string): ParseResult => {
   const scanner = jsonc.createScanner(text, false);
   const errors: SyntaxError[] = [];
+  const comments: Array<{ offset: number; length: number }> = [];
+  const trailingCommas: Array<{ offset: number; length: number }> = [];
   let ranToEndOfFile = false;
   const unclosed = new WeakSet<MutableNode>();
 
@@ -136,15 +136,12 @@ export const parse = (text: string, options: ParseOptions = {}): ParseResult => 
   };
 
   const skipComment = (scanError: jsonc.ScanError) => {
-    if (options.allowComments) {
-      reportScanError(scanError);
-      return;
-    }
-
-    report("comment-not-allowed", offset, length);
     if (scanError === jsonc.ScanError.UnexpectedEndOfComment) {
+      report("comment-not-closed", offset, length);
       ranToEndOfFile = true;
     }
+
+    comments.push({ offset, length });
   };
 
   const next = () => {
@@ -251,7 +248,7 @@ export const parse = (text: string, options: ParseOptions = {}): ParseResult => 
     next();
 
     if (kind() === closer) {
-      report("trailing-comma", commaOffset, 1);
+      trailingCommas.push({ offset: commaOffset, length: 1 });
     } else if (isExtra) {
       report("value-expected", beforeOffset, Math.max(beforeLength, 1));
     }
@@ -402,7 +399,7 @@ export const parse = (text: string, options: ParseOptions = {}): ParseResult => 
 
   if (kind() === jsonc.SyntaxKind.EOF) {
     report("value-expected", 0, 0);
-    return { root: undefined, errors };
+    return { root: undefined, errors, comments, trailingCommas };
   }
 
   const root = parseValue();
@@ -412,7 +409,7 @@ export const parse = (text: string, options: ParseOptions = {}): ParseResult => 
   }
 
   errors.sort((a, b) => a.offset - b.offset);
-  return { root, errors };
+  return { root, errors, comments, trailingCommas };
 };
 
 const assertHandled = (scanError: never) => {

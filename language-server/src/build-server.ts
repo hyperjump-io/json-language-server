@@ -8,6 +8,7 @@ import { SyntaxValidationDiagnosticsProvider } from "./features/diagnostics/Synt
 import { SchemaValidationDiagnosticsProvider } from "./features/diagnostics/SchemaValidationDiagnosticsProvider.ts";
 import { SchemaRegistrationDiagnosticsProvider } from "./features/diagnostics/SchemaRegistrationDiagnosticsProvider.ts";
 import { DeprecatedDiagnosticsProvider } from "./features/diagnostics/DeprecatedDiagnosticsProvider.ts";
+import { JsoncDiagnosticsProvider } from "./features/diagnostics/JsoncDiagnosticsProvider.ts";
 import { Formatting } from "./features/Formatting.ts";
 import { Hover } from "./features/Hover.ts";
 import { Completions } from "./features/completions/Completions.ts";
@@ -47,7 +48,8 @@ export const buildServer = (connection: Connection, options: BuildServerOptions 
     new SyntaxValidationDiagnosticsProvider(server),
     new SchemaRegistrationDiagnosticsProvider(registry, jsonSchema),
     new SchemaValidationDiagnosticsProvider(jsonSchema),
-    new DeprecatedDiagnosticsProvider(server, jsonSchema)
+    new DeprecatedDiagnosticsProvider(server, jsonSchema),
+    new JsoncDiagnosticsProvider(server, jsonSchema)
   ], options.diagnosticsDelay);
 
   new Formatting(server, jsonDocuments);
