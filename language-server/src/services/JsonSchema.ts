@@ -35,6 +35,7 @@ type DidChangeDocumentSchemaParams = {
 export class JsonSchema {
   private server: Server;
   private registry: JsonSchemaRegistry;
+  private jsonDocuments: JsonDocuments;
   private fileSchemaUris: Map<string, Promise<string | undefined>> = new Map();
   private pluginFactories: Map<string, EvaluationPluginFactory> = new Map();
   private compiledSchemaCache: Map<string, Promise<CompiledSchema>> = new Map();
@@ -44,6 +45,7 @@ export class JsonSchema {
   constructor(server: Server, workspace: Workspace, jsonDocuments: JsonDocuments, registry: JsonSchemaRegistry) {
     this.server = server;
     this.registry = registry;
+    this.jsonDocuments = jsonDocuments;
 
     addMediaTypePlugin("application/json", {
       parse: async (response) => {
@@ -149,7 +151,8 @@ export class JsonSchema {
     return this.fileSchemaUris.get(jsonDocument.uri);
   }
 
-  // Returns undefined if the document doesn't have a schema
+  // Returns undefined if the document doesn't have a schema or was closed
+  // before it could be validated
   async validate(jsonDocument: JsonDocument): Promise<SchemaEvaluation | undefined> {
     if (!this.validationCache.has(jsonDocument.uri)) {
       const version = jsonDocument.version;
@@ -163,6 +166,12 @@ export class JsonSchema {
 
         compiledSchemaPromise = this.getCompiledSchema(schemaUri);
         compiledSchema = await compiledSchemaPromise;
+      }
+
+      // The document was closed while waiting. The cache is keyed by URI, so
+      // its result would be used for the document if it's reopened.
+      if (this.jsonDocuments.get(jsonDocument.uri) !== jsonDocument) {
+        return undefined;
       }
 
       // The document or its schema changed while waiting. Caching this result

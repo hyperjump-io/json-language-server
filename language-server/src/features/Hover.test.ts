@@ -1,6 +1,9 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { HoverRequest } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
+import { ReadFileRequest } from "../protocol/hyperjump-readFile.ts";
 
 import type { Position } from "vscode-languageserver";
 
@@ -1422,5 +1425,50 @@ _hyperjump-json-language-server_`
 _hyperjump-json-language-server_`
       }
     });
+  });
+
+  test("a validation that finishes after its document closes isn't used for the reopened document", async () => {
+    const schemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "name": { "title": "Name" }
+      }
+    }`);
+    await client.writeDocument("test.json", `{ "$schema": "${schemaUri}", "name": "foo" }`);
+
+    // Hold the schema read so the validation is still in flight when the document closes
+    const { promise: schemaRequested, resolve: requestSchema } = Promise.withResolvers<void>();
+    const { promise: schemaReleased, resolve: releaseSchema } = Promise.withResolvers<void>();
+    client.onRequest(ReadFileRequest.type, async ({ uri }) => {
+      if (uri === schemaUri) {
+        requestSchema();
+        await schemaReleased;
+      }
+      return await readFile(fileURLToPath(uri), "utf8");
+    });
+
+    await client.openDocument("test.json");
+    await schemaRequested;
+    await client.closeDocument("test.json");
+
+    // The reopened document doesn't have a schema, so a hover can only come from the stale validation
+    await client.writeDocument("test.json", `{ "name": "foo" }`);
+    const reopenDiagnostics = client.getDiagnostics("test.json");
+    const uri = await client.openDocument("test.json");
+    await reopenDiagnostics;
+
+    // The stale validation is waiting on the same schema, so it finishes before this document is validated
+    releaseSchema();
+    await client.writeDocument("other.json", `{ "$schema": "${schemaUri}" }`);
+    const otherDiagnostics = client.getDiagnostics("other.json");
+    await client.openDocument("other.json");
+    await otherDiagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 0, character: 4 }
+    });
+
+    expect(result).toBeNull();
   });
 });
