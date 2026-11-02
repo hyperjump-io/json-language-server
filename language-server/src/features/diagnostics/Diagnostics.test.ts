@@ -59,7 +59,12 @@ describe("Diagnostics", () => {
 
     await client.openDocument("test.json");
     await schemaRequested;
+
+    // Wait for the close to be handled so the validation is stale when it's released, and so the close's
+    // diagnostics can't be mistaken for the reopened document's
+    const closeDiagnostics = client.getDiagnostics("test.json");
     await client.closeDocument("test.json");
+    await closeDiagnostics;
     releaseSchema();
 
     // Reopening publishes once the reopened document is validated. The stale validation was released first, so

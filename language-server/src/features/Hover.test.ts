@@ -1449,7 +1449,11 @@ _hyperjump-json-language-server_`
 
     await client.openDocument("test.json");
     await schemaRequested;
+
+    // Wait for the close to be handled so its diagnostics can't be mistaken for the reopened document's
+    const closeDiagnostics = client.getDiagnostics("test.json");
     await client.closeDocument("test.json");
+    await closeDiagnostics;
 
     // The reopened document doesn't have a schema, so a hover can only come from the stale validation
     await client.writeDocument("test.json", `{ "name": "foo" }`);
