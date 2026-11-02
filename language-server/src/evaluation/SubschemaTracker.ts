@@ -14,6 +14,12 @@ type SchemaFailures = {
   failedType: boolean;
 };
 
+type TrackerState<T> = {
+  failedLocations?: Set<string>;
+  schemaFailures?: SchemaFailures;
+  subschemaResults?: SubschemaResult<T>[];
+};
+
 /**
  * Tracks the result of each subschema evaluated by a keyword and the instance
  * locations where it failed. This allows anyOf/oneOf alternatives to be
@@ -23,30 +29,32 @@ type SchemaFailures = {
  * separately because an object or array is discriminated by its type, not by
  * any other failure.
  *
- * State is keyed by context object rather than stored on the context so that
- * plugins using separate trackers don't share state.
+ * State is stored on the context under a key that's unique to the tracker so
+ * that plugins using separate trackers don't share state. A property is much
+ * faster than a WeakMap for something that happens for every keyword.
  */
 export class SubschemaTracker<T> {
-  private failedLocations = new WeakMap<object, Set<string>>();
-  private schemaFailures = new WeakMap<object, SchemaFailures>();
-  private subschemaResults = new WeakMap<object, SubschemaResult<T>[]>();
+  private key = Symbol("SubschemaTracker");
+
+  private state(context: object): TrackerState<T> {
+    return (context as Record<symbol, TrackerState<T>>)[this.key] ??= {};
+  }
 
   beforeSchema(context: object): void {
-    if (!this.failedLocations.has(context)) {
-      this.failedLocations.set(context, new Set());
-    }
-    this.schemaFailures.set(context, { failedLocations: new Set(), failedType: false });
+    const state = this.state(context);
+    state.failedLocations ??= new Set();
+    state.schemaFailures = { failedLocations: new Set(), failedType: false };
   }
 
   beforeKeyword(keywordContext: object): void {
-    this.subschemaResults.set(keywordContext, []);
+    this.state(keywordContext).subschemaResults = [];
   }
 
   afterKeyword(keywordId: string, keywordValue: unknown, instance: JsonNode, keywordContext: object, valid: boolean, schemaContext: object): void {
     if (!valid) {
-      const schemaFailures = this.schemaFailures.get(schemaContext)!;
+      const schemaFailures = this.state(schemaContext).schemaFailures!;
       schemaFailures.failedLocations.add(instance.pointer);
-      for (const location of this.failedLocations.get(keywordContext) ?? []) {
+      for (const location of this.state(keywordContext).failedLocations ?? []) {
         schemaFailures.failedLocations.add(location);
       }
 
@@ -57,7 +65,8 @@ export class SubschemaTracker<T> {
   }
 
   afterSchema(instance: JsonNode, context: object, valid: boolean, value: T): void {
-    const schemaFailures = this.schemaFailures.get(context)!;
+    const state = this.state(context);
+    const schemaFailures = state.schemaFailures!;
     if (!valid) {
       // A schema that fails without any of its keywords failing is a `false`
       // schema, which rules out every type
@@ -67,12 +76,12 @@ export class SubschemaTracker<T> {
       schemaFailures.failedLocations.add(instance.pointer);
     }
 
-    const failedLocations = this.failedLocations.get(context)!;
+    const failedLocations = state.failedLocations!;
     for (const location of schemaFailures.failedLocations) {
       failedLocations.add(location);
     }
 
-    this.subschemaResults.get(context)?.push({
+    state.subschemaResults?.push({
       value,
       pointer: instance.pointer,
       failedLocations: schemaFailures.failedLocations,
@@ -81,7 +90,7 @@ export class SubschemaTracker<T> {
   }
 
   getSubschemaResults(keywordContext: object): SubschemaResult<T>[] {
-    return this.subschemaResults.get(keywordContext) ?? [];
+    return this.state(keywordContext).subschemaResults ?? [];
   }
 
   /**

@@ -38,21 +38,21 @@ export class DocumentColors {
 
         const plugin = LspEvaluationPlugin.from(result);
 
-        const stringNodes: Node[] = [];
-        jsonDocument.walkNodes(ast, (node) => {
+        const stringNodes: [Node, string][] = [];
+        jsonDocument.walkNodes(ast, (node, pointer) => {
           if (node.type === "string") {
-            stringNodes.push(node);
+            stringNodes.push([node, pointer]);
           }
         });
 
         const colors: ColorInformation[] = [];
-        for (const node of stringNodes) {
+        for (const [node, pointer] of stringNodes) {
           const color = colorFromHex(node.value as string);
           if (!color) {
             continue;
           }
 
-          const annotations = plugin.getAnnotations(jsonDocument.getPointerForNode(node));
+          const annotations = plugin.getAnnotations(pointer);
           if (annotations.some(isColorHex)) {
             colors.push({ color, range: jsonDocument.rangeAt(node.offset, node.offset + node.length) });
           }

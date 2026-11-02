@@ -39,7 +39,7 @@ import type {
   PublishDiagnosticsParams,
   ServerCapabilities
 } from "vscode-languageserver";
-import type { LanguageServerSettings } from "../build-server.js";
+import type { BuildServerOptions, LanguageServerSettings } from "../build-server.js";
 
 // Encodes a URI the way VS Code does, e.g. "file:///c:/a@b" becomes "file:///c%3A/a%40b". Every URI sent to
 // the server goes through this so tests cover URIs that aren't normalized.
@@ -66,7 +66,8 @@ export class TestClient {
   sendProgress: Connection["sendProgress"];
   mockAgent: MockAgent;
 
-  constructor(serverName = "hyperjumpJsonLanguageServer") {
+  // Diagnostics are sent without a delay so tests don't wait for it
+  constructor(serverName = "hyperjumpJsonLanguageServer", options: BuildServerOptions = { diagnosticsDelay: 0 }) {
     this.serverName = serverName;
     this.watchEnabled = false;
     this.openDocuments = new Set();
@@ -93,7 +94,7 @@ export class TestClient {
 
     const connection = createConnection(up, down);
 
-    const server = buildServer(connection);
+    const server = buildServer(connection, options);
     server.listen();
     this.ready = server.isInitialized;
 
