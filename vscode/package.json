@@ -22,12 +22,12 @@
   "repository": "github:hyperjump-io/json-language-server",
   "devDependencies": {
     "@types/vscode": "^1.100.0",
-    "@vscode/vsce": "^3.9.1",
+    "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.28.0"
   },
   "dependencies": {
     "ignore": "^7.0.6",
-    "vscode-languageclient": "^10.0.0"
+    "vscode-languageclient": "^11.0.0"
   },
   "engines": {
     "vscode": "^1.100.0"
