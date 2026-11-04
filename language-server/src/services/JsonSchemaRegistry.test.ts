@@ -182,4 +182,18 @@ describe("SchemaStore Tests", () => {
 
     await expect(diagnostics).resolves.toHaveLength(0);
   });
+
+  test("schemastore.org match and a $schema that isn't a string", async () => {
+    await client.writeDocument("anywhere.json", `{
+      "$schema": 5,
+      "foo": 42
+    }`);
+    const diagnostics = client.getDiagnostics("anywhere.json");
+    await client.openDocument("anywhere.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      expect.objectContaining({ message: "$schema must be a string" }),
+      expect.objectContaining({ message: "Expected a string" })
+    ]);
+  });
 });

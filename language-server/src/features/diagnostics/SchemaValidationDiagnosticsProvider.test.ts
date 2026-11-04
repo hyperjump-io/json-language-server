@@ -596,6 +596,26 @@ describe("Schema Validation", () => {
     ]);
   });
 
+  test.each(["5", "true", "null", "{}", "[]"])("$schema is %s", async (schemaValue) => {
+    await client.writeDocument("instance.json", `{
+      "$schema": ${schemaValue}
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual([
+      {
+        message: "$schema must be a string",
+        range: {
+          start: { line: 1, character: 17 },
+          end: { line: 1, character: 17 + schemaValue.length }
+        },
+        severity: 1,
+        source: "hyperjump-json-language-server"
+      }
+    ]);
+  });
+
   test("should register self-identifying schema and validate document using its $id", async () => {
     const schemaId = "https://example.com/my-workspace-schema";
 
