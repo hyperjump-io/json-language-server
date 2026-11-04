@@ -1996,4 +1996,145 @@ describe("Property completions", () => {
       });
     });
   });
+  describe("alternative property annotations (issue #168)", () => {
+    const suggestions = async (schema: object, instanceProperties = '"value": {\n        ""\n      }', position = { line: 3, character: 9 }) => {
+      const schemaUri = await client.writeDocument("schema.json", JSON.stringify({
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        ...schema
+      }));
+      await client.writeDocument("instance.json", `{
+      "$schema": "${schemaUri}",
+      ${instanceProperties}
+    }`);
+      const uri = await client.openDocument("instance.json");
+      const items = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position
+      }) as CompletionItem[];
+      return items;
+    };
+
+    for (const keyword of ["anyOf", "oneOf"] as const) {
+      test(`${keyword}: a suppressed property is still offered by another alternative`, async () => {
+        const items = await suggestions({
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { name: { doNotSuggest: true } } },
+                { properties: { name: { type: "string" } } }
+              ]
+            }
+          }
+        });
+        expect(items.map(({ label }) => label)).toContain("name");
+      });
+
+      test(`${keyword}: all offering alternatives suppress the property`, async () => {
+        const items = await suggestions({
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { name: { doNotSuggest: true } } },
+                { properties: { name: { doNotSuggest: true } } }
+              ]
+            }
+          }
+        });
+        expect(items.map(({ label }) => label)).not.toContain("name");
+      });
+
+      test(`${keyword}: an alternative without the property does not override suppression`, async () => {
+        const items = await suggestions({
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { name: { doNotSuggest: true } } },
+                { properties: { age: { type: "number" } } }
+              ]
+            }
+          }
+        });
+        expect(items.map(({ label }) => label)).not.toContain("name");
+        expect(items.map(({ label }) => label)).toContain("age");
+      });
+
+      test(`${keyword}: different doNotSuggest values are not considered shared`, async () => {
+        const items = await suggestions({
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { name: { doNotSuggest: true } } },
+                { properties: { name: { doNotSuggest: false } } }
+              ]
+            }
+          }
+        });
+        expect(items.map(({ label }) => label)).toContain("name");
+      });
+
+      test(`${keyword}: a property deprecated in only one alternative is not globally deprecated`, async () => {
+        const items = await suggestions({
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { name: { deprecated: true } } },
+                { properties: { name: { type: "string" } } }
+              ]
+            }
+          }
+        });
+        const name = items.find(({ label }) => label === "name");
+        expect(name).toBeDefined();
+        expect(name?.tags).not.toContain(CompletionItemTag.Deprecated);
+      });
+
+      test(`${keyword}: deprecated remains set when every offering alternative agrees`, async () => {
+        const items = await suggestions({
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { name: { deprecated: true } } },
+                { properties: { name: { deprecated: true } } }
+              ]
+            }
+          }
+        });
+        expect(items.find(({ label }) => label === "name")?.tags).toContain(CompletionItemTag.Deprecated);
+      });
+
+      test(`${keyword}: the rule also applies to deeper property locations`, async () => {
+        const items = await suggestions({
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { details: { properties: { name: { doNotSuggest: true } } } } },
+                { properties: { details: { properties: { name: { type: "string" } } } } }
+              ]
+            }
+          }
+        }, '"value": {\n        "details": {\n          ""\n        }\n      }', { line: 4, character: 11 });
+        expect(items.map(({ label }) => label)).toContain("name");
+      });
+
+      test(`${keyword}: nested choice alternatives retain non-suppressed properties`, async () => {
+        const items = await suggestions({
+          properties: {
+            value: {
+              [keyword]: [
+                {
+                  anyOf: [
+                    { properties: { name: { doNotSuggest: true } } },
+                    { properties: { name: { type: "string" } } }
+                  ]
+                },
+                { properties: { age: { type: "number" } } }
+              ]
+            }
+          }
+        });
+        expect(items.map(({ label }) => label)).toContain("name");
+      });
+    }
+  });
+
 });
