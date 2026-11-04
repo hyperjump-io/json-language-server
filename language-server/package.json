@@ -23,7 +23,7 @@
     "@hyperjump/browser": "^1.4.0",
     "@hyperjump/json-schema": "^1.18.0",
     "@hyperjump/json-schema-errors": "^1.0.0",
-    "@hyperjump/pact": "^1.4.0",
+    "@hyperjump/pact": "^1.5.1",
     "@hyperjump/uri": "^1.3.4",
     "ignore": "^7.0.5",
     "jsonc-parser": "^3.3.1",
