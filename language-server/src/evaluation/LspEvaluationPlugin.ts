@@ -600,25 +600,6 @@ function negateInto(target: Completions, source: Completions) {
   }
 }
 
-function exclusiveUnion(records: Completions[]): Completions {
-  const setsByPointer: Record<string, LazyValueSet[]> = Object.create(null);
-  for (const record of records) {
-    for (const pointer in record) {
-      setsByPointer[pointer] ??= [];
-      setsByPointer[pointer].push(record[pointer]);
-    }
-  }
-
-  const result: Completions = Object.create(null);
-  for (const pointer in setsByPointer) {
-    const sets = setsByPointer[pointer];
-    result[pointer] = lazy(() => JsonValueSet.exclusiveUnion(sets.map((set) => set())));
-  }
-
-  return result;
-}
-
-
 // For anyOf/oneOf, an annotation on a child property is unconditional only
 // when every alternative offering that pointer supplies the same keyword value.
 // The parent's own annotations always remain conditional on the parent value.
