@@ -1,5 +1,3 @@
-import { withoutSharedKeywords } from "./SharedAnnotations.ts";
-
 import type { AnnotationRecord } from "./Annotation.ts";
 
 export type JsonSchemaType = "string" | "number" | "integer" | "boolean" | "null" | "array" | "object";
@@ -220,28 +218,13 @@ export class JsonValueSet {
     return copy;
   }
 
-  // Preserve keywords shared by every alternative as location annotations,
-  // while making other annotations conditional on the value-set members.
-  // This must be done per child pointer, not once for the entire parent schema.
-  withMemberAnnotationsExcept(shared: AnnotationRecord): JsonValueSet {
+  // Annotations of a child property from a parent's alternatives must not
+  // become annotations of the property's possible values. Keep only the
+  // keywords shared by alternatives that offer this child. Preserve existing
+  // member annotations, which may genuinely depend on the child's value.
+  withSharedLocationAnnotations(shared: AnnotationRecord): JsonValueSet {
     const copy = this.clone();
-    const conditional = this.annotations
-      .map((record) => withoutSharedKeywords(record, shared))
-      .filter((record) => Object.keys(record).length > 0);
     copy.annotations = Object.keys(shared).length > 0 ? [shared] : [];
-
-    for (const bucket of copy.buckets.values()) {
-      if (bucket.kind === "finite") {
-        for (const [value, annotations] of bucket.values) {
-          bucket.values.set(value, mergeAnnotations(annotations, conditional));
-        }
-      } else {
-        bucket.annotations = mergeAnnotations(bucket.annotations, conditional);
-        for (const [value, annotations] of bucket.valueAnnotations) {
-          bucket.valueAnnotations.set(value, mergeAnnotations(annotations, conditional));
-        }
-      }
-    }
     return copy;
   }
 
