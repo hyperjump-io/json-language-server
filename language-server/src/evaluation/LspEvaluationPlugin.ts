@@ -654,7 +654,7 @@ function unionAlternativesInto(target: Completions, alternatives: Completions[])
 
 function reconcileAlternativeValueSets(sets: JsonValueSet[]): JsonValueSet[] {
   const shared = sharedAnnotationKeywords(sets.map((set) => set.getLocationAnnotations()));
-  return sets.map((set) => set.withMemberAnnotationsExcept(shared));
+  return sets.map((set) => set.withSharedLocationAnnotations(shared));
 }
 
 function exclusiveUnionAlternatives(records: Completions[]): Completions {
