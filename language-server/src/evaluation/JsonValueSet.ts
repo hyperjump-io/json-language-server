@@ -218,6 +218,16 @@ export class JsonValueSet {
     return copy;
   }
 
+  // Annotations of a child property from a parent's alternatives must not
+  // become annotations of the property's possible values. Keep only the
+  // keywords shared by alternatives that offer this child. Preserve existing
+  // member annotations, which may genuinely depend on the child's value.
+  withSharedLocationAnnotations(shared: AnnotationRecord): JsonValueSet {
+    const copy = this.clone();
+    copy.annotations = Object.keys(shared).length > 0 ? [shared] : [];
+    return copy;
+  }
+
   // Location annotations from every set still apply to every member. Members
   // keep the annotations from the one set that admits them.
   static exclusiveUnion(sets: JsonValueSet[]): JsonValueSet {
