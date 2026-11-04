@@ -1997,7 +1997,7 @@ describe("Property completions", () => {
     });
   });
   describe("alternative property annotations (issue #168)", () => {
-    const suggestions = async (schema: object, instanceProperties = '"value": {\n        ""\n      }', position = { line: 3, character: 9 }) => {
+    const suggestions = async (schema: object, instanceProperties = "\"value\": {\n        \"\"\n      }", position = { line: 3, character: 9 }) => {
       const schemaUri = await client.writeDocument("schema.json", JSON.stringify({
         $schema: "https://json-schema.org/draft/2020-12/schema",
         ...schema
@@ -2063,8 +2063,8 @@ describe("Property completions", () => {
           properties: {
             value: {
               [keyword]: [
-                { properties: { name: { doNotSuggest: true } } },
-                { properties: { name: { doNotSuggest: false } } }
+                { properties: { name: { type: "number", doNotSuggest: true } } },
+                { properties: { name: { type: "string", doNotSuggest: false } } }
               ]
             }
           }
@@ -2085,7 +2085,7 @@ describe("Property completions", () => {
         });
         const name = items.find(({ label }) => label === "name");
         expect(name).toBeDefined();
-        expect(name?.tags).not.toContain(CompletionItemTag.Deprecated);
+        expect(name?.tags).toBeUndefined();
       });
 
       test(`${keyword}: deprecated remains set when every offering alternative agrees`, async () => {
@@ -2093,8 +2093,8 @@ describe("Property completions", () => {
           properties: {
             value: {
               [keyword]: [
-                { properties: { name: { deprecated: true } } },
-                { properties: { name: { deprecated: true } } }
+                { properties: { name: { type: "number", deprecated: true } } },
+                { properties: { name: { type: "string", deprecated: true } } }
               ]
             }
           }
@@ -2112,7 +2112,7 @@ describe("Property completions", () => {
               ]
             }
           }
-        }, '"value": {\n        "details": {\n          ""\n        }\n      }', { line: 4, character: 11 });
+        }, "\"value\": {\n        \"details\": {\n          \"\"\n        }\n      }", { line: 4, character: 11 });
         expect(items.map(({ label }) => label)).toContain("name");
       });
 
@@ -2136,5 +2136,4 @@ describe("Property completions", () => {
       });
     }
   });
-
 });
