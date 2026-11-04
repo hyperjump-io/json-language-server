@@ -4,6 +4,7 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import { JsonValueSet } from "./JsonValueSet.ts";
 import { SubschemaTracker } from "./SubschemaTracker.ts";
 import { Annotation } from "./Annotation.ts";
+import { sharedAnnotationKeywords, withoutSharedKeywords } from "./SharedAnnotations.ts";
 
 import type { EvaluationPlugin, Keyword, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
@@ -297,9 +298,13 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
         annotationValues = discriminatedValues;
     }
 
-    const isConditional = conditionalKeywords.has(keywordId);
-    for (const { pointer, annotations } of annotationValues) {
-      appendAnnotations(schemaContext.schemaAnnotations!, annotations, isConditional ? pointer : undefined);
+    if (keywordId === "https://json-schema.org/keyword/anyOf" || keywordId === "https://json-schema.org/keyword/oneOf") {
+      mergeAlternativeAnnotations(schemaContext.schemaAnnotations!, annotationValues, instance.pointer);
+    } else {
+      const isConditional = conditionalKeywords.has(keywordId);
+      for (const { pointer, annotations } of annotationValues) {
+        appendAnnotations(schemaContext.schemaAnnotations!, annotations, isConditional ? pointer : undefined);
+      }
     }
 
     // The schema's completions are only shared once the schema is done, so
@@ -307,15 +312,13 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
     switch (keywordId) {
       case "https://json-schema.org/keyword/anyOf": {
         const combinedCompletions: Completions = Object.create(null);
-        for (const { completions } of discriminatedValues) {
-          unionInto(combinedCompletions, completions);
-        }
+        unionAlternativesInto(combinedCompletions, discriminatedValues.map(({ completions }) => completions));
         intersectInto(schemaContext.completions!, combinedCompletions);
         break;
       }
 
       case "https://json-schema.org/keyword/oneOf": {
-        intersectInto(schemaContext.completions!, exclusiveUnion(discriminatedValues.map(({ completions }) => completions)));
+        intersectInto(schemaContext.completions!, exclusiveUnionAlternatives(discriminatedValues.map(({ completions }) => completions)));
         break;
       }
 
@@ -612,6 +615,79 @@ function exclusiveUnion(records: Completions[]): Completions {
     result[pointer] = lazy(() => JsonValueSet.exclusiveUnion(sets.map((set) => set())));
   }
 
+  return result;
+}
+
+
+// For anyOf/oneOf, an annotation on a child property is unconditional only
+// when every alternative offering that pointer supplies the same keyword value.
+// The parent's own annotations always remain conditional on the parent value.
+function mergeAlternativeAnnotations(target: RecordedAnnotations, alternatives: SchemaResult[], parentPointer: string) {
+  const pointers = new Set(alternatives.flatMap(({ annotations }) => Object.keys(annotations)));
+  for (const pointer of pointers) {
+    const offering = alternatives.filter(({ annotations, completions }) =>
+      Object.prototype.hasOwnProperty.call(annotations, pointer)
+      || Object.prototype.hasOwnProperty.call(completions, pointer));
+    const groups = offering.map(({ annotations }) =>
+      (annotations[pointer] ?? []).filter(({ kind }) => kind === "location").map(({ annotation }) => annotation));
+    const shared = pointer === parentPointer ? {} : sharedAnnotationKeywords(groups);
+    if (Object.keys(shared).length > 0) {
+      appendAnnotations(target, { [pointer]: [{ kind: "location", annotation: shared }] });
+    }
+
+    for (const { annotations } of offering) {
+      const records: RecordedAnnotation[] = [];
+      for (const { kind, annotation } of annotations[pointer] ?? []) {
+        if (kind === "value") {
+          records.push({ kind, annotation });
+        } else {
+          const remaining = withoutSharedKeywords(annotation, shared);
+          if (Object.keys(remaining).length > 0) {
+            records.push({ kind: "value", annotation: remaining });
+          }
+        }
+      }
+      appendAnnotations(target, { [pointer]: records });
+    }
+  }
+}
+
+// Within each child pointer, only alternatives that offer that child contribute
+// to the union. Reconcile annotations *before* merging their value sets.
+function unionAlternativesInto(target: Completions, alternatives: Completions[]) {
+  const byPointer: Record<string, LazyValueSet[]> = Object.create(null);
+  for (const record of alternatives) {
+    for (const pointer in record) {
+      (byPointer[pointer] ??= []).push(record[pointer]);
+    }
+  }
+  for (const pointer in byPointer) {
+    const sets = byPointer[pointer];
+    const combined = lazy(() => {
+      const values = reconcileAlternativeValueSets(sets.map((set) => set()));
+      return values.reduce((result, valueSet) => result.union(valueSet), new JsonValueSet());
+    });
+    unionInto(target, { [pointer]: combined });
+  }
+}
+
+function reconcileAlternativeValueSets(sets: JsonValueSet[]): JsonValueSet[] {
+  const shared = sharedAnnotationKeywords(sets.map((set) => set.getLocationAnnotations()));
+  return sets.map((set) => set.withMemberAnnotationsExcept(shared));
+}
+
+function exclusiveUnionAlternatives(records: Completions[]): Completions {
+  const setsByPointer: Record<string, LazyValueSet[]> = Object.create(null);
+  for (const record of records) {
+    for (const pointer in record) {
+      (setsByPointer[pointer] ??= []).push(record[pointer]);
+    }
+  }
+  const result: Completions = Object.create(null);
+  for (const pointer in setsByPointer) {
+    const sets = setsByPointer[pointer];
+    result[pointer] = lazy(() => JsonValueSet.exclusiveUnion(reconcileAlternativeValueSets(sets.map((set) => set()))));
+  }
   return result;
 }
 
