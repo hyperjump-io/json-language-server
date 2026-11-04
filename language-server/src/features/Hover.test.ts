@@ -1543,5 +1543,4 @@ _hyperjump-json-language-server_`
       });
     }
   });
-
 });
