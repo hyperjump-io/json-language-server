@@ -606,11 +606,10 @@ function negateInto(target: Completions, source: Completions) {
 function mergeAlternativeAnnotations(target: RecordedAnnotations, alternatives: SchemaResult[], parentPointer: string) {
   const pointers = new Set(alternatives.flatMap(({ annotations }) => Object.keys(annotations)));
   for (const pointer of pointers) {
-    const offering = alternatives.filter(({ annotations, completions }) =>
-      Object.prototype.hasOwnProperty.call(annotations, pointer)
+    const offering = alternatives.filter(({ annotations, completions }) => Object.prototype.hasOwnProperty.call(annotations, pointer)
       || Object.prototype.hasOwnProperty.call(completions, pointer));
-    const groups = offering.map(({ annotations }) =>
-      (annotations[pointer] ?? []).filter(({ kind }) => kind === "location").map(({ annotation }) => annotation));
+    const groups = offering.map(({ annotations }) => (annotations[pointer] ?? [])
+      .filter(({ kind }) => kind === "location").map(({ annotation }) => annotation));
     const shared = pointer === parentPointer ? {} : sharedAnnotationKeywords(groups);
     if (Object.keys(shared).length > 0) {
       appendAnnotations(target, { [pointer]: [{ kind: "location", annotation: shared }] });
