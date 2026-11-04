@@ -1475,4 +1475,73 @@ _hyperjump-json-language-server_`
 
     expect(result).toBeNull();
   });
+  describe("alternative child property annotations (issue #168)", () => {
+    const hoverName = async (keyword: "anyOf" | "oneOf", first: object, second: object, character: number) => {
+      const schemaUri = await client.writeDocument("schema.json", JSON.stringify({
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        properties: {
+          value: {
+            [keyword]: [
+              { properties: { name: first } },
+              { properties: { name: second } }
+            ]
+          }
+        }
+      }));
+      await client.writeDocument("instance.json", `{
+      "$schema": "${schemaUri}",
+      "value": {
+        "name": "example"
+      }
+    }`);
+      const uri = await client.openDocument("instance.json");
+      return client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 3, character }
+      });
+    };
+
+    for (const keyword of ["anyOf", "oneOf"] as const) {
+      test(`${keyword}: common child title is preserved on the property key`, async () => {
+        const result = await hoverName(keyword, { title: "Shared name" }, { title: "Shared name" }, 10);
+        expect(result).toEqual(hoverTitles("Shared name"));
+      });
+
+      test(`${keyword}: differing child titles are not unconditional on the property key`, async () => {
+        const result = await hoverName(keyword, { title: "Cat name" }, { title: "Dog name" }, 10);
+        expect(result).toBeNull();
+      });
+
+      test(`${keyword}: differing child titles remain visible when hovering the value`, async () => {
+        const result = await hoverName(keyword, { title: "Cat name" }, { title: "Dog name" }, 19);
+        expect(result).toEqual(hoverTitles("Cat name", "Dog name"));
+      });
+
+      test(`${keyword}: an annotation from the only offering alternative is preserved`, async () => {
+        const schemaUri = await client.writeDocument("schema.json", JSON.stringify({
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { name: { title: "Only name" } } },
+                { properties: { age: { type: "integer" } } }
+              ]
+            }
+          }
+        }));
+        await client.writeDocument("instance.json", `{
+      "$schema": "${schemaUri}",
+      "value": {
+        "name": "example"
+      }
+    }`);
+        const uri = await client.openDocument("instance.json");
+        const result = await client.sendRequest(HoverRequest.type, {
+          textDocument: { uri }, position: { line: 3, character: 10 }
+        });
+        expect(result).toEqual(hoverTitles("Only name"));
+      });
+    }
+  });
+
 });
