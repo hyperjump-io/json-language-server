@@ -247,10 +247,10 @@ export const parse = (text: string): ParseResult => {
     const beforeLength = previousLength;
     next();
 
-    if (kind() === closer) {
-      trailingCommas.push({ offset: commaOffset, length: 1 });
-    } else if (isExtra) {
+    if (isExtra) {
       report("value-expected", beforeOffset, Math.max(beforeLength, 1));
+    } else if (kind() === closer) {
+      trailingCommas.push({ offset: commaOffset, length: 1 });
     }
   };
 

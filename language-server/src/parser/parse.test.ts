@@ -629,13 +629,13 @@ describe("recovery", () => {
     ]);
   });
 
-  test("a comma-only array reports trailing-comma on the comma", () => {
+  test("a comma-only array reports value expected on the comma", () => {
     const { errors, trailingCommas } = parse(`[,]`);
 
-    expect(errors).toEqual([]);
-    expect(trailingCommas).toEqual([
-      { offset: 1, length: 1 }
+    expect(errors).toEqual([
+      { code: "value-expected", offset: 0, length: 1 }
     ]);
+    expect(trailingCommas).toEqual([]);
   });
 
   test("a deleted closing line produces minimal errors", () => {
@@ -665,13 +665,13 @@ describe("recovery", () => {
     ]);
   });
 
-  test("a comma-only object reports trailing-comma on the comma", () => {
+  test("a comma-only object reports value expected on the comma", () => {
     const { errors, trailingCommas } = parse(`{,}`);
 
-    expect(errors).toEqual([]);
-    expect(trailingCommas).toEqual([
-      { offset: 1, length: 1 }
+    expect(errors).toEqual([
+      { code: "value-expected", offset: 0, length: 1 }
     ]);
+    expect(trailingCommas).toEqual([]);
   });
 
   test("a leading comma in an array points at the bracket the value should follow", () => {

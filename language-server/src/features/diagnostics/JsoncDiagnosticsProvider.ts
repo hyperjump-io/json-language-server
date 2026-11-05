@@ -31,10 +31,9 @@ export class JsoncDiagnosticsProvider implements DiagnosticsProvider {
     try {
       const result = await this.jsonSchema.validate(jsonDocument);
       if (result) {
-        for (const annotation of LspEvaluationPlugin.from(result).getAnnotations("")) {
-          allowComments ??= annotation.allowComments();
-          allowTrailingCommas ??= annotation.allowTrailingCommas();
-        }
+        const annotations = LspEvaluationPlugin.from(result).getLocationAnnotations("");
+        allowComments = annotations.some((a) => a.allowComments() === true);
+        allowTrailingCommas = annotations.some((a) => a.allowTrailingCommas() === true);
       }
     } catch {
       // Schema errors are reported by SchemaValidationDiagnosticsProvider
