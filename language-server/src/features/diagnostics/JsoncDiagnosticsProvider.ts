@@ -1,8 +1,8 @@
 import { DiagnosticSeverity } from "vscode-languageserver";
 import { Localization } from "../../localization/Localization.ts";
 import { LspEvaluationPlugin } from "../../evaluation/LspEvaluationPlugin.ts";
-import { Annotation } from "../../evaluation/Annotation.ts";
 
+import type { Diagnostic } from "vscode-languageserver";
 import type { DiagnosticsProvider } from "./Diagnostics.ts";
 import type { JsonDocument } from "../../models/JsonDocument.ts";
 import type { JsonSchema } from "../../services/JsonSchema.ts";
@@ -23,7 +23,7 @@ export class JsoncDiagnosticsProvider implements DiagnosticsProvider {
   }
 
   async getDiagnostics(jsonDocument: JsonDocument) {
-    const diagnostics = [];
+    const diagnostics: Diagnostic[] = [];
 
     let allowComments: boolean | undefined;
     let allowTrailingCommas: boolean | undefined;
@@ -31,56 +31,36 @@ export class JsoncDiagnosticsProvider implements DiagnosticsProvider {
     try {
       const result = await this.jsonSchema.validate(jsonDocument);
       if (result) {
-        const plugin = LspEvaluationPlugin.from(result);
-        const annotations = plugin.getAnnotations("");
-        for (const annotation of annotations) {
-          try {
-            const annotated: any = new (Annotation as any)((annotation as any).keywords);
-            if (allowComments === undefined && typeof annotated.allowComments === "function") {
-              allowComments = annotated.allowComments();
-            }
-            if (allowTrailingCommas === undefined && typeof annotated.allowTrailingCommas === "function") {
-              allowTrailingCommas = annotated.allowTrailingCommas();
-            }
-          } catch {}
+        for (const annotation of LspEvaluationPlugin.from(result).getAnnotations("")) {
+          allowComments ??= annotation.allowComments();
+          allowTrailingCommas ??= annotation.allowTrailingCommas();
         }
       }
     } catch {
-      // ignore
+      // Schema errors are reported by SchemaValidationDiagnosticsProvider
     }
 
-    if (allowComments !== true) {
-      if (jsonDocument.languageId !== "jsonc") {
-        for (const comment of jsonDocument.getComments()) {
-          diagnostics.push({
-            severity: DiagnosticSeverity.Error,
-            range: jsonDocument.rangeAt(comment.offset, comment.offset + comment.length),
-            message: this.localization.getSyntaxErrorMessage({ code: "comment-not-allowed", offset: comment.offset, length: comment.length }),
-            source: "hyperjump-json-language-server"
-          });
-        }
+    const isJsonc = jsonDocument.languageId === "jsonc";
+
+    if (allowComments !== true && !isJsonc) {
+      for (const comment of jsonDocument.getComments()) {
+        diagnostics.push({
+          severity: DiagnosticSeverity.Error,
+          range: jsonDocument.rangeAt(comment.offset, comment.offset + comment.length),
+          message: this.localization.getSyntaxErrorMessage({ code: "comment-not-allowed", ...comment }),
+          source: "hyperjump-json-language-server"
+        });
       }
     }
 
     if (allowTrailingCommas !== true) {
-      if (jsonDocument.languageId === "jsonc") {
-        for (const comma of jsonDocument.getTrailingCommas()) {
-          diagnostics.push({
-            severity: DiagnosticSeverity.Warning,
-            range: jsonDocument.rangeAt(comma.offset, comma.offset + comma.length),
-            message: this.localization.getSyntaxErrorMessage({ code: "trailing-comma", offset: comma.offset, length: comma.length }),
-            source: "hyperjump-json-language-server"
-          });
-        }
-      } else {
-        for (const comma of jsonDocument.getTrailingCommas()) {
-          diagnostics.push({
-            severity: DiagnosticSeverity.Error,
-            range: jsonDocument.rangeAt(comma.offset, comma.offset + comma.length),
-            message: this.localization.getSyntaxErrorMessage({ code: "trailing-comma", offset: comma.offset, length: comma.length }),
-            source: "hyperjump-json-language-server"
-          });
-        }
+      for (const comma of jsonDocument.getTrailingCommas()) {
+        diagnostics.push({
+          severity: isJsonc ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
+          range: jsonDocument.rangeAt(comma.offset, comma.offset + comma.length),
+          message: this.localization.getSyntaxErrorMessage({ code: "trailing-comma", ...comma }),
+          source: "hyperjump-json-language-server"
+        });
       }
     }
 
