@@ -177,4 +177,155 @@ describe("JSONC Diagnostics", () => {
     const diags = await diagnostics;
     expect(diags.filter((d: any) => d.message === "Comments are not allowed in JSON")).toEqual([]);
   });
+
+  test("schema allowComments true in a matching anyOf alternative doesn't ignore comments", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        { "allowComments": true }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "a": 1 // hi
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        severity: DiagnosticSeverity.Error,
+        message: "Comments are not allowed in JSON"
+      })
+    ]));
+  });
+
+  test("schema allowComments true in a matching then doesn't ignore comments", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "if": { "type": "object" },
+      "then": { "allowComments": true }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "a": 1 // hi
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        severity: DiagnosticSeverity.Error,
+        message: "Comments are not allowed in JSON"
+      })
+    ]));
+  });
+
+  test("schema allowTrailingCommas true in a matching anyOf alternative doesn't ignore trailing commas", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        { "allowTrailingCommas": true }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "a": 1,
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        severity: DiagnosticSeverity.Error,
+        message: "Trailing commas are not allowed"
+      })
+    ]));
+  });
+
+  test("schema allowComments true is used even if allOf sets allowComments false", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "allOf": [
+        { "allowComments": false }
+      ],
+      "allowComments": true
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "a": 1 // hi
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    const diags = await diagnostics;
+    expect(diags.filter((d: any) => d.message === "Comments are not allowed in JSON")).toEqual([]);
+  });
+
+  test("schema allowComments true is used even if a $ref sets allowComments false", async () => {
+    await client.writeDocument("base.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "allowComments": false
+    }`);
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$ref": "./base.json",
+      "allowComments": true
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "a": 1 // hi
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    const diags = await diagnostics;
+    expect(diags.filter((d: any) => d.message === "Comments are not allowed in JSON")).toEqual([]);
+  });
+
+  test("schema allowComments true in a later allOf entry is used", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "allOf": [
+        { "allowComments": false },
+        { "allowComments": true }
+      ]
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "a": 1 // hi
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    const diags = await diagnostics;
+    expect(diags.filter((d: any) => d.message === "Comments are not allowed in JSON")).toEqual([]);
+  });
+
+  test("schema allowTrailingCommas true doesn't allow a comma with no value before it", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "allowTrailingCommas": true
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "a": [,]
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    await expect(diagnostics).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        severity: DiagnosticSeverity.Error,
+        message: "Expected a value"
+      })
+    ]));
+  });
 });
