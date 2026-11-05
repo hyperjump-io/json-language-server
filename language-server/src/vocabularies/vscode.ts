@@ -51,6 +51,20 @@ addKeyword({
   annotation: (value: unknown) => value
 });
 
+addKeyword({
+  id: "https://microsoft.com/keyword/allowComments",
+  compile: (schema) => Browser.value(schema),
+  interpret: () => true,
+  annotation: (value: unknown) => value
+});
+
+addKeyword({
+  id: "https://microsoft.com/keyword/allowTrailingCommas",
+  compile: (schema) => Browser.value(schema),
+  interpret: () => true,
+  annotation: (value: unknown) => value
+});
+
 defineVocabulary("https://microsoft.com/vocab/vscode", {
   markdownDescription: "https://microsoft.com/keyword/markdownDescription",
   defaultSnippets: "https://microsoft.com/keyword/defaultSnippets",
@@ -58,7 +72,9 @@ defineVocabulary("https://microsoft.com/vocab/vscode", {
   markdownDeprecationMessage: "https://microsoft.com/keyword/markdownDeprecationMessage",
   errorMessage: "https://microsoft.com/keyword/errorMessage",
   patternErrorMessage: "https://microsoft.com/keyword/patternErrorMessage",
-  doNotSuggest: "https://microsoft.com/keyword/doNotSuggest"
+  doNotSuggest: "https://microsoft.com/keyword/doNotSuggest",
+  allowComments: "https://microsoft.com/keyword/allowComments",
+  allowTrailingCommas: "https://microsoft.com/keyword/allowTrailingCommas"
 });
 
 registerSchema({
@@ -84,6 +100,8 @@ registerSchema({
     markdownDeprecationMessage: { type: "string" },
     errorMessage: { type: "string" },
     patternErrorMessage: { type: "string" },
-    doNotSuggest: { type: "boolean" }
+    doNotSuggest: { type: "boolean" },
+    allowComments: { type: "boolean" },
+    allowTrailingCommas: { type: "boolean" }
   }
 });

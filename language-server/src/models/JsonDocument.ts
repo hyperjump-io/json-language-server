@@ -13,6 +13,8 @@ export class JsonDocument implements TextDocument {
   private documentSchemaUri: string | undefined;
   private ast: jsonc.Node | undefined;
   private parseErrors: SyntaxError[] = [];
+  private comments: Array<{ offset: number; length: number }> = [];
+  private trailingCommas: Array<{ offset: number; length: number }> = [];
 
   constructor(textDocument: TextDocument) {
     this.textDocument = textDocument;
@@ -22,10 +24,14 @@ export class JsonDocument implements TextDocument {
 
   private parse() {
     this.parseErrors = [];
+    this.comments = [];
+    this.trailingCommas = [];
 
-    const parseResult = parse(this.textDocument.getText(), { allowComments: this.languageId === "jsonc" });
+    const parseResult = parse(this.textDocument.getText());
     this.ast = parseResult.root;
     this.parseErrors = parseResult.errors;
+    this.comments = parseResult.comments;
+    this.trailingCommas = parseResult.trailingCommas;
 
     this.documentSchemaUri = undefined;
     const schemaNode = this.findNodeAtPointer("/$schema");
@@ -92,6 +98,14 @@ export class JsonDocument implements TextDocument {
 
   getParseErrors() {
     return this.parseErrors;
+  }
+
+  getComments() {
+    return this.comments;
+  }
+
+  getTrailingCommas() {
+    return this.trailingCommas;
   }
 
   // Property name locations are prefixed with "*" and find the property's key
