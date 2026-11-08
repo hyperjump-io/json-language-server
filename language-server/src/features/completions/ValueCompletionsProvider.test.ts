@@ -4865,3 +4865,52 @@ describe("Value Completions", () => {
     });
   });
 });
+
+describe("Value completions for clients that don't support markdown", () => {
+  let client: TestClient;
+
+  beforeEach(async () => {
+    client = new TestClient();
+    await client.start({
+      capabilities: {
+        textDocument: {
+          completion: {
+            completionItem: { documentationFormat: [MarkupKind.PlainText] }
+          }
+        }
+      }
+    });
+  });
+
+  afterEach(async () => {
+    await client.stop();
+  });
+
+  test("documentation is plain text without escaping", async () => {
+    const schemaUri = await client.writeDocument("schema.json", JSON.stringify({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        value: {
+          anyOf: [
+            { const: "red", title: "Red", description: "The *warm* one", markdownDescription: "The **warm** one" },
+            { const: "blue" }
+          ]
+        }
+      }
+    }));
+    await client.writeDocument("instance.json", `{\n  "$schema": "${schemaUri}",\n  "value":\n}`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 10 }
+    }) as CompletionItem[];
+
+    expect(completions).toMatchObject([
+      { label: `"red"`, documentation: { kind: MarkupKind.PlainText, value: "Red\n\nThe *warm* one" } },
+      { label: `"blue"` }
+    ]);
+    expect(completions[1]).not.toHaveProperty("documentation");
+  });
+});
