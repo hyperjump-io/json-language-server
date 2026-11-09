@@ -29,13 +29,9 @@ export class DocumentLinks {
     server.onDocumentLinks(async (params) => {
       const jsonDocument = this.jsonDocuments.get(params.textDocument.uri)!;
 
-      const schemaNode = jsonDocument.findNodeAtPointer("/$schema");
-      if (schemaNode?.type !== "string") {
-        return [];
-      }
-
       const schemaUri = jsonDocument.getSchemaUri();
-      if (!schemaUri) {
+      const schemaNode = jsonDocument.findNodeAtPointer("/$schema");
+      if (!schemaUri || !schemaNode) {
         return [];
       }
 

@@ -18,6 +18,16 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
   async getDiagnostics(jsonDocument: JsonDocument) {
     const schemaDiagnostics: Diagnostic[] = [];
 
+    const schemaNode = jsonDocument.findNodeAtPointer("/$schema");
+    if (schemaNode && schemaNode.type !== "string") {
+      schemaDiagnostics.push({
+        severity: DiagnosticSeverity.Error,
+        range: jsonDocument.rangeAt(schemaNode.offset, schemaNode.offset + schemaNode.length),
+        message: "$schema must be a string",
+        source: "hyperjump-json-language-server"
+      });
+    }
+
     try {
       const result = await this.jsonSchema.validate(jsonDocument);
 
@@ -40,8 +50,8 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
         });
       }
     } catch (error: unknown) {
-      const schemaNode = jsonDocument.findNodeAtPointer("/$schema");
-      if (schemaNode) {
+      // Only a $schema that selected the schema has its errors reported on it
+      if (schemaNode && jsonDocument.getSchemaUri()) {
         schemaDiagnostics.push({
           severity: DiagnosticSeverity.Error,
           range: jsonDocument.rangeAt(schemaNode.offset, schemaNode.offset + schemaNode.length),

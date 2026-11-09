@@ -28,8 +28,9 @@ export class JsonDocument implements TextDocument {
     this.parseErrors = parseResult.errors;
 
     this.documentSchemaUri = undefined;
+    // A $schema that isn't a string is reported by validation, not used as a URI
     const schemaNode = this.findNodeAtPointer("/$schema");
-    if (schemaNode) {
+    if (schemaNode?.type === "string") {
       try {
         this.documentSchemaUri = resolveIri(schemaNode.value, this.uri);
       } catch {
