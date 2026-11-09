@@ -1507,11 +1507,6 @@ _hyperjump-json-language-server_`
         expect(result).toEqual(hoverTitles("Shared name"));
       });
 
-      test(`${keyword}: differing child titles are not unconditional on the property key`, async () => {
-        const result = await hoverName(keyword, { title: "Cat name" }, { title: "Dog name" }, 10);
-        expect(result).toBeNull();
-      });
-
       test(`${keyword}: differing child titles remain visible when hovering the value`, async () => {
         const result = await hoverName(keyword, { title: "Cat name" }, { title: "Dog name" }, 19);
         expect(result).toEqual(hoverTitles("Cat name", "Dog name"));
@@ -1542,5 +1537,62 @@ _hyperjump-json-language-server_`
         expect(result).toEqual(hoverTitles("Only name"));
       });
     }
+
+    test("a $ref and a sibling title in the only alternative both apply to the property key", async () => {
+      const result = await hover({
+        properties: {
+          value: {
+            anyOf: [
+              { properties: { name: { $ref: "#/$defs/a", title: "B" } } }
+            ]
+          }
+        },
+        $defs: {
+          a: { title: "A" }
+        }
+      }, `  "value": {\n    "name": "x"\n  }`, { line: 3, character: 6 });
+
+      expect(result).toEqual(hoverTitles("A", "B"));
+    });
+
+    test("a schema with alternatives applied twice contributes its annotations only once", async () => {
+      const result = await hover({
+        properties: {
+          value: {
+            allOf: [{ $ref: "#/$defs/v" }, { $ref: "#/$defs/v" }]
+          }
+        },
+        $defs: {
+          v: {
+            anyOf: [
+              { properties: { name: { title: "S", description: "C" } } },
+              { properties: { name: { title: "S", description: "D" } } }
+            ]
+          }
+        }
+      }, `  "value": {\n    "name": "x"\n  }`, { line: 3, character: 14 });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: "**S**\n\nC\n\n**S**\n\nD\n\n---\n\n_hyperjump-json-language-server_"
+        }
+      });
+    });
+
+    test("differing titles from alternatives are shown on the property key", async () => {
+      const result = await hover({
+        properties: {
+          value: {
+            anyOf: [
+              { properties: { name: { title: "Cat name" } } },
+              { properties: { name: { title: "Dog name" } } }
+            ]
+          }
+        }
+      }, `  "value": {\n    "name": "x"\n  }`, { line: 3, character: 6 });
+
+      expect(result).toEqual(hoverTitles("Cat name", "Dog name"));
+    });
   });
 });

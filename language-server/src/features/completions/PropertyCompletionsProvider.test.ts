@@ -1954,6 +1954,23 @@ describe("Property completions", () => {
         }`);
       });
 
+      test("a property is suggested before the discriminant is typed if an alternative doesn't have doNotSuggest", async () => {
+        await client.writeDocument("instance.json", `{
+          "$schema": "${fixtureSchemaUri}",
+          "value": {
+            ""
+          }
+        }`);
+        const uri = await client.openDocument("instance.json");
+
+        const completions = await client.sendRequest(CompletionRequest.type, {
+          textDocument: { uri },
+          position: { line: 3, character: 13 }
+        }) as CompletionItem[];
+
+        expect(completions.map(({ label }) => label).sort()).toEqual(["bark", "kind", "meow", "name"]);
+      });
+
       test("a property is suggested once the discriminant selects an alternative without doNotSuggest", async () => {
         await client.writeDocument("instance.json", `{
           "$schema": "${fixtureSchemaUri}",
@@ -2135,5 +2152,22 @@ describe("Property completions", () => {
         expect(items.map(({ label }) => label)).toContain("name");
       });
     }
+
+    test("differing titles from alternatives document the property completion", async () => {
+      const items = await suggestions({
+        properties: {
+          value: {
+            anyOf: [
+              { properties: { name: { title: "Cat name" } } },
+              { properties: { name: { title: "Dog name" } } }
+            ]
+          }
+        }
+      });
+
+      expect(items).toMatchObject([
+        { label: "name", documentation: { kind: MarkupKind.Markdown, value: "**Cat name**\n\n**Dog name**" } }
+      ]);
+    });
   });
 });
