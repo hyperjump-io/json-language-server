@@ -50,8 +50,8 @@ export class SchemaValidationDiagnosticsProvider implements DiagnosticsProvider 
         });
       }
     } catch (error: unknown) {
-      // Only a string $schema is used to find the schema
-      if (schemaNode?.type === "string") {
+      // Only a $schema that selected the schema has its errors reported on it
+      if (schemaNode && jsonDocument.getSchemaUri()) {
         schemaDiagnostics.push({
           severity: DiagnosticSeverity.Error,
           range: jsonDocument.rangeAt(schemaNode.offset, schemaNode.offset + schemaNode.length),
