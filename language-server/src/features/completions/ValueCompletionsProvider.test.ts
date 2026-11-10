@@ -5205,5 +5205,36 @@ describe("Value Completions", () => {
         { label: `"a"`, documentation: { kind: MarkupKind.PlainText, value: "The a" } }
       ]);
     });
+
+    test("a schema that applies more than once at a location is described once for a partially typed value", async () => {
+      const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/value",
+            "anyOf": [{ "$ref": "#/$defs/value" }, { "type": "number" }]
+          }
+        },
+        "$defs": {
+          "value": { "enum": ["a"], "enumDescriptions": ["The a"] }
+        }
+      }`);
+
+      await client.writeDocument("instance.json", `{
+        "$schema": "${fixtureSchemaUri}",
+        "value": "a
+      }`);
+      const uri = await client.openDocument("instance.json");
+
+      const completions = await client.sendRequest(CompletionRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 19 }
+      });
+
+      expect(completions).toMatchObject([
+        { label: `"a"`, documentation: { kind: MarkupKind.PlainText, value: "The a" } }
+      ]);
+    });
   });
 });

@@ -27,6 +27,15 @@ describe("JsonValueSet annotations", () => {
     expect(annotationsOf(set, "red")).toEqual([a]);
   });
 
+  test("getAnnotations includes a location annotation that's also a member annotation once", () => {
+    const set = values("red")
+      .annotate(a)
+      .intersect(alternative(values("red"), a))
+      .intersect(alternative(values("red"), b));
+
+    expect(set.getAnnotations(JSON.stringify("red"))).toEqual([a, b]);
+  });
+
   test("withMemberAnnotations annotates a type", () => {
     const set = alternative(strings(), a);
 

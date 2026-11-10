@@ -387,6 +387,12 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
     return toAnnotations(this.completions[instanceLocation]?.().getMemberAnnotations() ?? []);
   }
 
+  // All the annotations that apply to a value completion at a location, both
+  // the location's and the ones that apply because of the value
+  getCompletionAnnotations(pointer: string, value: string): Annotation[] {
+    return toAnnotations(this.completions[pointer]?.().getAnnotations(value) ?? []);
+  }
+
   private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): AnnotationRecord[] {
     const annotations: AnnotationRecord[] = [];
     for (const recorded of this.annotations[instanceLocation]) {

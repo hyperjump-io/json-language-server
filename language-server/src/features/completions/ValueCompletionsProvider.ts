@@ -30,7 +30,6 @@ export class ValueCompletionsProvider implements CompletionsProvider {
       }
 
       const plugin = LspEvaluationPlugin.from(result);
-      const locationAnnotations = plugin.getLocationAnnotations(context.instanceLocation);
 
       for (const completion of plugin.getCompletions(context.instanceLocation)) {
         const label = completion.kind === "value" ? completion.value : typeSnippets[completion.type].label;
@@ -53,7 +52,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
         // because of its location. Its enum description is about what it is
         // too, but it's in the schema of its location or of an alternative.
         const enumDescriptions = completion.kind === "value"
-          ? describeEnumValue([...locationAnnotations, ...completion.annotations], completion.value)
+          ? describeEnumValue(plugin.getCompletionAnnotations(context.instanceLocation, completion.value), completion.value)
           : [];
         describeCompletion(completionItem, completion.annotations, enumDescriptions);
 
