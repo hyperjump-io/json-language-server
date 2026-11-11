@@ -40,6 +40,10 @@ export class Localization {
     return this.bundle.formatPattern(message.value, args);
   }
 
+  getMessage(messageId: string, args: Record<string, FluentVariable> = {}): string {
+    return this.formatMessage(`${messageId}-message`, args) ?? messageId;
+  }
+
   getSyntaxErrorMessage(error: SyntaxError): string {
     return this.formatMessage(`${error.code}-message`, error.data ?? {})
       ?? this.formatMessage("unknown-message", { code: error.code })

@@ -3,8 +3,7 @@ import * as jsonc from "jsonc-parser";
 import type { Node, NodeType } from "jsonc-parser";
 
 export type SyntaxErrorCode
-  = "trailing-comma"
-    | "property-key-not-quoted"
+  = "property-key-not-quoted"
     | "property-key-single-quoted"
     | "property-key-expected"
     | "string-single-quoted"
@@ -17,7 +16,6 @@ export type SyntaxErrorCode
     | "invalid-escape"
     | "invalid-character"
     | "number-invalid"
-    | "comment-not-allowed"
     | "comment-not-closed"
     | "invalid-literal"
     | "unexpected-token"

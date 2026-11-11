@@ -46,7 +46,7 @@ export class JsoncDiagnosticsProvider implements DiagnosticsProvider {
         diagnostics.push({
           severity: DiagnosticSeverity.Error,
           range: jsonDocument.rangeAt(comment.offset, comment.offset + comment.length),
-          message: this.localization.getSyntaxErrorMessage({ code: "comment-not-allowed", ...comment }),
+          message: this.localization.getMessage("comment-not-allowed"),
           source: "hyperjump-json-language-server"
         });
       }
@@ -57,7 +57,7 @@ export class JsoncDiagnosticsProvider implements DiagnosticsProvider {
         diagnostics.push({
           severity: isJsonc ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
           range: jsonDocument.rangeAt(comma.offset, comma.offset + comma.length),
-          message: this.localization.getSyntaxErrorMessage({ code: "trailing-comma", ...comma }),
+          message: this.localization.getMessage("trailing-comma"),
           source: "hyperjump-json-language-server"
         });
       }

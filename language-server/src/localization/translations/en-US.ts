@@ -1,6 +1,5 @@
 export default `
 # Structure
-trailing-comma-message = Trailing commas are not allowed
 comma-expected-message = Expected a comma
 colon-expected-message = Expected a colon
 value-expected-message = Expected a value
@@ -26,6 +25,9 @@ number-invalid-message = '{$found}' is not a valid number
 invalid-literal-message = '{$found}' is not a valid value
 
 # Comments
-comment-not-allowed-message = Comments are not allowed in JSON
 comment-not-closed-message = Comment is missing its closing '*/'
+
+# JSONC
+comment-not-allowed-message = Comments are not allowed in JSON
+trailing-comma-message = Trailing commas are not allowed
 `;

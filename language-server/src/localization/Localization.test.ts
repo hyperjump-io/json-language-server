@@ -26,7 +26,6 @@ describe("Localization", () => {
     const localization = Localization.forLocale("en-US");
 
     const messages: Record<SyntaxErrorCode, string> = {
-      "trailing-comma": "Trailing commas are not allowed",
       "property-key-not-quoted": "Property names must be in double quotes",
       "property-key-single-quoted": "Property names must use double quotes instead of single quotes",
       "property-key-expected": "Expected a property name",
@@ -40,7 +39,6 @@ describe("Localization", () => {
       "invalid-escape": "Invalid escape sequence",
       "invalid-character": "Control characters are not allowed in strings",
       "number-invalid": "'01' is not a valid number",
-      "comment-not-allowed": "Comments are not allowed in JSON",
       "comment-not-closed": "Comment is missing its closing '*/'",
       "invalid-literal": "'01' is not a valid value",
       "unexpected-token": "Unexpected '01'",
@@ -55,6 +53,18 @@ describe("Localization", () => {
     test("an error code without a message uses the unknown message", () => {
       const error = { code: "not-a-real-code", offset: 0, length: 1 } as unknown as SyntaxError;
       expect(localization.getSyntaxErrorMessage(error)).to.equal("Syntax error 'not-a-real-code'");
+    });
+  });
+
+  describe("getMessage", () => {
+    const localization = Localization.forLocale("en-US");
+
+    test("a message", () => {
+      expect(localization.getMessage("trailing-comma")).to.equal("Trailing commas are not allowed");
+    });
+
+    test("a message id without a message uses the id", () => {
+      expect(localization.getMessage("not-a-real-message")).to.equal("not-a-real-message");
     });
   });
 });
