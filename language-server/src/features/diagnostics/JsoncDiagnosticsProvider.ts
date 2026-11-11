@@ -23,26 +23,32 @@ export class JsoncDiagnosticsProvider implements DiagnosticsProvider {
   }
 
   async getDiagnostics(jsonDocument: JsonDocument) {
-    const diagnostics: Diagnostic[] = [];
+    const isJsonc = jsonDocument.languageId === "jsonc";
+    const comments = isJsonc ? [] : jsonDocument.getComments();
+    const trailingCommas = jsonDocument.getTrailingCommas();
 
-    let allowComments: boolean | undefined;
-    let allowTrailingCommas: boolean | undefined;
+    if (comments.length === 0 && trailingCommas.length === 0) {
+      return [];
+    }
+
+    let allowComments = false;
+    let allowTrailingCommas = false;
 
     try {
       const result = await this.jsonSchema.validate(jsonDocument);
       if (result) {
         const annotations = LspEvaluationPlugin.from(result).getLocationAnnotations("");
-        allowComments = annotations.some((a) => a.allowComments() === true);
-        allowTrailingCommas = annotations.some((a) => a.allowTrailingCommas() === true);
+        allowComments = annotations.some((a) => a.allowComments());
+        allowTrailingCommas = annotations.some((a) => a.allowTrailingCommas());
       }
     } catch {
       // Schema errors are reported by SchemaValidationDiagnosticsProvider
     }
 
-    const isJsonc = jsonDocument.languageId === "jsonc";
+    const diagnostics: Diagnostic[] = [];
 
-    if (allowComments !== true && !isJsonc) {
-      for (const comment of jsonDocument.getComments()) {
+    if (!allowComments) {
+      for (const comment of comments) {
         diagnostics.push({
           severity: DiagnosticSeverity.Error,
           range: jsonDocument.rangeAt(comment.offset, comment.offset + comment.length),
@@ -52,8 +58,8 @@ export class JsoncDiagnosticsProvider implements DiagnosticsProvider {
       }
     }
 
-    if (allowTrailingCommas !== true) {
-      for (const comma of jsonDocument.getTrailingCommas()) {
+    if (!allowTrailingCommas) {
+      for (const comma of trailingCommas) {
         diagnostics.push({
           severity: isJsonc ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
           range: jsonDocument.rangeAt(comma.offset, comma.offset + comma.length),

@@ -63,13 +63,13 @@ export const VscodeAnnotation = <T extends Constructor<Extended>>(Base: T) => cl
       ?? this.unknownKeyword("doNotSuggest", `${metaSchemaUri}#/properties/doNotSuggest`, ast)) === true);
   }
 
-  allowComments(): boolean | undefined {
+  allowComments(): boolean {
     return (this.keywords["https://microsoft.com/keyword/allowComments"]
-      ?? this.unknownKeyword("allowComments", `${metaSchemaUri}#/properties/allowComments`, ast)) as boolean | undefined;
+      ?? this.unknownKeyword("allowComments", `${metaSchemaUri}#/properties/allowComments`, ast)) === true;
   }
 
-  allowTrailingCommas(): boolean | undefined {
+  allowTrailingCommas(): boolean {
     return (this.keywords["https://microsoft.com/keyword/allowTrailingCommas"]
-      ?? this.unknownKeyword("allowTrailingCommas", `${metaSchemaUri}#/properties/allowTrailingCommas`, ast)) as boolean | undefined;
+      ?? this.unknownKeyword("allowTrailingCommas", `${metaSchemaUri}#/properties/allowTrailingCommas`, ast)) === true;
   }
 };
