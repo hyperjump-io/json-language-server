@@ -3,8 +3,7 @@ import * as jsonc from "jsonc-parser";
 import type { Node, NodeType } from "jsonc-parser";
 
 export type SyntaxErrorCode
-  = "trailing-comma"
-    | "property-key-not-quoted"
+  = "property-key-not-quoted"
     | "property-key-single-quoted"
     | "property-key-expected"
     | "string-single-quoted"
@@ -17,7 +16,6 @@ export type SyntaxErrorCode
     | "invalid-escape"
     | "invalid-character"
     | "number-invalid"
-    | "comment-not-allowed"
     | "comment-not-closed"
     | "invalid-literal"
     | "unexpected-token"
@@ -30,13 +28,16 @@ export type SyntaxError = {
   data?: Record<string, string>;
 };
 
+export type Span = {
+  offset: number;
+  length: number;
+};
+
 export type ParseResult = {
   root: Node | undefined;
   errors: SyntaxError[];
-};
-
-export type ParseOptions = {
-  allowComments?: boolean;
+  comments: Span[];
+  trailingCommas: Span[];
 };
 
 type MutableNode = {
@@ -57,9 +58,11 @@ const endsNumber = (character: string) => {
 
 const VALID_ESCAPES = new Set(["\"", "\\", "/", "b", "f", "n", "r", "t", "u"]);
 
-export const parse = (text: string, options: ParseOptions = {}): ParseResult => {
+export const parse = (text: string): ParseResult => {
   const scanner = jsonc.createScanner(text, false);
   const errors: SyntaxError[] = [];
+  const comments: Span[] = [];
+  const trailingCommas: Span[] = [];
   let ranToEndOfFile = false;
   const unclosed = new WeakSet<MutableNode>();
 
@@ -136,15 +139,8 @@ export const parse = (text: string, options: ParseOptions = {}): ParseResult => 
   };
 
   const skipComment = (scanError: jsonc.ScanError) => {
-    if (options.allowComments) {
-      reportScanError(scanError);
-      return;
-    }
-
-    report("comment-not-allowed", offset, length);
-    if (scanError === jsonc.ScanError.UnexpectedEndOfComment) {
-      ranToEndOfFile = true;
-    }
+    reportScanError(scanError);
+    comments.push({ offset, length });
   };
 
   const next = () => {
@@ -250,10 +246,10 @@ export const parse = (text: string, options: ParseOptions = {}): ParseResult => 
     const beforeLength = previousLength;
     next();
 
-    if (kind() === closer) {
-      report("trailing-comma", commaOffset, 1);
-    } else if (isExtra) {
+    if (isExtra) {
       report("value-expected", beforeOffset, Math.max(beforeLength, 1));
+    } else if (kind() === closer) {
+      trailingCommas.push({ offset: commaOffset, length: 1 });
     }
   };
 
@@ -402,7 +398,7 @@ export const parse = (text: string, options: ParseOptions = {}): ParseResult => 
 
   if (kind() === jsonc.SyntaxKind.EOF) {
     report("value-expected", 0, 0);
-    return { root: undefined, errors };
+    return { root: undefined, errors, comments, trailingCommas };
   }
 
   const root = parseValue();
@@ -412,7 +408,7 @@ export const parse = (text: string, options: ParseOptions = {}): ParseResult => 
   }
 
   errors.sort((a, b) => a.offset - b.offset);
-  return { root, errors };
+  return { root, errors, comments, trailingCommas };
 };
 
 const assertHandled = (scanError: never) => {

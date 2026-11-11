@@ -62,4 +62,17 @@ export const VscodeAnnotation = <T extends Constructor<Extended>>(Base: T) => cl
     return ((this.keywords["https://microsoft.com/keyword/doNotSuggest"]
       ?? this.unknownKeyword("doNotSuggest", `${metaSchemaUri}#/properties/doNotSuggest`, ast)) === true);
   }
+
+  allowComments(): boolean {
+    return (this.keywords["https://microsoft.com/keyword/allowComments"]
+      ?? this.unknownKeyword("allowComments", `${metaSchemaUri}#/properties/allowComments`, ast)) === true;
+  }
+
+  // allowsTrailingCommas is a deprecated spelling VS Code still supports
+  allowTrailingCommas(): boolean {
+    return (this.keywords["https://microsoft.com/keyword/allowTrailingCommas"]
+      ?? this.unknownKeyword("allowTrailingCommas", `${metaSchemaUri}#/properties/allowTrailingCommas`, ast)) === true
+      || (this.keywords["https://microsoft.com/keyword/allowsTrailingCommas"]
+        ?? this.unknownKeyword("allowsTrailingCommas", `${metaSchemaUri}#/properties/allowsTrailingCommas`, ast)) === true;
+  }
 };

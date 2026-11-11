@@ -9,18 +9,20 @@ describe("parse", () => {
   });
 
   test("a trailing comma in an object points at the comma", () => {
-    const { errors } = parse(`{ "a": 1, }`);
+    const { errors, trailingCommas } = parse(`{ "a": 1, }`);
 
-    expect(errors).toEqual([
-      { code: "trailing-comma", offset: 8, length: 1 }
+    expect(errors).toEqual([]);
+    expect(trailingCommas).toEqual([
+      { offset: 8, length: 1 }
     ]);
   });
 
   test("a trailing comma in an array points at the comma", () => {
-    const { errors } = parse(`[1, 2, ]`);
+    const { errors, trailingCommas } = parse(`[1, 2, ]`);
 
-    expect(errors).toEqual([
-      { code: "trailing-comma", offset: 5, length: 1 }
+    expect(errors).toEqual([]);
+    expect(trailingCommas).toEqual([
+      { offset: 5, length: 1 }
     ]);
   });
 
@@ -262,22 +264,24 @@ describe("parse", () => {
 
 describe("recovery", () => {
   test("a trailing comma inside a nested object is reported once", () => {
-    const { errors } = parse(`{
+    const { errors, trailingCommas } = parse(`{
       "a": {
         "b": 1,
       }
     }`);
 
-    expect(errors).toEqual([
-      { code: "trailing-comma", offset: 29, length: 1 }
+    expect(errors).toEqual([]);
+    expect(trailingCommas).toEqual([
+      { offset: 29, length: 1 }
     ]);
   });
 
   test("a trailing comma inside a nested array is reported once", () => {
-    const { errors } = parse(`{ "a": [1, 2,], "b": 3 }`);
+    const { errors, trailingCommas } = parse(`{ "a": [1, 2,], "b": 3 }`);
 
-    expect(errors).toEqual([
-      { code: "trailing-comma", offset: 12, length: 1 }
+    expect(errors).toEqual([]);
+    expect(trailingCommas).toEqual([
+      { offset: 12, length: 1 }
     ]);
   });
 
@@ -393,16 +397,17 @@ describe("recovery", () => {
   });
 
   test("two trailing commas in different containers are both reported", () => {
-    const { errors } = parse(`{
+    const { errors, trailingCommas } = parse(`{
       "a": [1,],
       "b": {
         "c": 1,
       }
     }`);
 
-    expect(errors).toEqual([
-      { code: "trailing-comma", offset: 15, length: 1 },
-      { code: "trailing-comma", offset: 46, length: 1 }
+    expect(errors).toEqual([]);
+    expect(trailingCommas).toEqual([
+      { offset: 15, length: 1 },
+      { offset: 46, length: 1 }
     ]);
   });
 
@@ -624,12 +629,13 @@ describe("recovery", () => {
     ]);
   });
 
-  test("a comma-only array reports trailing-comma on the comma", () => {
-    const { errors } = parse(`[,]`);
+  test("a comma-only array reports value expected on the bracket", () => {
+    const { errors, trailingCommas } = parse(`[,]`);
 
     expect(errors).toEqual([
-      { code: "trailing-comma", offset: 1, length: 1 }
+      { code: "value-expected", offset: 0, length: 1 }
     ]);
+    expect(trailingCommas).toEqual([]);
   });
 
   test("a deleted closing line produces minimal errors", () => {
@@ -659,12 +665,13 @@ describe("recovery", () => {
     ]);
   });
 
-  test("a comma-only object reports trailing-comma on the comma", () => {
-    const { errors } = parse(`{,}`);
+  test("a comma-only object reports value expected on the bracket", () => {
+    const { errors, trailingCommas } = parse(`{,}`);
 
     expect(errors).toEqual([
-      { code: "trailing-comma", offset: 1, length: 1 }
+      { code: "value-expected", offset: 0, length: 1 }
     ]);
+    expect(trailingCommas).toEqual([]);
   });
 
   test("a leading comma in an array points at the bracket the value should follow", () => {
@@ -713,7 +720,7 @@ describe("recovery", () => {
     const { errors } = parse(`{
       "a": [ 1
       "b" /* x */: 2
-    }`, { allowComments: true });
+    }`);
 
     expect(errors).toEqual([
       { code: "comma-expected", offset: 15, length: 1 },
@@ -724,21 +731,21 @@ describe("recovery", () => {
 
 describe("comments", () => {
   test("a line comment is not allowed in JSON", () => {
-    const { errors } = parse(`{
+    const { errors, comments } = parse(`{
       // hi
       "a": 1
     }`);
 
-    expect(errors).toEqual([
-      { code: "comment-not-allowed", offset: 8, length: 5 }
-    ]);
+    expect(errors).toEqual([]);
+    expect(comments.length).toEqual(1);
   });
 
   test("a block comment is not allowed in JSON", () => {
-    const { errors } = parse(`{ /* hi */ "a": 1 }`);
+    const { errors, comments } = parse(`{ /* hi */ "a": 1 }`);
 
-    expect(errors).toEqual([
-      { code: "comment-not-allowed", offset: 2, length: 8 }
+    expect(errors).toEqual([]);
+    expect(comments).toEqual([
+      { offset: 2, length: 8 }
     ]);
   });
 
@@ -746,30 +753,24 @@ describe("comments", () => {
     const { errors } = parse(`{
       // hi
       "a": /* one */ 1
-    }`, { allowComments: true });
+    }`);
 
     expect(errors).toEqual([]);
   });
 
-  test("an unclosed block comment in JSONC is reported once", () => {
-    const { errors } = parse(`{ "a": 1 /* hi }`, { allowComments: true });
+  test("an unclosed block comment is reported", () => {
+    const { errors, comments } = parse(`{ "a": 1 /* hi }`);
 
     expect(errors).toEqual([
       { code: "comment-not-closed", offset: 9, length: 7 }
     ]);
-  });
-
-  test("an unclosed block comment in JSON is only reported as not allowed", () => {
-    const { errors } = parse(`{ "a": 1 /* hi }`);
-
-    expect(errors).toEqual([
-      { code: "comment-not-allowed", offset: 9, length: 7 }
-    ]);
+    expect(comments.length).toEqual(1);
   });
 
   test("a comment directly after a number does not make the number invalid", () => {
-    const { errors } = parse(`{ "a": 1/* one */ }`, { allowComments: true });
+    const { errors, comments } = parse(`{ "a": 1/* one */ }`);
 
     expect(errors).toEqual([]);
+    expect(comments.length).toEqual(1);
   });
 });

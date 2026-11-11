@@ -6,13 +6,15 @@ import { resolveIri } from "@hyperjump/uri";
 import { parse } from "../parser/parse.ts";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";
-import type { SyntaxError } from "../parser/parse.ts";
+import type { Span, SyntaxError } from "../parser/parse.ts";
 
 export class JsonDocument implements TextDocument {
   private textDocument: TextDocument;
   private documentSchemaUri: string | undefined;
   private ast: jsonc.Node | undefined;
   private parseErrors: SyntaxError[] = [];
+  private comments: Span[] = [];
+  private trailingCommas: Span[] = [];
 
   constructor(textDocument: TextDocument) {
     this.textDocument = textDocument;
@@ -22,10 +24,14 @@ export class JsonDocument implements TextDocument {
 
   private parse() {
     this.parseErrors = [];
+    this.comments = [];
+    this.trailingCommas = [];
 
-    const parseResult = parse(this.textDocument.getText(), { allowComments: this.languageId === "jsonc" });
+    const parseResult = parse(this.textDocument.getText());
     this.ast = parseResult.root;
     this.parseErrors = parseResult.errors;
+    this.comments = parseResult.comments;
+    this.trailingCommas = parseResult.trailingCommas;
 
     this.documentSchemaUri = undefined;
     // A $schema that isn't a string is reported by validation, not used as a URI
@@ -93,6 +99,14 @@ export class JsonDocument implements TextDocument {
 
   getParseErrors() {
     return this.parseErrors;
+  }
+
+  getComments() {
+    return this.comments;
+  }
+
+  getTrailingCommas() {
+    return this.trailingCommas;
   }
 
   // Property name locations are prefixed with "*" and find the property's key
