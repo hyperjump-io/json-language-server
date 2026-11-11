@@ -140,6 +140,28 @@ describe("JSONC Diagnostics", () => {
     expect(diags.filter((d: any) => d.message === "Trailing commas are not allowed")).toEqual([]);
   });
 
+  test("schema allowsTrailingCommas (deprecated spelling) true ignores trailing commas", async () => {
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "file:///schema.json",
+      "allowsTrailingCommas": true,
+      "type": "object",
+      "properties": {
+        "a": { "type": "number" }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "a": 1,
+    }`);
+    const diagnostics = client.getDiagnostics("instance.json");
+    await client.openDocument("instance.json");
+
+    const diags = await diagnostics;
+    expect(diags.filter((d: any) => d.message === "Trailing commas are not allowed")).toEqual([]);
+  });
+
   test("block comments are reported as errors in JSON files", async () => {
     await client.writeDocument("instance.json", `{\n      "a": 1 /* hi */ \n    }`);
     const diagnostics = client.getDiagnostics("instance.json");
