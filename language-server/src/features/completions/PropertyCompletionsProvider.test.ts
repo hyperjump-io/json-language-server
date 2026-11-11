@@ -1997,3 +1997,102 @@ describe("Property completions", () => {
     });
   });
 });
+
+describe("Property completions for clients that don't support markdown", () => {
+  let client: TestClient;
+
+  beforeEach(async () => {
+    client = new TestClient();
+    await client.start({
+      capabilities: {
+        textDocument: {
+          completion: {
+            completionItem: { documentationFormat: [MarkupKind.PlainText] }
+          }
+        }
+      }
+    });
+  });
+
+  afterEach(async () => {
+    await client.stop();
+  });
+
+  const getCompletions = async (properties: object) => {
+    const schemaUri = await client.writeDocument("schema.json", JSON.stringify({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties
+    }));
+    await client.writeDocument("instance.json", `{\n  "$schema": "${schemaUri}",\n  ""\n}`);
+    const uri = await client.openDocument("instance.json");
+
+    return await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 3 }
+    }) as CompletionItem[];
+  };
+
+  test("documentation is plain text without escaping", async () => {
+    const completions = await getCompletions({
+      name: { title: "Name", description: "The *name*" }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", documentation: { kind: MarkupKind.PlainText, value: "Name\n\nThe *name*" } }
+    ]);
+  });
+
+  test("description is used instead of markdownDescription", async () => {
+    const completions = await getCompletions({
+      name: { description: "Plain", markdownDescription: "_Markdown_" }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", documentation: { kind: MarkupKind.PlainText, value: "Plain" } }
+    ]);
+  });
+
+  test("a markdownDescription without a description isn't shown", async () => {
+    const completions = await getCompletions({
+      name: { title: "Name", markdownDescription: "_Markdown_" }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", documentation: { kind: MarkupKind.PlainText, value: "Name" } }
+    ]);
+  });
+
+  test("deprecationMessage is used instead of markdownDeprecationMessage", async () => {
+    const completions = await getCompletions({
+      name: { title: "Name", deprecationMessage: "Use *fullName*.", markdownDeprecationMessage: "Use **fullName**." }
+    });
+
+    expect(completions).toMatchObject([
+      {
+        label: "name",
+        tags: [CompletionItemTag.Deprecated],
+        documentation: { kind: MarkupKind.PlainText, value: "Use *fullName*.\n\nName" }
+      }
+    ]);
+  });
+
+  test("a property deprecated only by a markdownDeprecationMessage is still tagged", async () => {
+    const completions = await getCompletions({
+      name: { title: "Name", markdownDeprecationMessage: "Use **fullName**." }
+    });
+
+    expect(completions).toMatchObject([
+      { label: "name", tags: [CompletionItemTag.Deprecated], documentation: { kind: MarkupKind.PlainText, value: "Name" } }
+    ]);
+  });
+
+  test("a property with no documentation isn't documented", async () => {
+    const completions = await getCompletions({
+      name: { type: "string" }
+    });
+
+    expect(completions).toHaveLength(1);
+    expect(completions[0]).not.toHaveProperty("documentation");
+  });
+});

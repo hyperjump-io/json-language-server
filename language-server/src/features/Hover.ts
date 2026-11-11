@@ -1,15 +1,19 @@
 import { MarkupKind } from "vscode-languageserver";
 import { JsonDocuments } from "../services/JsonDocuments.ts";
 import { LspEvaluationPlugin } from "../evaluation/LspEvaluationPlugin.ts";
-import { describeAnnotations, joinDocumentation } from "./annotation-documentation.ts";
+import { describeAnnotations, joinDocumentation, supportsMarkdown } from "./annotation-documentation.ts";
 
 import type { Server } from "../services/Server.ts";
 import type { ServerCapabilities } from "vscode-languageserver";
 import type { JsonSchema } from "../services/JsonSchema.ts";
 
 export class Hover {
+  private supportsMarkdown = false;
+
   constructor(server: Server, jsonDocuments: JsonDocuments, jsonSchema: JsonSchema) {
-    server.onInitialize(() => {
+    server.onInitialize(({ capabilities }) => {
+      this.supportsMarkdown = supportsMarkdown(capabilities.textDocument?.hover?.contentFormat);
+
       const serverCapabilities: ServerCapabilities = {
         hoverProvider: true
       };
@@ -38,12 +42,14 @@ export class Hover {
           ? plugin.getLocationAnnotations(pointer)
           : [...plugin.getLocationAnnotations(pointer), ...plugin.getValueAnnotations(pointer)];
 
-        const documentation = describeAnnotations(annotations);
+        const documentation = describeAnnotations(annotations, this.supportsMarkdown);
         if (documentation.length === 0) {
           return;
         }
 
-        documentation.push({ kind: MarkupKind.Markdown, value: "---\n\n_hyperjump-json-language-server_" });
+        documentation.push(this.supportsMarkdown
+          ? { kind: MarkupKind.Markdown, value: "---\n\n_hyperjump-json-language-server_" }
+          : { kind: MarkupKind.PlainText, value: "---\n\nhyperjump-json-language-server" });
 
         return { contents: joinDocumentation(documentation)! };
       } catch {

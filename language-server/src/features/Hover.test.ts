@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { HoverRequest } from "vscode-languageserver";
+import { HoverRequest, MarkupKind } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
 import { ReadFileRequest } from "../protocol/hyperjump-readFile.ts";
 
@@ -1472,6 +1472,58 @@ _hyperjump-json-language-server_`
       textDocument: { uri },
       position: { line: 0, character: 4 }
     });
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("Hover for clients that don't support markdown", () => {
+  let client: TestClient;
+
+  beforeEach(async () => {
+    client = new TestClient();
+    await client.start({
+      capabilities: {
+        textDocument: {
+          hover: { contentFormat: [MarkupKind.PlainText] }
+        }
+      }
+    });
+  });
+
+  afterEach(async () => {
+    await client.stop();
+  });
+
+  const hover = async (nameSchema: object) => {
+    const schemaUri = await client.writeDocument("schema.json", JSON.stringify({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      properties: { name: nameSchema }
+    }));
+    await client.writeDocument("instance.json", `{\n  "$schema": "${schemaUri}",\n  "name": "x"\n}`);
+    const uri = await client.openDocument("instance.json");
+
+    return client.sendRequest(HoverRequest.type, { textDocument: { uri }, position: { line: 2, character: 4 } });
+  };
+
+  test("hover is plain text without escaping", async () => {
+    const result = await hover({ title: "Name", description: "The *name*" });
+
+    expect(result).toEqual({
+      contents: { kind: MarkupKind.PlainText, value: "Name\n\nThe *name*\n\n---\n\nhyperjump-json-language-server" }
+    });
+  });
+
+  test("description is used instead of markdownDescription", async () => {
+    const result = await hover({ description: "Plain", markdownDescription: "_Markdown_" });
+
+    expect(result).toEqual({
+      contents: { kind: MarkupKind.PlainText, value: "Plain\n\n---\n\nhyperjump-json-language-server" }
+    });
+  });
+
+  test("a markdownDescription without a description or title shows nothing", async () => {
+    const result = await hover({ markdownDescription: "_Markdown_" });
 
     expect(result).toBeNull();
   });
