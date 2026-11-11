@@ -629,7 +629,7 @@ describe("recovery", () => {
     ]);
   });
 
-  test("a comma-only array reports value expected on the comma", () => {
+  test("a comma-only array reports value expected on the bracket", () => {
     const { errors, trailingCommas } = parse(`[,]`);
 
     expect(errors).toEqual([
@@ -665,7 +665,7 @@ describe("recovery", () => {
     ]);
   });
 
-  test("a comma-only object reports value expected on the comma", () => {
+  test("a comma-only object reports value expected on the bracket", () => {
     const { errors, trailingCommas } = parse(`{,}`);
 
     expect(errors).toEqual([
@@ -756,14 +756,6 @@ describe("comments", () => {
     }`);
 
     expect(errors).toEqual([]);
-  });
-
-  test("an unclosed block comment in JSONC is reported once", () => {
-    const { errors } = parse(`{ "a": 1 /* hi }`);
-
-    expect(errors).toEqual([
-      { code: "comment-not-closed", offset: 9, length: 7 }
-    ]);
   });
 
   test("an unclosed block comment is reported", () => {
