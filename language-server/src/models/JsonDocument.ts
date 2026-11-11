@@ -6,15 +6,15 @@ import { resolveIri } from "@hyperjump/uri";
 import { parse } from "../parser/parse.ts";
 
 import type { Position, Range } from "vscode-languageserver-textdocument";
-import type { SyntaxError } from "../parser/parse.ts";
+import type { Span, SyntaxError } from "../parser/parse.ts";
 
 export class JsonDocument implements TextDocument {
   private textDocument: TextDocument;
   private documentSchemaUri: string | undefined;
   private ast: jsonc.Node | undefined;
   private parseErrors: SyntaxError[] = [];
-  private comments: Array<{ offset: number; length: number }> = [];
-  private trailingCommas: Array<{ offset: number; length: number }> = [];
+  private comments: Span[] = [];
+  private trailingCommas: Span[] = [];
 
   constructor(textDocument: TextDocument) {
     this.textDocument = textDocument;

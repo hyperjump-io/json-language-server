@@ -30,11 +30,16 @@ export type SyntaxError = {
   data?: Record<string, string>;
 };
 
+export type Span = {
+  offset: number;
+  length: number;
+};
+
 export type ParseResult = {
   root: Node | undefined;
   errors: SyntaxError[];
-  comments: Array<{ offset: number; length: number }>;
-  trailingCommas: Array<{ offset: number; length: number }>;
+  comments: Span[];
+  trailingCommas: Span[];
 };
 
 type MutableNode = {
@@ -58,8 +63,8 @@ const VALID_ESCAPES = new Set(["\"", "\\", "/", "b", "f", "n", "r", "t", "u"]);
 export const parse = (text: string): ParseResult => {
   const scanner = jsonc.createScanner(text, false);
   const errors: SyntaxError[] = [];
-  const comments: Array<{ offset: number; length: number }> = [];
-  const trailingCommas: Array<{ offset: number; length: number }> = [];
+  const comments: Span[] = [];
+  const trailingCommas: Span[] = [];
   let ranToEndOfFile = false;
   const unclosed = new WeakSet<MutableNode>();
 
