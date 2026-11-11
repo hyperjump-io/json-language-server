@@ -136,11 +136,7 @@ export const parse = (text: string): ParseResult => {
   };
 
   const skipComment = (scanError: jsonc.ScanError) => {
-    if (scanError === jsonc.ScanError.UnexpectedEndOfComment) {
-      report("comment-not-closed", offset, length);
-      ranToEndOfFile = true;
-    }
-
+    reportScanError(scanError);
     comments.push({ offset, length });
   };
 
