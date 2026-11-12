@@ -1,8 +1,19 @@
 import type { AnnotationRecord } from "./Annotation.ts";
 
-// An annotation is shared only when every contributing alternative records the
-// same value for its keyword. A contributor is an alternative that offers the
-// location, not every alternative of the parent schema.
+// Only these boolean flags need agreement across alternatives. Other
+// annotations (such as titles, descriptions and defaultSnippets) accumulate
+// independently, even when their values differ.
+const reconciledKeywords = new Set([
+  "https://json-schema.org/keyword/deprecated",
+  "https://json-schema.org/keyword/unknown#deprecated",
+  "https://microsoft.com/keyword/doNotSuggest",
+  "https://json-schema.org/keyword/unknown#doNotSuggest"
+]);
+
+// Keep transformed records stable across repeated evaluation of the same
+// schema. Annotation deduplication in the evaluation plugin uses identity.
+const filteredRecords = new WeakMap<AnnotationRecord, Map<string, AnnotationRecord>>();
+
 export function sharedAnnotationKeywords(groups: AnnotationRecord[][]): AnnotationRecord {
   const shared: AnnotationRecord = {};
   if (groups.length === 0) {
@@ -11,17 +22,16 @@ export function sharedAnnotationKeywords(groups: AnnotationRecord[][]): Annotati
 
   for (const record of groups[0]) {
     for (const [keyword, value] of Object.entries(record)) {
+      if (!reconciledKeywords.has(keyword)) {
+        continue;
+      }
+
+      // A branch may have several records at this location (e.g. $ref and
+      // sibling keywords). They are not mutually exclusive alternatives.
       if (groups.every((group) => {
-        let found = false;
-        for (const annotation of group) {
-          if (Object.prototype.hasOwnProperty.call(annotation, keyword)) {
-            found = true;
-            if (!sameAnnotationValue(annotation[keyword], value)) {
-              return false;
-            }
-          }
-        }
-        return found;
+        const values = group.filter((annotation) => Object.prototype.hasOwnProperty.call(annotation, keyword))
+          .map((annotation) => annotation[keyword]);
+        return values.length > 0 && values.every((candidate) => sameAnnotationValue(candidate, value));
       })) {
         shared[keyword] = value;
       }
@@ -31,23 +41,50 @@ export function sharedAnnotationKeywords(groups: AnnotationRecord[][]): Annotati
   return shared;
 }
 
-// Preserve the original annotation object when possible. Its identity is used
-// to avoid duplicated annotations when the same schema is evaluated twice.
-export function withoutSharedKeywords(record: AnnotationRecord, shared: AnnotationRecord): AnnotationRecord {
-  const remaining: AnnotationRecord = {};
-  let changed = false;
+// Preserve every ordinary annotation. Remove only conditional flags that do
+// not agree across the alternatives offering this property. If filtering is
+// necessary, cache the resulting object by its original identity and removed
+// keywords, so applying a schema twice doesn't duplicate its annotations.
+export function withoutUnsharedConditionalKeywords(record: AnnotationRecord, shared: AnnotationRecord): AnnotationRecord {
+  const removed = Object.keys(record)
+    .filter((keyword) => reconciledKeywords.has(keyword)
+      && (!Object.prototype.hasOwnProperty.call(shared, keyword)
+        || !sameAnnotationValue(record[keyword], shared[keyword])))
+    .sort();
+
+  if (removed.length === 0) {
+    return record;
+  }
+
+  const key = removed.join("\u0000");
+  let cache = filteredRecords.get(record);
+  if (!cache) {
+    cache = new Map();
+    filteredRecords.set(record, cache);
+  }
+
+  let filtered = cache.get(key);
+  if (!filtered) {
+    filtered = {};
+    cache.set(key, filtered);
+  }
+
+  // An annotation record can be populated incrementally during evaluation.
+  // Reuse the cached object, but refresh its fields to match the current source.
+  for (const keyword of Object.keys(filtered)) {
+    delete filtered[keyword];
+  }
   for (const [keyword, value] of Object.entries(record)) {
-    if (Object.prototype.hasOwnProperty.call(shared, keyword) && sameAnnotationValue(value, shared[keyword])) {
-      changed = true;
-    } else {
-      remaining[keyword] = value;
+    if (!removed.includes(keyword)) {
+      filtered[keyword] = value;
     }
   }
-  return changed ? remaining : record;
+
+  return filtered;
 }
 
-// Keyword annotation values are JSON values; compare nested objects by value
-// rather than object identity or property insertion order.
+// The flagged keyword values are JSON, so compare objects and arrays by value
+// rather than by reference.
 function sameAnnotationValue(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) {
     return true;
