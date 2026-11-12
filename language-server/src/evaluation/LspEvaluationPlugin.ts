@@ -613,8 +613,12 @@ function mergeAlternativeAnnotations(target: RecordedAnnotations, alternatives: 
     const shared = pointer === parentPointer ? {} : sharedAnnotationKeywords(groups);
     for (const { annotations } of offering) {
       const records: RecordedAnnotation[] = (annotations[pointer] ?? []).map(({ kind, annotation }) => ({
-        kind,
-        annotation: kind === "location" ? withoutUnsharedConditionalKeywords(annotation, shared) : annotation
+        // A branch's annotations on the parent itself depend on its value.
+        // Child-property annotations are still location annotations.
+        kind: pointer === parentPointer && kind === "location" ? "value" : kind,
+        annotation: pointer !== parentPointer && kind === "location"
+          ? withoutUnsharedConditionalKeywords(annotation, shared)
+          : annotation
       }));
       appendAnnotations(target, { [pointer]: records });
     }
