@@ -4,7 +4,7 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import { JsonValueSet } from "./JsonValueSet.ts";
 import { SubschemaTracker } from "./SubschemaTracker.ts";
 import { Annotation } from "./Annotation.ts";
-import { sharedAnnotationKeywords, withoutSharedKeywords } from "./SharedAnnotations.ts";
+import { sharedAnnotationKeywords, withoutUnsharedConditionalKeywords } from "./SharedAnnotations.ts";
 
 import type { EvaluationPlugin, Keyword, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
@@ -611,22 +611,11 @@ function mergeAlternativeAnnotations(target: RecordedAnnotations, alternatives: 
     const groups = offering.map(({ annotations }) => (annotations[pointer] ?? [])
       .filter(({ kind }) => kind === "location").map(({ annotation }) => annotation));
     const shared = pointer === parentPointer ? {} : sharedAnnotationKeywords(groups);
-    if (Object.keys(shared).length > 0) {
-      appendAnnotations(target, { [pointer]: [{ kind: "location", annotation: shared }] });
-    }
-
     for (const { annotations } of offering) {
-      const records: RecordedAnnotation[] = [];
-      for (const { kind, annotation } of annotations[pointer] ?? []) {
-        if (kind === "value") {
-          records.push({ kind, annotation });
-        } else {
-          const remaining = withoutSharedKeywords(annotation, shared);
-          if (Object.keys(remaining).length > 0) {
-            records.push({ kind: "value", annotation: remaining });
-          }
-        }
-      }
+      const records: RecordedAnnotation[] = (annotations[pointer] ?? []).map(({ kind, annotation }) => ({
+        kind,
+        annotation: kind === "location" ? withoutUnsharedConditionalKeywords(annotation, shared) : annotation
+      }));
       appendAnnotations(target, { [pointer]: records });
     }
   }
@@ -653,7 +642,7 @@ function unionAlternativesInto(target: Completions, alternatives: Completions[])
 
 function reconcileAlternativeValueSets(sets: JsonValueSet[]): JsonValueSet[] {
   const shared = sharedAnnotationKeywords(sets.map((set) => set.getLocationAnnotations()));
-  return sets.map((set) => set.withSharedLocationAnnotations(shared));
+  return sets.map((set) => set.withReconciledLocationAnnotations(shared));
 }
 
 function exclusiveUnionAlternatives(records: Completions[]): Completions {
