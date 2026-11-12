@@ -1,3 +1,5 @@
+import { withoutUnsharedConditionalKeywords } from "./SharedAnnotations.ts";
+
 import type { AnnotationRecord } from "./Annotation.ts";
 
 export type JsonSchemaType = "string" | "number" | "integer" | "boolean" | "null" | "array" | "object";
@@ -215,6 +217,15 @@ export class JsonValueSet {
         }
       }
     }
+    return copy;
+  }
+
+  // Reconcile only conditional suppression/deprecation flags for alternatives
+  // offering this child pointer. Keep all other location annotations in their
+  // original records so titles, snippets and identity-based deduplication work.
+  withReconciledLocationAnnotations(shared: AnnotationRecord): JsonValueSet {
+    const copy = this.clone();
+    copy.annotations = this.annotations.map((annotation) => withoutUnsharedConditionalKeywords(annotation, shared));
     return copy;
   }
 
