@@ -1475,4 +1475,141 @@ _hyperjump-json-language-server_`
 
     expect(result).toBeNull();
   });
+
+  describe("enumDescriptions", () => {
+    const schema = {
+      properties: {
+        level: {
+          title: "Level",
+          enum: ["debug", "error"],
+          enumDescriptions: ["Log everything", "Log errors only"]
+        }
+      }
+    };
+
+    test("hovering an enum value shows the description at its position after the title and description", async () => {
+      const result = await hover(schema, `  "level": "error"`, { line: 2, character: 13 });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `**Level**
+
+Log errors only
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+
+    test("hovering the property key doesn't show the description of its value", async () => {
+      const result = await hover(schema, `  "level": "error"`, { line: 2, character: 4 });
+
+      expect(result).toEqual(hoverTitles("Level"));
+    });
+
+    test("hovering the colon of a property doesn't show the description of its value", async () => {
+      const result = await hover(schema, `  "level": "error"`, { line: 2, character: 9 });
+
+      expect(result).toEqual(hoverTitles("Level"));
+    });
+
+    test("hovering a value that isn't in the enum shows no description", async () => {
+      const result = await hover(schema, `  "level": "trace"`, { line: 2, character: 13 });
+
+      expect(result).toEqual(hoverTitles("Level"));
+    });
+
+    test("markdownEnumDescriptions is preferred over enumDescriptions", async () => {
+      const result = await hover({
+        properties: {
+          level: {
+            enum: ["debug", "error"],
+            enumDescriptions: ["Log everything", "Log errors only"],
+            markdownEnumDescriptions: ["", "Log **errors** only"]
+          }
+        }
+      }, `  "level": "error"`, { line: 2, character: 13 });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `Log **errors** only
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+
+    test("an object value is matched no matter how its keys are ordered", async () => {
+      const result = await hover({
+        properties: {
+          value: {
+            enum: [{ 10: 1, b: 2, 9: 3 }],
+            enumDescriptions: ["The object"]
+          }
+        }
+      }, `  "value": { "b": 2, "9": 3, "10": 1 }`, { line: 2, character: 11 });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `The object
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+
+    test("a number value is matched by its value", async () => {
+      const result = await hover({
+        properties: {
+          value: {
+            enum: [1, 2],
+            enumDescriptions: ["One", "Two"]
+          }
+        }
+      }, `  "value": 2.0`, { line: 2, character: 11 });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `Two
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+
+    test("descriptions that aren't an array of strings are ignored", async () => {
+      const result = await hover({
+        properties: {
+          level: {
+            enum: ["debug", "error"],
+            enumDescriptions: ["Log everything", "Log errors only"],
+            markdownEnumDescriptions: [42, 42]
+          }
+        }
+      }, `  "level": "error"`, { line: 2, character: 13 });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: `Log errors only
+
+---
+
+_hyperjump-json-language-server_`
+        }
+      });
+    });
+  });
 });

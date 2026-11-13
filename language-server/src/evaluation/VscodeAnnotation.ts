@@ -1,7 +1,7 @@
 import "../vocabularies/vscode.ts";
 import { compile, getSchema } from "@hyperjump/json-schema/experimental";
 
-import type { BaseAnnotation, Constructor } from "./Annotation.ts";
+import type { AnnotationRecord, BaseAnnotation, Constructor } from "./Annotation.ts";
 
 // Accessors for the annotations of VS Code's custom keywords. The keywords are
 // defined in vocabularies/vscode.ts.
@@ -75,4 +75,47 @@ export const VscodeAnnotation = <T extends Constructor<Extended>>(Base: T) => cl
       || (this.keywords["https://microsoft.com/keyword/allowsTrailingCommas"]
         ?? this.unknownKeyword("allowsTrailingCommas", `${metaSchemaUri}#/properties/allowsTrailingCommas`, ast)) === true;
   }
+
+  // Whether the schema has an enum, whose values could be described
+  hasEnum(): boolean {
+    return "https://json-schema.org/keyword/enum" in this.keywords;
+  }
+
+  // VS Code describes an enum value with the description at the same position
+  // in enumDescriptions. The value is its canonical JSON, which is how the
+  // enum values are recorded. A value that isn't in the enum or has no
+  // description at its position isn't described.
+  enumDescription(value: string): string | undefined {
+    const descriptions = (this.keywords["https://microsoft.com/keyword/enumDescriptions"]
+      ?? this.unknownKeyword("enumDescriptions", `${metaSchemaUri}#/properties/enumDescriptions`, ast)) as string[] | undefined;
+    return descriptions?.[this.enumIndex(value)];
+  }
+
+  markdownEnumDescription(value: string): string | undefined {
+    const descriptions = (this.keywords["https://microsoft.com/keyword/markdownEnumDescriptions"]
+      ?? this.unknownKeyword("markdownEnumDescriptions", `${metaSchemaUri}#/properties/markdownEnumDescriptions`, ast)) as string[] | undefined;
+    return descriptions?.[this.enumIndex(value)];
+  }
+
+  // The position of the first occurrence of a value in the enum, or -1 if it
+  // isn't in the enum, which has no description. The positions are indexed
+  // once per record because they're looked up for every completion of the
+  // enum.
+  private enumIndex(value: string): number {
+    let positions = enumPositions.get(this.keywords);
+    if (!positions) {
+      positions = new Map();
+      const enumValues = (this.keywords["https://json-schema.org/keyword/enum"] ?? []) as string[];
+      for (const [index, enumValue] of enumValues.entries()) {
+        if (!positions.has(enumValue)) {
+          positions.set(enumValue, index);
+        }
+      }
+      enumPositions.set(this.keywords, positions);
+    }
+
+    return positions.get(value) ?? -1;
+  }
 };
+
+const enumPositions = new WeakMap<AnnotationRecord, Map<string, number>>();
