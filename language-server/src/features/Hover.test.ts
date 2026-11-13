@@ -1475,4 +1475,227 @@ _hyperjump-json-language-server_`
 
     expect(result).toBeNull();
   });
+
+  describe("default and examples", () => {
+    const hoverMarkdown = (value: string) => ({
+      contents: {
+        kind: "markdown",
+        value: `${value}\n\n---\n\n_hyperjump-json-language-server_`
+      }
+    });
+
+    test("shows the default after the title and description", async () => {
+      const result = await hover({
+        properties: {
+          name: { title: "Name", description: "A name.", default: "Alice" }
+        }
+      }, `  "name": "Bob"`, { line: 2, character: 12 });
+
+      expect(result).toEqual(hoverMarkdown(`**Name**
+
+A name\\.
+
+Default:
+
+\`\`\`json
+"Alice"
+\`\`\``));
+    });
+
+    test("shows the default of a property with no title or description", async () => {
+      const result = await hover({
+        properties: {
+          retries: { type: "number", default: 3 }
+        }
+      }, `  "retries": 5`, { line: 2, character: 13 });
+
+      expect(result).toEqual(hoverMarkdown(`Default:
+
+\`\`\`json
+3
+\`\`\``));
+    });
+
+    test("shows a default of null", async () => {
+      const result = await hover({
+        properties: {
+          parent: { default: null }
+        }
+      }, `  "parent": "x"`, { line: 2, character: 14 });
+
+      expect(result).toEqual(hoverMarkdown(`Default:
+
+\`\`\`json
+null
+\`\`\``));
+    });
+
+    test("shows a default object as formatted JSON", async () => {
+      const result = await hover({
+        properties: {
+          options: { default: { verbose: false, tags: ["a"] } }
+        }
+      }, `  "options": {}`, { line: 2, character: 13 });
+
+      expect(result).toEqual(hoverMarkdown(`Default:
+
+\`\`\`json
+{
+  "verbose": false,
+  "tags": [
+    "a"
+  ]
+}
+\`\`\``));
+    });
+
+    test("shows each example as its own code block", async () => {
+      const result = await hover({
+        properties: {
+          color: { description: "A color.", examples: ["red", "#00ff00"] }
+        }
+      }, `  "color": "blue"`, { line: 2, character: 13 });
+
+      expect(result).toEqual(hoverMarkdown(`A color\\.
+
+Examples:
+
+\`\`\`json
+"red"
+\`\`\`
+
+\`\`\`json
+"#00ff00"
+\`\`\``));
+    });
+
+    test("shows the default before the examples", async () => {
+      const result = await hover({
+        properties: {
+          port: { examples: [80, 443], default: 8080 }
+        }
+      }, `  "port": 1`, { line: 2, character: 10 });
+
+      expect(result).toEqual(hoverMarkdown(`Default:
+
+\`\`\`json
+8080
+\`\`\`
+
+Examples:
+
+\`\`\`json
+80
+\`\`\`
+
+\`\`\`json
+443
+\`\`\``));
+    });
+
+    test("doesn't show empty examples", async () => {
+      const result = await hover({
+        properties: {
+          foo: { title: "Foo", examples: [] }
+        }
+      }, `  "foo": 42`, { line: 2, character: 10 });
+
+      expect(result).toEqual(hoverTitles("Foo"));
+    });
+
+    test("shows the default and examples from a $ref'd schema with the ones from its sibling", async () => {
+      const result = await hover({
+        properties: {
+          name: { $ref: "#/$defs/name", default: "Bob" }
+        },
+        $defs: {
+          name: { title: "Name", examples: ["Alice"] }
+        }
+      }, `  "name": "x"`, { line: 2, character: 12 });
+
+      expect(result).toEqual(hoverMarkdown(`**Name**
+
+Examples:
+
+\`\`\`json
+"Alice"
+\`\`\`
+
+Default:
+
+\`\`\`json
+"Bob"
+\`\`\``));
+    });
+
+    test("hovering a property key shows its default", async () => {
+      const result = await hover({
+        properties: {
+          foo: { title: "Foo", default: true }
+        }
+      }, `  "foo": false`, { line: 2, character: 4 });
+
+      expect(result).toEqual(hoverMarkdown(`**Foo**
+
+Default:
+
+\`\`\`json
+true
+\`\`\``));
+    });
+
+    test("uses a longer fence when the JSON has a code fence in it", async () => {
+      const result = await hover({
+        properties: {
+          snippet: { default: "```js```" }
+        }
+      }, `  "snippet": ""`, { line: 2, character: 13 });
+
+      expect(result).toEqual(hoverMarkdown(`Default:
+
+\`\`\`\`json
+"\`\`\`js\`\`\`"
+\`\`\`\``));
+    });
+
+    test("shows examples in a draft-04 schema", async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", JSON.stringify({
+        $schema: "http://json-schema.org/draft-04/schema#",
+        properties: {
+          name: { examples: ["Alice"] }
+        }
+      }));
+      await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "x"\n}`);
+      const uri = await client.openDocument("instance.json");
+
+      const result = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 12 }
+      });
+
+      expect(result).toEqual(hoverMarkdown(`Examples:
+
+\`\`\`json
+"Alice"
+\`\`\``));
+    });
+
+    test("doesn't show draft-04 examples that aren't an array", async () => {
+      fixtureSchemaUri = await client.writeDocument("schema.json", JSON.stringify({
+        $schema: "http://json-schema.org/draft-04/schema#",
+        properties: {
+          name: { title: "Name", examples: "Alice" }
+        }
+      }));
+      await client.writeDocument("instance.json", `{\n  "$schema": "${fixtureSchemaUri}",\n  "name": "x"\n}`);
+      const uri = await client.openDocument("instance.json");
+
+      const result = await client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 2, character: 12 }
+      });
+
+      expect(result).toEqual(hoverTitles("Name"));
+    });
+  });
 });

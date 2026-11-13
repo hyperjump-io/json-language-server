@@ -2,6 +2,7 @@ import * as Pact from "@hyperjump/pact";
 import "@hyperjump/json-schema/draft-2020-12";
 import { compile, getSchema } from "@hyperjump/json-schema/experimental";
 
+import type { Json } from "@hyperjump/json-pointer";
 import type { BaseAnnotation, Constructor } from "./Annotation.ts";
 
 const FORMAT_KEYWORDS = [
@@ -34,6 +35,19 @@ export const JsonSchemaAnnotation = <T extends Constructor<BaseAnnotation>>(Base
   deprecated(): boolean {
     return (this.keywords["https://json-schema.org/keyword/deprecated"]
       ?? this.unknownKeyword("deprecated", `${metaSchemaUri}#/properties/deprecated`, ast)) === true;
+  }
+
+  // Undefined if there's no default. A default of null is still a default.
+  default(): Json | undefined {
+    return this.keywords["https://json-schema.org/keyword/default"] as Json | undefined;
+  }
+
+  // The examples keyword was added in draft-06, but it's commonly used with
+  // draft-04 anyway
+  examples(): Json[] {
+    return (this.keywords["https://json-schema.org/keyword/examples"]
+      ?? this.unknownKeyword("examples", `${metaSchemaUri}#/properties/examples`, ast)
+      ?? []) as Json[];
   }
 
   formats(): unknown[] {
