@@ -1644,7 +1644,7 @@ true
 \`\`\``));
     });
 
-    test("uses a longer fence when the JSON has a code fence in it", async () => {
+    test("keeps a plain fence when the JSON has backticks in it", async () => {
       const result = await hover({
         properties: {
           snippet: { default: "```js```" }
@@ -1653,9 +1653,9 @@ true
 
       expect(result).toEqual(hoverMarkdown(`Default:
 
-\`\`\`\`json
+\`\`\`json
 "\`\`\`js\`\`\`"
-\`\`\`\``));
+\`\`\``));
     });
 
     test("shows examples in a draft-04 schema", async () => {

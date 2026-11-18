@@ -74,12 +74,8 @@ const describeValues = (annotation: Annotation): MarkupContent[] => {
   return documentation;
 };
 
-// The fence is longer than any run of backticks in the JSON so a string value
-// can't close the code block early
 const jsonCodeBlock = (value: Json) => {
   const json = JSON.stringify(value, null, 2);
-  const longestBacktickRun = Math.max(0, ...(json.match(/`+/g) ?? []).map((run) => run.length));
-  const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
 
-  return `${fence}json\n${json}\n${fence}`;
+  return `\`\`\`json\n${json}\n\`\`\``;
 };
