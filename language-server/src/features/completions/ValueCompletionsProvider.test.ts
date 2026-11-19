@@ -2760,7 +2760,7 @@ describe("Value Completions", () => {
           "$id": "main",
           "type": "object",
           "properties": {
-            "color": { "$dynamicRef": "#color" }
+            "color": { "$dynamicRef": "color" }
           }
         },
         "color": {

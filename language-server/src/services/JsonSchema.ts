@@ -115,7 +115,8 @@ export class JsonSchema {
         }
 
         const documentSchemaUri = await this.getSchemaUri(jsonDocument);
-        if (jsonDocument.uri !== fileUri
+        if (
+          jsonDocument.uri !== fileUri
           && await this.registry.getSchemaUri(jsonDocument.uri) !== schemaUri
           && (!documentSchemaUri || !changedSchemaUris.has(documentSchemaUri))
         ) {
