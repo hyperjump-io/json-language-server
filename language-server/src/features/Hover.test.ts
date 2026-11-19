@@ -1475,4 +1475,124 @@ _hyperjump-json-language-server_`
 
     expect(result).toBeNull();
   });
+  describe("alternative child property annotations (issue #168)", () => {
+    const hoverName = async (keyword: "anyOf" | "oneOf", first: object, second: object, character: number) => {
+      const schemaUri = await client.writeDocument("schema.json", JSON.stringify({
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        properties: {
+          value: {
+            [keyword]: [
+              { properties: { name: first } },
+              { properties: { name: second } }
+            ]
+          }
+        }
+      }));
+      await client.writeDocument("instance.json", `{
+      "$schema": "${schemaUri}",
+      "value": {
+        "name": "example"
+      }
+    }`);
+      const uri = await client.openDocument("instance.json");
+      return client.sendRequest(HoverRequest.type, {
+        textDocument: { uri },
+        position: { line: 3, character }
+      });
+    };
+
+    for (const keyword of ["anyOf", "oneOf"] as const) {
+      test(`${keyword}: common child title is preserved on the property key`, async () => {
+        const result = await hoverName(keyword, { title: "Shared name" }, { title: "Shared name" }, 10);
+        expect(result).toEqual(hoverTitles("Shared name"));
+      });
+
+      test(`${keyword}: differing child titles remain visible when hovering the value`, async () => {
+        const result = await hoverName(keyword, { title: "Cat name" }, { title: "Dog name" }, 19);
+        expect(result).toEqual(hoverTitles("Cat name", "Dog name"));
+      });
+
+      test(`${keyword}: an annotation from the only offering alternative is preserved`, async () => {
+        const schemaUri = await client.writeDocument("schema.json", JSON.stringify({
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { name: { title: "Only name" } } },
+                { properties: { age: { type: "integer" } } }
+              ]
+            }
+          }
+        }));
+        await client.writeDocument("instance.json", `{
+      "$schema": "${schemaUri}",
+      "value": {
+        "name": "example"
+      }
+    }`);
+        const uri = await client.openDocument("instance.json");
+        const result = await client.sendRequest(HoverRequest.type, {
+          textDocument: { uri }, position: { line: 3, character: 10 }
+        });
+        expect(result).toEqual(hoverTitles("Only name"));
+      });
+    }
+
+    test("a $ref and a sibling title in the only alternative both apply to the property key", async () => {
+      const result = await hover({
+        properties: {
+          value: {
+            anyOf: [
+              { properties: { name: { $ref: "#/$defs/a", title: "B" } } }
+            ]
+          }
+        },
+        $defs: {
+          a: { title: "A" }
+        }
+      }, `  "value": {\n    "name": "x"\n  }`, { line: 3, character: 6 });
+
+      expect(result).toEqual(hoverTitles("A", "B"));
+    });
+
+    test("a schema with alternatives applied twice contributes its annotations only once", async () => {
+      const result = await hover({
+        properties: {
+          value: {
+            allOf: [{ $ref: "#/$defs/v" }, { $ref: "#/$defs/v" }]
+          }
+        },
+        $defs: {
+          v: {
+            anyOf: [
+              { properties: { name: { title: "S", description: "C" } } },
+              { properties: { name: { title: "S", description: "D" } } }
+            ]
+          }
+        }
+      }, `  "value": {\n    "name": "x"\n  }`, { line: 3, character: 14 });
+
+      expect(result).toEqual({
+        contents: {
+          kind: "markdown",
+          value: "**S**\n\nC\n\n**S**\n\nD\n\n---\n\n_hyperjump-json-language-server_"
+        }
+      });
+    });
+
+    test("differing titles from alternatives are shown on the property key", async () => {
+      const result = await hover({
+        properties: {
+          value: {
+            anyOf: [
+              { properties: { name: { title: "Cat name" } } },
+              { properties: { name: { title: "Dog name" } } }
+            ]
+          }
+        }
+      }, `  "value": {\n    "name": "x"\n  }`, { line: 3, character: 6 });
+
+      expect(result).toEqual(hoverTitles("Cat name", "Dog name"));
+    });
+  });
 });
