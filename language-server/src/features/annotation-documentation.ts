@@ -5,15 +5,17 @@ import type { Annotation } from "../evaluation/Annotation.ts";
 
 // The titles and descriptions of the annotations in the order they appear.
 // Prefers markdownDescription over the standard description keyword.
-export const describeAnnotations = (annotations: Annotation[]): MarkupContent[] => {
+export const describeAnnotations = (annotations: Annotation[], supportsMarkdown: boolean): MarkupContent[] => {
   const documentation: MarkupContent[] = [];
   for (const annotation of annotations) {
     const title = annotation.title();
     if (title) {
-      documentation.push({ kind: MarkupKind.Markdown, value: `**${escapeMarkdown(title)}**` });
+      documentation.push(supportsMarkdown
+        ? { kind: MarkupKind.Markdown, value: `**${escapeMarkdown(title)}**` }
+        : { kind: MarkupKind.PlainText, value: title });
     }
 
-    const markdownDescription = annotation.markdownDescription();
+    const markdownDescription = supportsMarkdown ? annotation.markdownDescription() : undefined;
     const description = annotation.description();
     if (markdownDescription) {
       documentation.push({ kind: MarkupKind.Markdown, value: markdownDescription });
@@ -24,6 +26,8 @@ export const describeAnnotations = (annotations: Annotation[]): MarkupContent[] 
 
   return documentation;
 };
+
+export const supportsMarkdown = (formats: MarkupKind[] | undefined) => !!formats?.includes(MarkupKind.Markdown);
 
 // Joins documentation into paragraphs. Markdown if any of it is markdown,
 // otherwise plain text. Plain text is escaped when it's combined with markdown.

@@ -3,7 +3,7 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import * as Pact from "@hyperjump/pact";
 import { JsonDocuments } from "../../services/JsonDocuments.ts";
 import { JsonDocument } from "../../models/JsonDocument.ts";
-import { describeAnnotations, joinDocumentation } from "../annotation-documentation.ts";
+import { describeAnnotations, joinDocumentation, supportsMarkdown } from "../annotation-documentation.ts";
 
 import type { CompletionItem, MarkupContent, Position, ServerCapabilities, Range } from "vscode-languageserver";
 import type { Node } from "jsonc-parser";
@@ -20,17 +20,21 @@ export type CompletionContext = {
   instanceLocation: string;
   range: Range;
   position: Position;
+  supportsMarkdown: boolean;
 };
 
 export class Completions {
   private jsonDocuments: JsonDocuments;
   private providers: CompletionsProvider[];
+  private supportsMarkdown = false;
 
   constructor(server: Server, jsonDocuments: JsonDocuments, jsonSchema: JsonSchema, providers: CompletionsProvider[]) {
     this.jsonDocuments = jsonDocuments;
     this.providers = providers;
 
-    server.onInitialize(() => {
+    server.onInitialize(({ capabilities }) => {
+      this.supportsMarkdown = supportsMarkdown(capabilities.textDocument?.completion?.completionItem?.documentationFormat);
+
       const serverCapabilities: ServerCapabilities = {
         completionProvider: {
           triggerCharacters: [":", "\"", "\n", " "]
@@ -56,7 +60,7 @@ export class Completions {
         }
       }
 
-      const context = getCompletionContext(jsonDocument, params.position);
+      const context = getCompletionContext(jsonDocument, params.position, this.supportsMarkdown);
       if (!context) {
         return [];
       }
@@ -71,7 +75,7 @@ export class Completions {
   }
 }
 
-const getCompletionContext = (jsonDocument: JsonDocument, position: Position): CompletionContext | undefined => {
+const getCompletionContext = (jsonDocument: JsonDocument, position: Position, supportsMarkdown: boolean): CompletionContext | undefined => {
   const node = jsonDocument.findNodeAtPosition({ ...position, character: position.character - 1 });
   if (!node) {
     return;
@@ -114,19 +118,22 @@ const getCompletionContext = (jsonDocument: JsonDocument, position: Position): C
       range = jsonDocument.rangeAt(node.offset, node.offset + node.length);
   }
 
-  return { node, instanceLocation, range, position };
+  return { node, instanceLocation, range, position, supportsMarkdown };
 };
 
 // Describes a completion with its annotations. It's marked as deprecated if any
 // of them deprecate it, and its documentation leads with their deprecation
 // messages followed by the titles and descriptions.
-export const describeCompletion = (completionItem: CompletionItem, annotations: Annotation[]) => {
+export const describeCompletion = (completionItem: CompletionItem, annotations: Annotation[], supportsMarkdown: boolean) => {
   const deprecated = annotations.filter((annotation) => annotation.deprecated());
   if (deprecated.length > 0) {
     completionItem.tags = [CompletionItemTag.Deprecated];
   }
 
-  const documentation = joinDocumentation([...deprecationMessages(deprecated), ...describeAnnotations(annotations)]);
+  const documentation = joinDocumentation([
+    ...deprecationMessages(deprecated, supportsMarkdown),
+    ...describeAnnotations(annotations, supportsMarkdown)
+  ]);
   if (documentation) {
     completionItem.documentation = documentation;
   }
@@ -134,10 +141,10 @@ export const describeCompletion = (completionItem: CompletionItem, annotations: 
 
 // The deprecation messages of every annotation that deprecates a completion.
 // Prefers markdownDeprecationMessage over deprecationMessage.
-const deprecationMessages = (deprecated: Annotation[]) => {
+const deprecationMessages = (deprecated: Annotation[], supportsMarkdown: boolean) => {
   const messages: MarkupContent[] = [];
   for (const annotation of deprecated) {
-    const markdownMessage = annotation.markdownDeprecationMessage();
+    const markdownMessage = supportsMarkdown ? annotation.markdownDeprecationMessage() : undefined;
     if (markdownMessage) {
       messages.push({ kind: MarkupKind.Markdown, value: markdownMessage });
       continue;

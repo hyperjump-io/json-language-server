@@ -15,6 +15,7 @@ import {
   FileChangeType,
   InitializedNotification,
   InitializeRequest,
+  MarkupKind,
   PublishDiagnosticsNotification,
   RegistrationRequest,
   ShutdownRequest
@@ -189,6 +190,14 @@ export class TestClient {
           publishDiagnostics: {
             tagSupport: {
               valueSet: [DiagnosticTag.Unnecessary, DiagnosticTag.Deprecated]
+            }
+          },
+          hover: {
+            contentFormat: [MarkupKind.Markdown, MarkupKind.PlainText]
+          },
+          completion: {
+            completionItem: {
+              documentationFormat: [MarkupKind.Markdown, MarkupKind.PlainText]
             }
           },
           semanticTokens: {

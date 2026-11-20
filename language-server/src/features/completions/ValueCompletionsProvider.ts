@@ -49,7 +49,7 @@ export class ValueCompletionsProvider implements CompletionsProvider {
 
         // A value is described and deprecated only because of what it is, not
         // because of its location
-        describeCompletion(completionItem, completion.annotations);
+        describeCompletion(completionItem, completion.annotations, context.supportsMarkdown);
 
         completions.push(completionItem);
       }

@@ -70,7 +70,7 @@ export class PropertyCompletionsProvider implements CompletionsProvider {
 
         // A property is described and deprecated only by the annotations that
         // apply no matter what its value is
-        describeCompletion(completionItem, annotations);
+        describeCompletion(completionItem, annotations, context.supportsMarkdown);
 
         completionItems.push(completionItem);
       }
