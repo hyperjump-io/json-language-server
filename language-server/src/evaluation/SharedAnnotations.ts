@@ -1,55 +1,49 @@
+import { Annotation } from "./Annotation.ts";
+
 import type { AnnotationRecord } from "./Annotation.ts";
 
-// Only these boolean flags need agreement across alternatives. Other
-// annotations (such as titles, descriptions and defaultSnippets) accumulate
-// independently, even when their values differ.
-const reconciledKeywords = new Set([
-  "https://json-schema.org/keyword/deprecated",
-  "https://json-schema.org/keyword/unknown#deprecated",
+// These keywords influence whether a property completion is suppressed.
+// Compare their *effective* boolean values across alternatives rather than
+// just comparing keyword IDs: an unknown keyword may be recognized through
+// a vocabulary fallback, and a deprecation message also implies deprecation.
+const suggestionKeywords = new Set([
   "https://microsoft.com/keyword/doNotSuggest",
   "https://json-schema.org/keyword/unknown#doNotSuggest"
 ]);
+const deprecationKeywords = new Set([
+  "https://json-schema.org/keyword/deprecated",
+  "https://json-schema.org/keyword/unknown#deprecated",
+  "https://microsoft.com/keyword/deprecationMessage",
+  "https://json-schema.org/keyword/unknown#deprecationMessage",
+  "https://microsoft.com/keyword/markdownDeprecationMessage",
+  "https://json-schema.org/keyword/unknown#markdownDeprecationMessage"
+]);
+
+export type SharedConditionalFlags = { doNotSuggest: boolean; deprecated: boolean };
 
 // Keep transformed records stable across repeated evaluation of the same
 // schema. Annotation deduplication in the evaluation plugin uses identity.
 const filteredRecords = new WeakMap<AnnotationRecord, Map<string, AnnotationRecord>>();
 
-export function sharedAnnotationKeywords(groups: AnnotationRecord[][]): AnnotationRecord {
-  const shared: AnnotationRecord = {};
-  if (groups.length === 0) {
-    return shared;
-  }
-
-  for (const record of groups[0]) {
-    for (const [keyword, value] of Object.entries(record)) {
-      if (!reconciledKeywords.has(keyword)) {
-        continue;
-      }
-
-      // A branch may have several records at this location (e.g. $ref and
-      // sibling keywords). They are not mutually exclusive alternatives.
-      if (groups.every((group) => {
-        const values = group.filter((annotation) => Object.prototype.hasOwnProperty.call(annotation, keyword))
-          .map((annotation) => annotation[keyword]);
-        return values.length > 0 && values.every((candidate) => sameAnnotationValue(candidate, value));
-      })) {
-        shared[keyword] = value;
-      }
-    }
-  }
-
-  return shared;
+// Each group is one offering alternative, possibly with several annotation
+// records ($ref and sibling keywords can each contribute a record). Only an
+// effective true flag in *every* offering alternative is unconditional.
+export function sharedConditionalFlags(groups: AnnotationRecord[][]): SharedConditionalFlags {
+  return {
+    doNotSuggest: groups.length > 0 && groups.every((group) =>
+      group.some((record) => new Annotation(record).doNotSuggest())),
+    deprecated: groups.length > 0 && groups.every((group) =>
+      group.some((record) => new Annotation(record).deprecated()))
+  };
 }
 
-// Preserve every ordinary annotation. Remove only conditional flags that do
-// not agree across the alternatives offering this property. If filtering is
-// necessary, cache the resulting object by its original identity and removed
-// keywords, so applying a schema twice doesn't duplicate its annotations.
-export function withoutUnsharedConditionalKeywords(record: AnnotationRecord, shared: AnnotationRecord): AnnotationRecord {
+// Keep titles, descriptions and snippets from each alternative unchanged.
+// Only remove conditional suppression/deprecation keywords when not shared.
+// A stable cached filtered record retains identity-based deduplication.
+export function withoutUnsharedConditionalKeywords(record: AnnotationRecord, shared: SharedConditionalFlags): AnnotationRecord {
   const removed = Object.keys(record)
-    .filter((keyword) => reconciledKeywords.has(keyword)
-      && (!Object.prototype.hasOwnProperty.call(shared, keyword)
-        || !sameAnnotationValue(record[keyword], shared[keyword])))
+    .filter((keyword) => (!shared.doNotSuggest && suggestionKeywords.has(keyword))
+      || (!shared.deprecated && deprecationKeywords.has(keyword)))
     .sort();
 
   if (removed.length === 0) {
@@ -69,8 +63,8 @@ export function withoutUnsharedConditionalKeywords(record: AnnotationRecord, sha
     cache.set(key, filtered);
   }
 
-  // An annotation record can be populated incrementally during evaluation.
-  // Reuse the cached object, but refresh its fields to match the current source.
+  // Source annotation records may be filled incrementally. Refresh cached
+  // contents without changing identity, which is used for deduplication.
   for (const keyword of Object.keys(filtered)) {
     delete filtered[keyword];
   }
@@ -81,26 +75,4 @@ export function withoutUnsharedConditionalKeywords(record: AnnotationRecord, sha
   }
 
   return filtered;
-}
-
-// The flagged keyword values are JSON, so compare objects and arrays by value
-// rather than by reference.
-function sameAnnotationValue(a: unknown, b: unknown): boolean {
-  if (Object.is(a, b)) {
-    return true;
-  }
-  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) {
-    return false;
-  }
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length
-      && a.every((item, i) => sameAnnotationValue(item, b[i]));
-  }
-
-  const aRecord = a as Record<string, unknown>;
-  const bRecord = b as Record<string, unknown>;
-  const keys = Object.keys(aRecord);
-  return keys.length === Object.keys(bRecord).length
-    && keys.every((key) => Object.prototype.hasOwnProperty.call(bRecord, key)
-      && sameAnnotationValue(aRecord[key], bRecord[key]));
 }
