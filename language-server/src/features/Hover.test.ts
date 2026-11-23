@@ -1502,9 +1502,9 @@ _hyperjump-json-language-server_`
     };
 
     for (const keyword of ["anyOf", "oneOf"] as const) {
-      test(`${keyword}: common child title is preserved on the property key`, async () => {
+      test(`${keyword}: identical titles from different alternatives are both preserved on the property key`, async () => {
         const result = await hoverName(keyword, { title: "Shared name" }, { title: "Shared name" }, 10);
-        expect(result).toEqual(hoverTitles("Shared name"));
+        expect(result).toEqual(hoverTitles("Shared name", "Shared name"));
       });
 
       test(`${keyword}: differing child titles remain visible when hovering the value`, async () => {
