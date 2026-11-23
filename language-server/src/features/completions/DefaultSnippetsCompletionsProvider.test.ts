@@ -849,4 +849,40 @@ describe("Value Completions", () => {
       }
     });
   });
+
+  test("defaultSnippets on a property in one alternative are offered for an incomplete location", async () => {
+    const fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "properties": {
+                "name": {
+                  "defaultSnippets": [{ "label": "FromCat", "bodyText": "\\"cat\\"" }]
+                }
+              }
+            },
+            { "properties": { "name": { "type": "string" } } }
+          ]
+        }
+      }
+    }`);
+
+    await client.writeDocument("instance.json", `{
+      "$schema": "${fixtureSchemaUri}",
+      "value": {
+        "name":
+      }
+    }`);
+    const uri = await client.openDocument("instance.json");
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 3, character: 15 }
+    });
+
+    expect(completions).toContainEqual(expect.objectContaining({ label: "FromCat" }));
+  });
 });
