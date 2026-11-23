@@ -610,7 +610,10 @@ function mergeAlternativeAnnotations(target: RecordedAnnotations, alternatives: 
       || Object.prototype.hasOwnProperty.call(completions, pointer));
     const groups = offering.map(({ annotations }) => (annotations[pointer] ?? [])
       .filter(({ kind }) => kind === "location").map(({ annotation }) => annotation));
-    const shared = pointer === parentPointer ? {} : sharedConditionalFlags(groups);
+    // The parent is never filtered, but keep the flag shape type-safe.
+    const shared = pointer === parentPointer
+      ? { doNotSuggest: false, deprecated: false }
+      : sharedConditionalFlags(groups);
     for (const { annotations } of offering) {
       const records: RecordedAnnotation[] = (annotations[pointer] ?? []).map(({ kind, annotation }) => ({
         // A branch's annotations on the parent itself depend on its value.
