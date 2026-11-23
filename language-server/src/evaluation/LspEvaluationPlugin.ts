@@ -4,7 +4,7 @@ import * as JsonPointer from "@hyperjump/json-pointer";
 import { JsonValueSet } from "./JsonValueSet.ts";
 import { SubschemaTracker } from "./SubschemaTracker.ts";
 import { Annotation } from "./Annotation.ts";
-import { sharedAnnotationKeywords, withoutUnsharedConditionalKeywords } from "./SharedAnnotations.ts";
+import { sharedConditionalFlags, withoutUnsharedConditionalKeywords } from "./SharedAnnotations.ts";
 
 import type { EvaluationPlugin, Keyword, Node, ValidationContext } from "@hyperjump/json-schema/experimental";
 import type { JsonNode } from "@hyperjump/json-schema/instance/experimental";
@@ -610,7 +610,7 @@ function mergeAlternativeAnnotations(target: RecordedAnnotations, alternatives: 
       || Object.prototype.hasOwnProperty.call(completions, pointer));
     const groups = offering.map(({ annotations }) => (annotations[pointer] ?? [])
       .filter(({ kind }) => kind === "location").map(({ annotation }) => annotation));
-    const shared = pointer === parentPointer ? {} : sharedAnnotationKeywords(groups);
+    const shared = pointer === parentPointer ? {} : sharedConditionalFlags(groups);
     for (const { annotations } of offering) {
       const records: RecordedAnnotation[] = (annotations[pointer] ?? []).map(({ kind, annotation }) => ({
         // A branch's annotations on the parent itself depend on its value.
@@ -645,7 +645,7 @@ function unionAlternativesInto(target: Completions, alternatives: Completions[])
 }
 
 function reconcileAlternativeValueSets(sets: JsonValueSet[]): JsonValueSet[] {
-  const shared = sharedAnnotationKeywords(sets.map((set) => set.getLocationAnnotations()));
+  const shared = sharedConditionalFlags(sets.map((set) => set.getLocationAnnotations()));
   return sets.map((set) => set.withReconciledLocationAnnotations(shared));
 }
 
