@@ -30,10 +30,8 @@ const filteredRecords = new WeakMap<AnnotationRecord, Map<string, AnnotationReco
 // effective true flag in *every* offering alternative is unconditional.
 export function sharedConditionalFlags(groups: AnnotationRecord[][]): SharedConditionalFlags {
   return {
-    doNotSuggest: groups.length > 0 && groups.every((group) =>
-      group.some((record) => new Annotation(record).doNotSuggest())),
-    deprecated: groups.length > 0 && groups.every((group) =>
-      group.some((record) => new Annotation(record).deprecated()))
+    doNotSuggest: groups.length > 0 && groups.every((group) => group.some((record) => new Annotation(record).doNotSuggest())),
+    deprecated: groups.length > 0 && groups.every((group) => group.some((record) => new Annotation(record).deprecated()))
   };
 }
 
