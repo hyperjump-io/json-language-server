@@ -2119,6 +2119,41 @@ describe("Property completions", () => {
         expect(items.find(({ label }) => label === "name")?.tags).toContain(CompletionItemTag.Deprecated);
       });
 
+      test(`${keyword}: a deprecation message in just one alternative does not deprecate the property`, async () => {
+        for (const messageKey of ["deprecationMessage", "markdownDeprecationMessage"] as const) {
+          const items = await suggestions({
+            properties: {
+              value: {
+                [keyword]: [
+                  { properties: { name: { type: "number", [messageKey]: "Use fullName instead." } } },
+                  { properties: { name: { type: "string" } } }
+                ]
+              }
+            }
+          });
+          const name = items.find(({ label }) => label === "name");
+          expect(name).toBeDefined();
+          expect(name?.tags).toBeUndefined();
+        }
+      });
+
+      test(`${keyword}: different deprecation messages still deprecate when both alternatives agree`, async () => {
+        const items = await suggestions({
+          properties: {
+            value: {
+              [keyword]: [
+                { properties: { name: { type: "number", deprecationMessage: "Use numericId." } } },
+                { properties: { name: { type: "string", markdownDeprecationMessage: "Use **textId**." } } }
+              ]
+            }
+          }
+        });
+        const name = items.find(({ label }) => label === "name");
+        expect(name?.tags).toContain(CompletionItemTag.Deprecated);
+        expect(JSON.stringify(name?.documentation)).toContain("numericId");
+        expect(JSON.stringify(name?.documentation)).toContain("textId");
+      });
+
       test(`${keyword}: the rule also applies to deeper property locations`, async () => {
         const items = await suggestions({
           properties: {
