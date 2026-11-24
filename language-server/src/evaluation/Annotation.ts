@@ -28,14 +28,26 @@ export class BaseAnnotation {
   // uses this to ignore values that aren't valid against that keyword's schema.
   // Undefined if the keyword isn't present or its value isn't valid.
   protected unknownKeyword(keyword: string, schemaUri: string, ast: AST) {
-    const value = this.keywords[`https://json-schema.org/keyword/unknown#${keyword}`] as Json | undefined;
-    if (value !== undefined && !interpret({ schemaUri, ast }, Instance.fromJs(value)).valid) {
-      return;
+    let validated = validatedUnknownKeywords.get(this.keywords);
+    if (!validated) {
+      validated = new Map();
+      validatedUnknownKeywords.set(this.keywords, validated);
     }
 
-    return value;
+    if (!validated.has(keyword)) {
+      const value = this.keywords[`https://json-schema.org/keyword/unknown#${keyword}`] as Json | undefined;
+      const isValid = value === undefined || interpret({ schemaUri, ast }, Instance.fromJs(value)).valid;
+      validated.set(keyword, isValid ? value : undefined);
+    }
+
+    return validated.get(keyword);
   }
 }
+
+// An accessor can be called for every completion at a location, and
+// Annotation objects are created every time annotations are read, so the
+// validated value of an unknown keyword is kept per record
+const validatedUnknownKeywords = new WeakMap<AnnotationRecord, Map<string, Json | undefined>>();
 
 // The annotations one schema contributed to an instance location, with the
 // accessors of every vocabulary. A vocabulary's mixin overrides the accessors of

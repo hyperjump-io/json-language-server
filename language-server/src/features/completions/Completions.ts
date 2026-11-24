@@ -119,14 +119,15 @@ const getCompletionContext = (jsonDocument: JsonDocument, position: Position): C
 
 // Describes a completion with its annotations. It's marked as deprecated if any
 // of them deprecate it, and its documentation leads with their deprecation
-// messages followed by the titles and descriptions.
-export const describeCompletion = (completionItem: CompletionItem, annotations: Annotation[]) => {
+// messages followed by the titles and descriptions, and then any other
+// documentation it's given.
+export const describeCompletion = (completionItem: CompletionItem, annotations: Annotation[], otherDocumentation: MarkupContent[] = []) => {
   const deprecated = annotations.filter((annotation) => annotation.deprecated());
   if (deprecated.length > 0) {
     completionItem.tags = [CompletionItemTag.Deprecated];
   }
 
-  const documentation = joinDocumentation([...deprecationMessages(deprecated), ...describeAnnotations(annotations)]);
+  const documentation = joinDocumentation([...deprecationMessages(deprecated), ...describeAnnotations(annotations), ...otherDocumentation]);
   if (documentation) {
     completionItem.documentation = documentation;
   }

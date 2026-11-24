@@ -1,6 +1,7 @@
 import { CompletionItemKind, InsertTextFormat } from "vscode-languageserver";
 import { JsonDocument } from "../../models/JsonDocument.ts";
 import { LspEvaluationPlugin } from "../../evaluation/LspEvaluationPlugin.ts";
+import { describeEnumValue } from "../annotation-documentation.ts";
 import { describeCompletion } from "./Completions.ts";
 
 import type { CompletionContext, CompletionsProvider } from "./Completions.ts";
@@ -48,8 +49,12 @@ export class ValueCompletionsProvider implements CompletionsProvider {
         };
 
         // A value is described and deprecated only because of what it is, not
-        // because of its location
-        describeCompletion(completionItem, completion.annotations);
+        // because of its location. Its enum description is about what it is
+        // too, but it's in the schema of its location or of an alternative.
+        const enumDescriptions = completion.kind === "value"
+          ? describeEnumValue(plugin.getCompletionAnnotations(context.instanceLocation, completion.value), completion.value)
+          : [];
+        describeCompletion(completionItem, completion.annotations, enumDescriptions);
 
         completions.push(completionItem);
       }

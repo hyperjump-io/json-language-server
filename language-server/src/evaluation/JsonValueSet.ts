@@ -188,6 +188,14 @@ export class JsonValueSet {
     return bucket && admits(bucket, value) ? annotationsOf(bucket, value) : [];
   }
 
+  // All the annotations that apply to a member of the set, both the location
+  // annotations and the member's own. A schema that applies both ways, such
+  // as one that's referenced unconditionally and as an anyOf alternative, is
+  // included once.
+  getAnnotations(value: string): AnnotationRecord[] {
+    return mergeAnnotations(this.annotations, this.getValueAnnotations(value));
+  }
+
   clone(): JsonValueSet {
     const copy = new JsonValueSet();
     for (const [type, bucket] of this.buckets) {

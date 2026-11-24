@@ -25,6 +25,24 @@ export const describeAnnotations = (annotations: Annotation[]): MarkupContent[] 
   return documentation;
 };
 
+// The descriptions of a value, given as its canonical JSON, from every
+// annotation whose enum includes it. Prefers markdownEnumDescriptions over
+// enumDescriptions.
+export const describeEnumValue = (annotations: Annotation[], value: string): MarkupContent[] => {
+  const documentation: MarkupContent[] = [];
+  for (const annotation of annotations) {
+    const markdownDescription = annotation.markdownEnumDescription(value);
+    const description = annotation.enumDescription(value);
+    if (markdownDescription) {
+      documentation.push({ kind: MarkupKind.Markdown, value: markdownDescription });
+    } else if (description) {
+      documentation.push({ kind: MarkupKind.PlainText, value: description });
+    }
+  }
+
+  return documentation;
+};
+
 // Joins documentation into paragraphs. Markdown if any of it is markdown,
 // otherwise plain text. Plain text is escaped when it's combined with markdown.
 export const joinDocumentation = (documentation: MarkupContent[]): MarkupContent | undefined => {

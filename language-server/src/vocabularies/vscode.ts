@@ -72,6 +72,20 @@ addKeyword({
   annotation: (value: unknown) => value
 });
 
+addKeyword({
+  id: "https://microsoft.com/keyword/enumDescriptions",
+  compile: (schema) => Browser.value(schema),
+  interpret: () => true,
+  annotation: (value: unknown) => value
+});
+
+addKeyword({
+  id: "https://microsoft.com/keyword/markdownEnumDescriptions",
+  compile: (schema) => Browser.value(schema),
+  interpret: () => true,
+  annotation: (value: unknown) => value
+});
+
 defineVocabulary("https://microsoft.com/vocab/vscode", {
   markdownDescription: "https://microsoft.com/keyword/markdownDescription",
   defaultSnippets: "https://microsoft.com/keyword/defaultSnippets",
@@ -82,7 +96,9 @@ defineVocabulary("https://microsoft.com/vocab/vscode", {
   doNotSuggest: "https://microsoft.com/keyword/doNotSuggest",
   allowComments: "https://microsoft.com/keyword/allowComments",
   allowTrailingCommas: "https://microsoft.com/keyword/allowTrailingCommas",
-  allowsTrailingCommas: "https://microsoft.com/keyword/allowsTrailingCommas"
+  allowsTrailingCommas: "https://microsoft.com/keyword/allowsTrailingCommas",
+  enumDescriptions: "https://microsoft.com/keyword/enumDescriptions",
+  markdownEnumDescriptions: "https://microsoft.com/keyword/markdownEnumDescriptions"
 });
 
 registerSchema({
@@ -111,6 +127,8 @@ registerSchema({
     doNotSuggest: { type: "boolean" },
     allowComments: { type: "boolean" },
     allowTrailingCommas: { type: "boolean" },
-    allowsTrailingCommas: { type: "boolean" }
+    allowsTrailingCommas: { type: "boolean" },
+    enumDescriptions: { type: "array", items: { type: "string" } },
+    markdownEnumDescriptions: { type: "array", items: { type: "string" } }
   }
 });

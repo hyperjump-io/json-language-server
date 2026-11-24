@@ -269,6 +269,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
       if (!schemaContext.ownAnnotations) {
         this.ownAnnotationRecords[instance.pointer] ??= Object.create(null);
         schemaContext.ownAnnotations = this.ownAnnotationRecords[instance.pointer][schemaContext.schemaLocation!] ??= {};
+        addEnumValues(schemaContext.ownAnnotations, context.ast[schemaContext.schemaLocation!] as Node<unknown>[]);
         appendAnnotations(schemaContext.schemaAnnotations!, {
           [instance.pointer]: [{ kind: "location", annotation: schemaContext.ownAnnotations }]
         });
@@ -386,6 +387,12 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
     return toAnnotations(this.completions[instanceLocation]?.().getMemberAnnotations() ?? []);
   }
 
+  // All the annotations that apply to a value completion at a location, both
+  // the location's and the ones that apply because of the value
+  getCompletionAnnotations(pointer: string, value: string): Annotation[] {
+    return toAnnotations(this.completions[pointer]?.().getAnnotations(value) ?? []);
+  }
+
   private getAnnotationsOfKind(instanceLocation: string, kind: RecordedAnnotation["kind"]): AnnotationRecord[] {
     const annotations: AnnotationRecord[] = [];
     for (const recorded of this.annotations[instanceLocation]) {
@@ -489,6 +496,7 @@ export class LspEvaluationPlugin implements EvaluationPlugin<LspContext> {
           ownAnnotations.firstAnnotationNode ??= node;
         }
       }
+      addEnumValues(ownAnnotations.annotation, nodes);
       this.completionAnnotations.set(schemaLocation, ownAnnotations);
     }
 
@@ -629,6 +637,16 @@ function addKeywordAnnotation(annotation: AnnotationRecord, [keywordId, , keywor
     }
   }
   return false;
+}
+
+// The values of enum aren't an annotation, but they're recorded with a
+// schema's annotations because enumDescriptions describes them by position.
+// They don't create a record on their own.
+function addEnumValues(annotation: AnnotationRecord, nodes: Node<unknown>[]) {
+  const enumNode = nodes.find(([keywordId]) => keywordId === "https://json-schema.org/keyword/enum");
+  if (enumNode) {
+    annotation[enumNode[0]] = enumNode[2];
+  }
 }
 
 function toAnnotations(records: AnnotationRecord[]): Annotation[] {
