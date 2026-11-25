@@ -20,7 +20,7 @@
   "keywords": [],
   "dependencies": {
     "@fluent/bundle": "^0.19.1",
-    "@hyperjump/browser": "^1.4.0",
+    "@hyperjump/browser": "^2.0.0",
     "@hyperjump/json-schema": "^1.18.0",
     "@hyperjump/json-schema-errors": "^1.0.0",
     "@hyperjump/pact": "^1.4.0",
